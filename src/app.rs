@@ -9,7 +9,7 @@ const PIXEL_TO_METER: f32 = 0.01;
 #[serde(default)]
 pub struct HomeFlow {
     #[serde(skip)]
-    pan: Vec2,
+    translation: Vec2,
     #[serde(skip)]
     zoom: f32,
     #[serde(skip)]
@@ -19,7 +19,7 @@ pub struct HomeFlow {
 impl Default for HomeFlow {
     fn default() -> Self {
         Self {
-            pan: Vec2::ZERO,
+            translation: Vec2::ZERO,
             zoom: 1.0,
             rotation: 0.0,
         }
@@ -48,7 +48,7 @@ impl eframe::App for HomeFlow {
             let (response, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::drag());
 
             if response.dragged() {
-                self.pan += response.drag_delta();
+                self.translation += response.drag_delta();
             }
 
             let scroll_delta = ui.input(|i| i.scroll_delta);
@@ -63,63 +63,113 @@ impl eframe::App for HomeFlow {
                 self.rotation += 5.0; // Rotate clockwise
             }
 
-            render_grid(&painter, &response.rect, self.pan, self.zoom, self.rotation);
-            render_box(&painter, &response.rect, self.pan, self.zoom, self.rotation);
+            render_grid(
+                &painter,
+                &response.rect,
+                self.translation,
+                self.zoom,
+                self.rotation,
+            );
+            render_box(
+                &painter,
+                &response.rect,
+                self.translation,
+                self.zoom,
+                self.rotation,
+            );
         });
     }
 }
 
-fn render_grid(painter: &Painter, visible_rect: &Rect, pan: Vec2, zoom: f32, rotation: f32) {
+fn render_grid(
+    painter: &Painter,
+    visible_rect: &Rect,
+    translation: Vec2,
+    zoom: f32,
+    rotation: f32,
+) {
     let center_of_painter = Vec2::new(visible_rect.width() / 2.0, visible_rect.height() / 2.0);
     let grid_spacing = 1.0 * zoom / PIXEL_TO_METER;
 
-    // Start and end points for grid lines
-    let left = visible_rect.left() - pan.x;
-    let right = visible_rect.right() - pan.x;
-    let top = visible_rect.top() - pan.y;
-    let bottom = visible_rect.bottom() - pan.y;
+    // Manually iterate over the range for both x and y
+    let mut x = visible_rect.left() + center_of_painter.x + translation.x;
+    while x < visible_rect.right() + center_of_painter.x + translation.x {
+        let mut y = visible_rect.top() + center_of_painter.y + translation.y;
+        while y < visible_rect.bottom() + center_of_painter.y + translation.y {
+            // Calculate start and end points for horizontal and vertical lines
+            let start_h = Pos2::new(x, visible_rect.top());
+            let end_h = Pos2::new(x, visible_rect.bottom());
+            let start_v = Pos2::new(visible_rect.left(), y);
+            let end_v = Pos2::new(visible_rect.right(), y);
 
-    // Horizontal lines
-    let mut y = top - top % grid_spacing - center_of_painter.y;
-    while y <= bottom {
-        let line_start = Pos2::new(left, y);
-        let line_end = Pos2::new(right, y);
-        painter.line_segment(
-            [line_start + pan, line_end + pan],
-            Stroke::new(1.0, Color32::GRAY),
-        );
-        y += grid_spacing;
-    }
+            // Apply rotation
+            let rotated_h = rotate_points(start_h, end_h, rotation, center_of_painter);
+            let rotated_v = rotate_points(start_v, end_v, rotation, center_of_painter);
 
-    // Vertical lines
-    let mut x = left - left % grid_spacing - center_of_painter.x;
-    while x <= right {
-        let line_start = Pos2::new(x, top);
-        let line_end = Pos2::new(x, bottom);
-        painter.line_segment(
-            [line_start + pan, line_end + pan],
-            Stroke::new(1.0, Color32::GRAY),
-        );
+            // Draw lines
+            painter.line_segment(rotated_h.into(), Stroke::new(1.0, Color32::GRAY));
+            painter.line_segment(rotated_v.into(), Stroke::new(1.0, Color32::GRAY));
+
+            y += grid_spacing;
+        }
         x += grid_spacing;
     }
 }
 
-fn render_box(painter: &Painter, visible_rect: &Rect, pan: Vec2, zoom: f32, rotation: f32) {
+// Helper function to rotate points around a pivot
+fn rotate_points(start: Pos2, end: Pos2, angle: f32, pivot: Vec2) -> (Pos2, Pos2) {
+    let angle_rad = angle.to_radians();
+    let cos_angle = angle_rad.cos();
+    let sin_angle = angle_rad.sin();
+
+    let rotate = |point: Pos2| -> Pos2 {
+        let translated_point = point - pivot;
+        Pos2::new(
+            cos_angle * translated_point.x - sin_angle * translated_point.y,
+            sin_angle * translated_point.x + cos_angle * translated_point.y,
+        ) + pivot
+    };
+
+    (rotate(start), rotate(end))
+}
+
+fn render_box(painter: &Painter, visible_rect: &Rect, translation: Vec2, zoom: f32, rotation: f32) {
     let center_of_painter = Vec2::new(visible_rect.width() / 2.0, visible_rect.height() / 2.0);
     let box_size = Vec2::new(2.0 * zoom / PIXEL_TO_METER, 2.0 * zoom / PIXEL_TO_METER);
-    let center = Pos2::new(0.0, 0.0) + center_of_painter + pan;
 
-    // Calculate the rotated corners of the box
+    // Initial center of the box
+    let initial_center =
+        Pos2::new(3.0 * zoom / PIXEL_TO_METER, 0.0) + center_of_painter + translation;
+
+    // Rotate the center around the pivot
+    let rotated_center = rotate_point(
+        initial_center,
+        Pos2::new(center_of_painter.x, center_of_painter.y),
+        rotation,
+    );
+
+    // Calculate the rotated corners of the box based on the rotated center
     let mut corners = [
-        Pos2::new(center.x - box_size.x / 2.0, center.y - box_size.y / 2.0),
-        Pos2::new(center.x + box_size.x / 2.0, center.y - box_size.y / 2.0),
-        Pos2::new(center.x + box_size.x / 2.0, center.y + box_size.y / 2.0),
-        Pos2::new(center.x - box_size.x / 2.0, center.y + box_size.y / 2.0),
+        Pos2::new(
+            rotated_center.x - box_size.x / 2.0,
+            rotated_center.y - box_size.y / 2.0,
+        ),
+        Pos2::new(
+            rotated_center.x + box_size.x / 2.0,
+            rotated_center.y - box_size.y / 2.0,
+        ),
+        Pos2::new(
+            rotated_center.x + box_size.x / 2.0,
+            rotated_center.y + box_size.y / 2.0,
+        ),
+        Pos2::new(
+            rotated_center.x - box_size.x / 2.0,
+            rotated_center.y + box_size.y / 2.0,
+        ),
     ];
 
-    let rotation_rad = rotation.to_radians();
     for corner in &mut corners {
-        *corner = rotate_point(*corner, center, rotation_rad);
+        *corner = rotate_point(*corner, rotated_center, rotation);
     }
 
     // Create vertices for the mesh
@@ -147,7 +197,8 @@ fn render_box(painter: &Painter, visible_rect: &Rect, pan: Vec2, zoom: f32, rota
 }
 
 // Function to rotate a point around a pivot
-fn rotate_point(point: Pos2, pivot: Pos2, angle_rad: f32) -> Pos2 {
+fn rotate_point(point: Pos2, pivot: Pos2, angle: f32) -> Pos2 {
+    let angle_rad = angle.to_radians();
     let cos_angle = angle_rad.cos();
     let sin_angle = angle_rad.sin();
 
