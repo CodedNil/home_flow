@@ -1,12 +1,11 @@
 default:
-    trunk build --release
     cargo run --release
 
-web:
+build-web:
     trunk build --release
 
-server:
-    cargo run --release
+serve:
+    cargo run --release --no-default-features
 
 check:
     cargo check --all-targets
