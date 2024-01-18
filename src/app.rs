@@ -1,9 +1,4 @@
-use egui::{
-    epaint::Vertex, CentralPanel, Color32, Context, Key, Mesh, Painter, Pos2, Rect, Shape, Stroke,
-    TextureId, Vec2,
-};
-
-const PIXEL_TO_METER: f32 = 0.01;
+use egui::{CentralPanel, Color32, Context, Painter, Pos2, Rect, Stroke, Vec2};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -11,17 +6,14 @@ pub struct HomeFlow {
     #[serde(skip)]
     translation: Vec2,
     #[serde(skip)]
-    zoom: f32,
-    #[serde(skip)]
-    rotation: f32,
+    zoom: f32, // Zoom is meter to pixels
 }
 
 impl Default for HomeFlow {
     fn default() -> Self {
         Self {
             translation: Vec2::ZERO,
-            zoom: 1.0,
-            rotation: 0.0,
+            zoom: 100.0,
         }
     }
 }
@@ -33,6 +25,99 @@ impl HomeFlow {
         }
 
         Self::default()
+    }
+
+    fn pixels_to_world(&self, canvas_center: Pos2, pixels: Pos2) -> Vec2 {
+        (pixels - canvas_center) / self.zoom - self.translation
+    }
+
+    fn pixels_to_world_x(&self, canvas_center: Pos2, pixels: f32) -> f32 {
+        (pixels - canvas_center.x) / self.zoom - self.translation.x
+    }
+
+    fn pixels_to_world_y(&self, canvas_center: Pos2, pixels: f32) -> f32 {
+        (pixels - canvas_center.y) / self.zoom - self.translation.y
+    }
+
+    fn world_to_pixels(&self, canvas_center: Pos2, world: Pos2) -> Pos2 {
+        (world + self.translation) * self.zoom + Vec2::new(canvas_center.x, canvas_center.y)
+    }
+
+    fn world_to_pixels_x(&self, canvas_center: Pos2, world: f32) -> f32 {
+        (world + self.translation.x) * self.zoom + canvas_center.x
+    }
+
+    fn world_to_pixels_y(&self, canvas_center: Pos2, world: f32) -> f32 {
+        (world + self.translation.y) * self.zoom + canvas_center.y
+    }
+
+    fn render_grid(&self, painter: &Painter, visible_rect: &Rect, canvas_center: Pos2) {
+        let grid_intervals = [
+            (
+                if self.zoom <= 40.0 {
+                    4.0
+                } else if self.zoom <= 80.0 {
+                    2.0
+                } else {
+                    1.0
+                },
+                Color32::from_gray(160),
+            ),
+            (
+                if self.zoom <= 40.0 {
+                    1.0
+                } else if self.zoom <= 80.0 {
+                    0.5
+                } else {
+                    0.25
+                },
+                Color32::from_gray(50),
+            ),
+        ];
+
+        let (top_edge_world, bottom_edge_world) = (
+            self.pixels_to_world_y(canvas_center, visible_rect.top()),
+            self.pixels_to_world_y(canvas_center, visible_rect.bottom()),
+        );
+        let (left_edge_world, right_edge_world) = (
+            self.pixels_to_world_x(canvas_center, visible_rect.left()),
+            self.pixels_to_world_x(canvas_center, visible_rect.right()),
+        );
+
+        for (grid_interval, color) in grid_intervals {
+            // Draw vertical grid lines
+            for x in ((left_edge_world / grid_interval).ceil() as i32)..=((right_edge_world / grid_interval).floor() as i32) {
+                let grid_line_pixel = self.world_to_pixels_x(canvas_center, x as f32 * grid_interval);
+                painter.line_segment(
+                    [
+                        Pos2::new(grid_line_pixel, visible_rect.top()),
+                        Pos2::new(grid_line_pixel, visible_rect.bottom()),
+                    ],
+                    Stroke::new(1.0, color),
+                );
+            }
+
+            // Draw horizontal grid lines
+            for y in ((top_edge_world / grid_interval).ceil() as i32)..=((bottom_edge_world / grid_interval).floor() as i32) {
+                let grid_line_pixel = self.world_to_pixels_y(canvas_center, y as f32 * grid_interval);
+                painter.line_segment(
+                    [
+                        Pos2::new(visible_rect.left(), grid_line_pixel),
+                        Pos2::new(visible_rect.right(), grid_line_pixel),
+                    ],
+                    Stroke::new(1.0, color),
+                );
+            }
+        }
+    }
+
+    fn render_box(&self, painter: &Painter, canvas_center: Pos2) {
+        let box_size = Vec2::new(2.0 * self.zoom, 2.0 * self.zoom);
+        painter.rect_filled(
+            Rect::from_center_size(self.world_to_pixels(canvas_center, Pos2::new(3.0, 1.0)), box_size),
+            0.0,
+            Color32::from_rgb(255, 0, 0),
+        );
     }
 }
 
@@ -46,165 +131,26 @@ impl eframe::App for HomeFlow {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
             let (response, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::drag());
+            let canvas_center = response.rect.center();
 
             if response.dragged() {
-                self.translation += response.drag_delta();
+                self.translation += response.drag_delta() * 0.01 / (self.zoom / 100.0);
             }
 
             let scroll_delta = ui.input(|i| i.scroll_delta);
             if scroll_delta != Vec2::ZERO {
-                self.zoom = (self.zoom + scroll_delta.y / 100.0).clamp(0.1, 10.0);
+                if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
+                    let mouse_world_before_zoom = self.pixels_to_world(canvas_center, mouse_pos);
+                    self.zoom = (self.zoom + scroll_delta.y.signum() * 5.0).clamp(20.0, 300.0);
+                    let mouse_world_after_zoom = self.pixels_to_world(canvas_center, mouse_pos);
+                    self.translation += mouse_world_after_zoom - mouse_world_before_zoom;
+                } else {
+                    self.zoom = (self.zoom + scroll_delta.y.signum() * 5.0).clamp(20.0, 300.0);
+                }
             }
 
-            if ui.input(|i| i.key_pressed(Key::Q)) {
-                self.rotation -= 5.0; // Rotate counter-clockwise
-            }
-            if ui.input(|i| i.key_pressed(Key::E)) {
-                self.rotation += 5.0; // Rotate clockwise
-            }
-
-            render_grid(
-                &painter,
-                &response.rect,
-                self.translation,
-                self.zoom,
-                self.rotation,
-            );
-            render_box(
-                &painter,
-                &response.rect,
-                self.translation,
-                self.zoom,
-                self.rotation,
-            );
+            self.render_grid(&painter, &response.rect, canvas_center);
+            self.render_box(&painter, canvas_center);
         });
-    }
-}
-
-fn render_grid(
-    painter: &Painter,
-    visible_rect: &Rect,
-    translation: Vec2,
-    zoom: f32,
-    rotation: f32,
-) {
-    let center_of_painter = Vec2::new(visible_rect.width() / 2.0, visible_rect.height() / 2.0);
-    let grid_spacing = 1.0 * zoom / PIXEL_TO_METER;
-
-    // Manually iterate over the range for both x and y
-    let mut x = visible_rect.left() + center_of_painter.x + translation.x;
-    while x < visible_rect.right() + center_of_painter.x + translation.x {
-        let mut y = visible_rect.top() + center_of_painter.y + translation.y;
-        while y < visible_rect.bottom() + center_of_painter.y + translation.y {
-            // Calculate start and end points for horizontal and vertical lines
-            let start_h = Pos2::new(x, visible_rect.top());
-            let end_h = Pos2::new(x, visible_rect.bottom());
-            let start_v = Pos2::new(visible_rect.left(), y);
-            let end_v = Pos2::new(visible_rect.right(), y);
-
-            // Apply rotation
-            let rotated_h = rotate_points(start_h, end_h, rotation, center_of_painter);
-            let rotated_v = rotate_points(start_v, end_v, rotation, center_of_painter);
-
-            // Draw lines
-            painter.line_segment(rotated_h.into(), Stroke::new(1.0, Color32::GRAY));
-            painter.line_segment(rotated_v.into(), Stroke::new(1.0, Color32::GRAY));
-
-            y += grid_spacing;
-        }
-        x += grid_spacing;
-    }
-}
-
-// Helper function to rotate points around a pivot
-fn rotate_points(start: Pos2, end: Pos2, angle: f32, pivot: Vec2) -> (Pos2, Pos2) {
-    let angle_rad = angle.to_radians();
-    let cos_angle = angle_rad.cos();
-    let sin_angle = angle_rad.sin();
-
-    let rotate = |point: Pos2| -> Pos2 {
-        let translated_point = point - pivot;
-        Pos2::new(
-            cos_angle * translated_point.x - sin_angle * translated_point.y,
-            sin_angle * translated_point.x + cos_angle * translated_point.y,
-        ) + pivot
-    };
-
-    (rotate(start), rotate(end))
-}
-
-fn render_box(painter: &Painter, visible_rect: &Rect, translation: Vec2, zoom: f32, rotation: f32) {
-    let center_of_painter = Vec2::new(visible_rect.width() / 2.0, visible_rect.height() / 2.0);
-    let box_size = Vec2::new(2.0 * zoom / PIXEL_TO_METER, 2.0 * zoom / PIXEL_TO_METER);
-
-    // Initial center of the box
-    let initial_center =
-        Pos2::new(3.0 * zoom / PIXEL_TO_METER, 0.0) + center_of_painter + translation;
-
-    // Rotate the center around the pivot
-    let rotated_center = rotate_point(
-        initial_center,
-        Pos2::new(center_of_painter.x, center_of_painter.y),
-        rotation,
-    );
-
-    // Calculate the rotated corners of the box based on the rotated center
-    let mut corners = [
-        Pos2::new(
-            rotated_center.x - box_size.x / 2.0,
-            rotated_center.y - box_size.y / 2.0,
-        ),
-        Pos2::new(
-            rotated_center.x + box_size.x / 2.0,
-            rotated_center.y - box_size.y / 2.0,
-        ),
-        Pos2::new(
-            rotated_center.x + box_size.x / 2.0,
-            rotated_center.y + box_size.y / 2.0,
-        ),
-        Pos2::new(
-            rotated_center.x - box_size.x / 2.0,
-            rotated_center.y + box_size.y / 2.0,
-        ),
-    ];
-
-    for corner in &mut corners {
-        *corner = rotate_point(*corner, rotated_center, rotation);
-    }
-
-    // Create vertices for the mesh
-    let vertices = corners
-        .iter()
-        .map(|&pos| Vertex {
-            pos,
-            uv: Pos2::ZERO,
-            color: Color32::RED,
-        })
-        .collect::<Vec<_>>();
-
-    // Define indices for two triangles that make up the box
-    let indices = vec![0, 1, 2, 0, 2, 3]; // Two triangles covering the box area
-
-    // Create the mesh
-    let mesh = Mesh {
-        indices,
-        vertices,
-        texture_id: TextureId::Managed(0), // Default texture, since we're only using colors
-    };
-
-    // Add the mesh to the painter
-    painter.add(Shape::mesh(mesh));
-}
-
-// Function to rotate a point around a pivot
-fn rotate_point(point: Pos2, pivot: Pos2, angle: f32) -> Pos2 {
-    let angle_rad = angle.to_radians();
-    let cos_angle = angle_rad.cos();
-    let sin_angle = angle_rad.sin();
-
-    let translated_point = point - pivot;
-    Pos2 {
-        x: translated_point.x * cos_angle - translated_point.y * sin_angle + pivot.x,
-        y: translated_point.x * sin_angle + translated_point.y * cos_angle + pivot.y,
     }
 }
