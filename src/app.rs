@@ -1,25 +1,27 @@
-use egui::{remap, CentralPanel, Color32, Context, NumExt, Response, Slider, Ui};
-use egui_plot::{Legend, Line, LineStyle, Plot, PlotPoints};
-use std::f64::consts::TAU;
+use egui::{
+    epaint::Vertex, CentralPanel, Color32, Context, Key, Mesh, Painter, Pos2, Rect, Shape, Stroke,
+    TextureId, Vec2,
+};
+
+const PIXEL_TO_METER: f32 = 0.01;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct HomeFlow {
-    label: String,
-
     #[serde(skip)]
-    value: f32,
-
+    pan: Vec2,
     #[serde(skip)]
-    line_demo: LineDemo,
+    zoom: f32,
+    #[serde(skip)]
+    rotation: f32,
 }
 
 impl Default for HomeFlow {
     fn default() -> Self {
         Self {
-            label: "Hello World!".to_owned(),
-            value: 2.7,
-            line_demo: LineDemo::default(),
+            pan: Vec2::ZERO,
+            zoom: 1.0,
+            rotation: 0.0,
         }
     }
 }
@@ -43,91 +45,115 @@ impl eframe::App for HomeFlow {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
+            let (response, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::drag());
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
-
-            ui.add(Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
+            if response.dragged() {
+                self.pan += response.drag_delta();
             }
 
-            ui.separator();
+            let scroll_delta = ui.input(|i| i.scroll_delta);
+            if scroll_delta != Vec2::ZERO {
+                self.zoom = (self.zoom + scroll_delta.y / 100.0).clamp(0.1, 10.0);
+            }
 
-            self.line_demo.ui(ui);
+            if ui.input(|i| i.key_pressed(Key::Q)) {
+                self.rotation -= 5.0; // Rotate counter-clockwise
+            }
+            if ui.input(|i| i.key_pressed(Key::E)) {
+                self.rotation += 5.0; // Rotate clockwise
+            }
+
+            render_grid(&painter, &response.rect, self.pan, self.zoom, self.rotation);
+            render_box(&painter, &response.rect, self.pan, self.zoom, self.rotation);
         });
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
-struct LineDemo {
-    time: f64,
-}
+fn render_grid(painter: &Painter, visible_rect: &Rect, pan: Vec2, zoom: f32, rotation: f32) {
+    let center_of_painter = Vec2::new(visible_rect.width() / 2.0, visible_rect.height() / 2.0);
+    let grid_spacing = 1.0 * zoom / PIXEL_TO_METER;
 
-impl Default for LineDemo {
-    fn default() -> Self {
-        Self { time: 0.0 }
+    // Start and end points for grid lines
+    let left = visible_rect.left() - pan.x;
+    let right = visible_rect.right() - pan.x;
+    let top = visible_rect.top() - pan.y;
+    let bottom = visible_rect.bottom() - pan.y;
+
+    // Horizontal lines
+    let mut y = top - top % grid_spacing - center_of_painter.y;
+    while y <= bottom {
+        let line_start = Pos2::new(left, y);
+        let line_end = Pos2::new(right, y);
+        painter.line_segment(
+            [line_start + pan, line_end + pan],
+            Stroke::new(1.0, Color32::GRAY),
+        );
+        y += grid_spacing;
+    }
+
+    // Vertical lines
+    let mut x = left - left % grid_spacing - center_of_painter.x;
+    while x <= right {
+        let line_start = Pos2::new(x, top);
+        let line_end = Pos2::new(x, bottom);
+        painter.line_segment(
+            [line_start + pan, line_end + pan],
+            Stroke::new(1.0, Color32::GRAY),
+        );
+        x += grid_spacing;
     }
 }
 
-impl LineDemo {
-    fn circle(&self) -> Line {
-        let n = 512;
-        let circle_points: PlotPoints = (0..=n)
-            .map(|i| {
-                let t = remap(i as f64, 0.0..=(n as f64), 0.0..=TAU);
-                let r = 1.5;
-                [r * t.cos(), r * t.sin()]
-            })
-            .collect();
-        Line::new(circle_points)
-            .color(Color32::from_rgb(100, 200, 100))
-            .style(LineStyle::Solid)
-            .name("circle")
+fn render_box(painter: &Painter, visible_rect: &Rect, pan: Vec2, zoom: f32, rotation: f32) {
+    let center_of_painter = Vec2::new(visible_rect.width() / 2.0, visible_rect.height() / 2.0);
+    let box_size = Vec2::new(2.0 * zoom / PIXEL_TO_METER, 2.0 * zoom / PIXEL_TO_METER);
+    let center = Pos2::new(0.0, 0.0) + center_of_painter + pan;
+
+    // Calculate the rotated corners of the box
+    let mut corners = [
+        Pos2::new(center.x - box_size.x / 2.0, center.y - box_size.y / 2.0),
+        Pos2::new(center.x + box_size.x / 2.0, center.y - box_size.y / 2.0),
+        Pos2::new(center.x + box_size.x / 2.0, center.y + box_size.y / 2.0),
+        Pos2::new(center.x - box_size.x / 2.0, center.y + box_size.y / 2.0),
+    ];
+
+    let rotation_rad = rotation.to_radians();
+    for corner in &mut corners {
+        *corner = rotate_point(*corner, center, rotation_rad);
     }
 
-    fn sin(&self) -> Line {
-        let time = self.time;
-        Line::new(PlotPoints::from_explicit_callback(
-            move |x| 0.5 * (2.0 * x).sin() * time.sin(),
-            ..,
-            512,
-        ))
-        .color(Color32::from_rgb(200, 100, 100))
-        .style(LineStyle::Solid)
-        .name("wave")
-    }
-
-    fn thingy(&self) -> Line {
-        let time = self.time;
-        Line::new(PlotPoints::from_parametric_callback(
-            move |t| ((2.0 * t + time).sin(), (3.0 * t).sin()),
-            0.0..=TAU,
-            256,
-        ))
-        .color(Color32::from_rgb(100, 150, 250))
-        .style(LineStyle::Solid)
-        .name("x = sin(2t), y = sin(3t)")
-    }
-}
-
-impl LineDemo {
-    fn ui(&mut self, ui: &mut Ui) -> Response {
-        ui.ctx().request_repaint();
-        self.time += ui.input(|i| i.unstable_dt).at_most(1.0 / 30.0) as f64;
-        let plot = Plot::new("lines_demo")
-            .show_axes(false)
-            .show_grid(true)
-            .data_aspect(1.0);
-        plot.show(ui, |plot_ui| {
-            plot_ui.line(self.circle());
-            plot_ui.line(self.sin());
-            plot_ui.line(self.thingy());
+    // Create vertices for the mesh
+    let vertices = corners
+        .iter()
+        .map(|&pos| Vertex {
+            pos,
+            uv: Pos2::ZERO,
+            color: Color32::RED,
         })
-        .response
+        .collect::<Vec<_>>();
+
+    // Define indices for two triangles that make up the box
+    let indices = vec![0, 1, 2, 0, 2, 3]; // Two triangles covering the box area
+
+    // Create the mesh
+    let mesh = Mesh {
+        indices,
+        vertices,
+        texture_id: TextureId::Managed(0), // Default texture, since we're only using colors
+    };
+
+    // Add the mesh to the painter
+    painter.add(Shape::mesh(mesh));
+}
+
+// Function to rotate a point around a pivot
+fn rotate_point(point: Pos2, pivot: Pos2, angle_rad: f32) -> Pos2 {
+    let cos_angle = angle_rad.cos();
+    let sin_angle = angle_rad.sin();
+
+    let translated_point = point - pivot;
+    Pos2 {
+        x: translated_point.x * cos_angle - translated_point.y * sin_angle + pivot.x,
+        y: translated_point.x * sin_angle + translated_point.y * cos_angle + pivot.y,
     }
 }
