@@ -1,4 +1,9 @@
-#![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::suboptimal_flops)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::suboptimal_flops,
+    clippy::cast_lossless
+)]
 
 #[cfg(feature = "gui")]
 mod app;

@@ -4,16 +4,23 @@ use egui::{CentralPanel, Color32, Context, Painter, Pos2, Rect, Stroke, Vec2};
 #[serde(default)]
 pub struct HomeFlow {
     #[serde(skip)]
+    time: f64,
+
+    #[serde(skip)]
     translation: Vec2,
     #[serde(skip)]
     zoom: f32, // Zoom is meter to pixels
+    #[serde(skip)]
+    target_zoom: f32,
 }
 
 impl Default for HomeFlow {
     fn default() -> Self {
         Self {
+            time: 0.0,
             translation: Vec2::ZERO,
             zoom: 100.0,
+            target_zoom: 100.0,
         }
     }
 }
@@ -130,6 +137,9 @@ impl eframe::App for HomeFlow {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
+            ui.ctx().request_repaint();
+            self.time += ui.input(|i| i.unstable_dt) as f64;
+
             let (response, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::drag());
             let canvas_center = response.rect.center();
 
@@ -139,15 +149,17 @@ impl eframe::App for HomeFlow {
 
             let scroll_delta = ui.input(|i| i.scroll_delta);
             if scroll_delta != Vec2::ZERO {
+                let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.target_zoom / 100.0);
                 if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
                     let mouse_world_before_zoom = self.pixels_to_world(canvas_center, mouse_pos);
-                    self.zoom = (self.zoom + scroll_delta.y.signum() * 5.0).clamp(20.0, 300.0);
+                    self.target_zoom = (self.target_zoom + zoom_amount).clamp(20.0, 300.0);
                     let mouse_world_after_zoom = self.pixels_to_world(canvas_center, mouse_pos);
                     self.translation += mouse_world_after_zoom - mouse_world_before_zoom;
                 } else {
-                    self.zoom = (self.zoom + scroll_delta.y.signum() * 5.0).clamp(20.0, 300.0);
+                    self.target_zoom = (self.target_zoom + zoom_amount).clamp(20.0, 300.0);
                 }
             }
+            self.zoom += (self.target_zoom - self.zoom) * 0.1;
 
             self.render_grid(&painter, &response.rect, canvas_center);
             self.render_box(&painter, canvas_center);
