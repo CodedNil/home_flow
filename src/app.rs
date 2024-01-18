@@ -1,32 +1,31 @@
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
+use egui::{remap, CentralPanel, Color32, Context, NumExt, Response, Slider, Ui};
+use egui_plot::{Legend, Line, LineStyle, Plot, PlotPoints};
+use std::f64::consts::TAU;
+
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
+#[serde(default)]
 pub struct HomeFlow {
-    // Example stuff:
     label: String,
 
-    #[serde(skip)] // This how you opt-out of serialization of a field
+    #[serde(skip)]
     value: f32,
+
+    #[serde(skip)]
+    line_demo: LineDemo,
 }
 
 impl Default for HomeFlow {
     fn default() -> Self {
         Self {
-            // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
+            line_demo: LineDemo::default(),
         }
     }
 }
 
 impl HomeFlow {
-    /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
             return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         }
@@ -42,18 +41,8 @@ impl eframe::App for HomeFlow {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
-                egui::widgets::global_dark_light_mode_buttons(ui);
-            });
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("eframe template");
 
@@ -62,36 +51,83 @@ impl eframe::App for HomeFlow {
                 ui.text_edit_singleline(&mut self.label);
             });
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
+            ui.add(Slider::new(&mut self.value, 0.0..=10.0).text("value"));
             if ui.button("Increment").clicked() {
                 self.value += 1.0;
             }
 
             ui.separator();
 
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
-            });
+            self.line_demo.ui(ui);
         });
     }
 }
 
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
+#[derive(Copy, Clone, PartialEq)]
+struct LineDemo {
+    time: f64,
+}
+
+impl Default for LineDemo {
+    fn default() -> Self {
+        Self { time: 0.0 }
+    }
+}
+
+impl LineDemo {
+    fn circle(&self) -> Line {
+        let n = 512;
+        let circle_points: PlotPoints = (0..=n)
+            .map(|i| {
+                let t = remap(i as f64, 0.0..=(n as f64), 0.0..=TAU);
+                let r = 1.5;
+                [r * t.cos(), r * t.sin()]
+            })
+            .collect();
+        Line::new(circle_points)
+            .color(Color32::from_rgb(100, 200, 100))
+            .style(LineStyle::Solid)
+            .name("circle")
+    }
+
+    fn sin(&self) -> Line {
+        let time = self.time;
+        Line::new(PlotPoints::from_explicit_callback(
+            move |x| 0.5 * (2.0 * x).sin() * time.sin(),
+            ..,
+            512,
+        ))
+        .color(Color32::from_rgb(200, 100, 100))
+        .style(LineStyle::Solid)
+        .name("wave")
+    }
+
+    fn thingy(&self) -> Line {
+        let time = self.time;
+        Line::new(PlotPoints::from_parametric_callback(
+            move |t| ((2.0 * t + time).sin(), (3.0 * t).sin()),
+            0.0..=TAU,
+            256,
+        ))
+        .color(Color32::from_rgb(100, 150, 250))
+        .style(LineStyle::Solid)
+        .name("x = sin(2t), y = sin(3t)")
+    }
+}
+
+impl LineDemo {
+    fn ui(&mut self, ui: &mut Ui) -> Response {
+        ui.ctx().request_repaint();
+        self.time += ui.input(|i| i.unstable_dt).at_most(1.0 / 30.0) as f64;
+        let plot = Plot::new("lines_demo")
+            .show_axes(false)
+            .show_grid(true)
+            .data_aspect(1.0);
+        plot.show(ui, |plot_ui| {
+            plot_ui.line(self.circle());
+            plot_ui.line(self.sin());
+            plot_ui.line(self.thingy());
+        })
+        .response
+    }
 }

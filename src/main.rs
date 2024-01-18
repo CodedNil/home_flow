@@ -1,3 +1,5 @@
+mod app;
+
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() {
@@ -12,9 +14,6 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
-
-#[cfg(target_arch = "wasm32")]
-mod app;
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
