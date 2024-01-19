@@ -36,7 +36,7 @@ fn main() -> eframe::Result<()> {
             .with_icon(eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..]).unwrap()),
         ..Default::default()
     };
-    eframe::run_native("eframe template", native_options, Box::new(|cc| Box::new(app::HomeFlow::new(cc))))
+    eframe::run_native("HomeFlow", native_options, Box::new(|cc| Box::new(app::HomeFlow::new(cc))))
 }
 
 #[cfg(target_arch = "wasm32")]
