@@ -1,4 +1,6 @@
 use egui::{CentralPanel, Color32, Context, Painter, Pos2, Rect, Stroke, Vec2};
+use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, Plot, PlotPoints};
+use std::collections::HashSet;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -65,7 +67,7 @@ impl HomeFlow {
                 } else {
                     1.0
                 },
-                Color32::from_gray(160),
+                Stroke::new(1.5, Color32::from_gray(100)),
             ),
             (
                 if self.zoom <= 40.0 {
@@ -75,7 +77,7 @@ impl HomeFlow {
                 } else {
                     0.25
                 },
-                Color32::from_gray(50),
+                Stroke::new(1.5, Color32::from_gray(50)),
             ),
         ];
 
@@ -88,30 +90,42 @@ impl HomeFlow {
             self.pixels_to_world_x(canvas_center, visible_rect.right()),
         );
 
-        for (grid_interval, color) in grid_intervals {
+        let mut rendered_vertical = HashSet::new();
+        let mut rendered_horizontal = HashSet::new();
+        let mut lines = Vec::new();
+        for (grid_interval, stroke) in grid_intervals {
             // Draw vertical grid lines
             for x in ((left_edge_world / grid_interval).ceil() as i32)..=((right_edge_world / grid_interval).floor() as i32) {
                 let grid_line_pixel = self.world_to_pixels_x(canvas_center, x as f32 * grid_interval);
-                painter.line_segment(
-                    [
-                        Pos2::new(grid_line_pixel, visible_rect.top()),
-                        Pos2::new(grid_line_pixel, visible_rect.bottom()),
-                    ],
-                    Stroke::new(1.5, color),
-                );
+                let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
+                if rendered_vertical.contains(&grid_line_pixel_int) {
+                    continue;
+                }
+                rendered_vertical.insert(grid_line_pixel_int);
+                lines.push((
+                    Pos2::new(grid_line_pixel, visible_rect.top()),
+                    Pos2::new(grid_line_pixel, visible_rect.bottom()),
+                    stroke,
+                ));
             }
 
             // Draw horizontal grid lines
             for y in ((top_edge_world / grid_interval).ceil() as i32)..=((bottom_edge_world / grid_interval).floor() as i32) {
                 let grid_line_pixel = self.world_to_pixels_y(canvas_center, y as f32 * grid_interval);
-                painter.line_segment(
-                    [
-                        Pos2::new(visible_rect.left(), grid_line_pixel),
-                        Pos2::new(visible_rect.right(), grid_line_pixel),
-                    ],
-                    Stroke::new(1.5, color),
-                );
+                let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
+                if rendered_horizontal.contains(&grid_line_pixel_int) {
+                    continue;
+                }
+                rendered_horizontal.insert(grid_line_pixel_int);
+                lines.push((
+                    Pos2::new(visible_rect.left(), grid_line_pixel),
+                    Pos2::new(visible_rect.right(), grid_line_pixel),
+                    stroke,
+                ));
             }
+        }
+        for line in lines.iter().rev() {
+            painter.line_segment([line.0, line.1], line.2);
         }
     }
 
@@ -159,6 +173,36 @@ impl eframe::App for HomeFlow {
 
             self.render_grid(&painter, &response.rect, canvas_center);
             self.render_box(&painter, canvas_center);
+
+            egui::Window::new("Plot Window")
+                .fixed_pos(Pos2::new(50.0, 500.0))
+                .fixed_size(Vec2::new(400.0, 400.0))
+                .title_bar(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    let plot = Plot::new("lines_demo")
+                        .legend(Legend::default())
+                        .y_axis_width(4)
+                        .show_axes(true)
+                        .show_grid(true)
+                        .data_aspect(1.0)
+                        .coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default());
+
+                    plot.show(ui, |plot_ui| {
+                        plot_ui.line(sin(self.time));
+                    });
+                });
         });
     }
+}
+
+fn sin(time: f64) -> Line {
+    Line::new(PlotPoints::from_explicit_callback(
+        move |x| 0.5 * (2.0 * x).sin() * time.sin(),
+        ..,
+        512,
+    ))
+    .color(Color32::from_rgb(200, 100, 100))
+    .style(egui_plot::LineStyle::Solid)
+    .name("wave")
 }
