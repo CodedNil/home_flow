@@ -174,23 +174,24 @@ impl eframe::App for HomeFlow {
             self.render_grid(&painter, &response.rect, canvas_center);
             self.render_box(&painter, canvas_center);
 
+            let plot_location = self.world_to_pixels(canvas_center, Pos2::new(3.0, 2.0));
             egui::Window::new("Plot Window")
-                .fixed_pos(Pos2::new(50.0, 500.0))
+                .fixed_pos(plot_location)
                 .fixed_size(Vec2::new(400.0, 400.0))
                 .title_bar(false)
                 .resizable(false)
+                .constrain(false)
                 .show(ctx, |ui| {
-                    let plot = Plot::new("lines_demo")
+                    Plot::new("lines_demo")
                         .legend(Legend::default())
                         .y_axis_width(4)
                         .show_axes(true)
                         .show_grid(true)
                         .data_aspect(1.0)
-                        .coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default());
-
-                    plot.show(ui, |plot_ui| {
-                        plot_ui.line(sin(self.time));
-                    });
+                        .coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default())
+                        .show(ui, |plot_ui| {
+                            plot_ui.line(sin(self.time));
+                        });
                 });
         });
     }
