@@ -5,7 +5,8 @@ edition = "2021"
 rust-version = "1.75"
 
 [dependencies]
-log = "0.4"
+log = "0.4.20"
+anyhow = "1.0.79"
 egui = { version = "0.25.0", optional = true }
 eframe = { version = "0.25.0", default-features = false, features = [
     "default_fonts", # Embed the default egui fonts.
@@ -13,7 +14,9 @@ eframe = { version = "0.25.0", default-features = false, features = [
     "persistence",   # Enable restoring app state when restarting the app.
 ], optional = true }
 serde = { version = "1.0.195", features = ["derive"] }
+serde_json = "1.0.111"
 egui_plot = { version = "0.25.0", optional = true }
+geo-booleanop = "0.3.2"
 
 # WebAssembly dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -1,6 +1,11 @@
-use egui::{epaint::Shadow, CentralPanel, Color32, Context, Frame, Painter, Pos2, Rect, Sense, Stroke, Vec2, Window};
+use egui::{
+    epaint::{Shadow, Vertex},
+    CentralPanel, Color32, Context, Frame, Mesh, Painter, Pos2, Rect, Sense, Shape, Stroke, TextureId, Vec2, Window,
+};
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
 use std::collections::HashSet;
+
+mod layout;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -12,6 +17,9 @@ pub struct HomeFlow {
     translation: Vec2,
     #[serde(skip)]
     zoom: f32, // Zoom is meter to pixels
+
+    #[serde(skip)]
+    layout: layout::Home,
 }
 
 impl Default for HomeFlow {
@@ -20,6 +28,7 @@ impl Default for HomeFlow {
             time: 0.0,
             translation: Vec2::ZERO,
             zoom: 100.0,
+            layout: layout::Home::load(),
         }
     }
 }
@@ -137,6 +146,28 @@ impl HomeFlow {
             color,
         );
     }
+
+    fn render_mesh(&self, painter: &Painter, canvas_center: Pos2, vertices: Vec<Pos2>, color: Color32) {
+        let mut indices = Vec::new();
+        for i in 0..vertices.len() {
+            indices.push(i as u32);
+        }
+        let mut vertices_pixels = Vec::new();
+        for vertex in vertices {
+            vertices_pixels.push(Vertex {
+                pos: self.world_to_pixels(canvas_center, vertex),
+                color,
+                ..Default::default()
+            });
+        }
+
+        let mesh = Mesh {
+            indices,
+            vertices: vertices_pixels,
+            texture_id: TextureId::Managed(0),
+        };
+        painter.add(Shape::mesh(mesh));
+    }
 }
 
 impl eframe::App for HomeFlow {
@@ -146,6 +177,7 @@ impl eframe::App for HomeFlow {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         let inner_frame = Frame {
             shadow: Shadow::small_dark(),
@@ -191,28 +223,38 @@ impl eframe::App for HomeFlow {
                 let max_translation = Vec2::new(bounds[1] - window_size_meters.x, bounds[3] - window_size_meters.y);
 
                 // Check if minimum is less than or equal to maximum
-                if min_translation.x <= max_translation.x && min_translation.y <= max_translation.y {
-                    self.translation = self.translation.clamp(min_translation, max_translation);
+                if min_translation.x <= max_translation.x {
+                    self.translation.x = self.translation.x.clamp(min_translation.x, max_translation.x);
                 } else {
-                    // Handle the situation where the zoom is too far out
-                    self.translation = Vec2::new(0.0, 0.0);
+                    self.translation.x = 0.0;
+                }
+                if min_translation.y <= max_translation.y {
+                    self.translation.y = self.translation.y.clamp(min_translation.y, max_translation.y);
+                } else {
+                    self.translation.y = 0.0;
                 }
                 self.render_box(
                     &painter,
                     canvas_center,
                     Pos2::new((bounds[0] + bounds[1]) / 2.0, (bounds[2] + bounds[3]) / 2.0),
-                    Vec2::new(bounds[1] - bounds[0] - 1.0, bounds[3] - bounds[2] - 1.0),
+                    Vec2::new(bounds[1] - bounds[0], bounds[3] - bounds[2]),
                     Color32::from_rgb(0, 0, 100),
                 );
 
                 self.render_grid(&painter, &response.rect, canvas_center);
-                self.render_box(
-                    &painter,
-                    canvas_center,
-                    Pos2::new(3.0, 1.0),
-                    Vec2::new(2.0, 2.0),
-                    Color32::from_rgb(255, 0, 0),
-                );
+
+                for room in &self.layout.rooms {
+                    let pos = room.pos;
+                    let size = Vec2::new(room.size.x, room.size.y);
+                    let size_half = size / 2.0;
+                    let vertices = vec![
+                        Pos2::new(pos.x - size_half.x, pos.y + size_half.y), // Bottom-left
+                        Pos2::new(pos.x + size_half.x, pos.y + size_half.y), // Bottom-right
+                        Pos2::new(pos.x + size_half.x, pos.y - size_half.y), // Top-right
+                        Pos2::new(pos.x - size_half.x, pos.y - size_half.y), // Top-left
+                    ];
+                    self.render_mesh(&painter, canvas_center, vertices, Color32::from_rgb(255, 0, 0));
+                }
 
                 let plot_location = self.world_to_pixels(canvas_center, Pos2::new(3.0, 2.0));
                 let plot_end_location = self.world_to_pixels(canvas_center, Pos2::new(8.0, 6.0));
@@ -228,6 +270,7 @@ impl eframe::App for HomeFlow {
                             .legend(Legend::default())
                             .show_axes(false)
                             .data_aspect(1.0)
+                            .allow_scroll(false)
                             .coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default())
                             .show(ui, |plot_ui| {
                                 plot_ui.line(sin(self.time));
