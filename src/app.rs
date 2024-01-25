@@ -6,6 +6,7 @@ use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, Plo
 use std::collections::HashSet;
 
 mod layout;
+mod shape;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -105,25 +106,13 @@ impl HomeFlow {
         }
     }
 
-    fn render_box(&self, painter: &Painter, canvas_center: Pos2, pos: Pos2, size: Vec2, color: Color32) {
-        let box_size = Vec2::new(size.x * self.zoom, size.y * self.zoom);
-        painter.rect_filled(
-            Rect::from_center_size(self.world_to_pixels(canvas_center, pos.x, pos.y), box_size),
-            0.0,
-            color,
-        );
-    }
-
-    fn render_mesh(&self, painter: &Painter, canvas_center: Pos2, vertices: Vec<Vertex>) {
-        let mut indices = Vec::new();
-        for i in 0..vertices.len() {
-            indices.push(i as u32);
-        }
+    fn render_mesh(&self, painter: &Painter, canvas_center: Pos2, indices: Vec<u32>, vertices: Vec<Pos2>, color: Color32) {
         let mut vertices_pixels = Vec::new();
         for vertex in vertices {
             vertices_pixels.push(Vertex {
-                pos: self.world_to_pixels(canvas_center, vertex.pos.x, vertex.pos.y),
-                ..vertex
+                pos: self.world_to_pixels(canvas_center, vertex.x, vertex.y),
+                color,
+                ..Default::default()
             });
         }
 
@@ -163,10 +152,12 @@ impl eframe::App for HomeFlow {
                 let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::drag());
                 let canvas_center = response.rect.center();
 
+                // Drag
                 if response.dragged() {
                     self.translation += response.drag_delta() * 0.01 / (self.zoom / 100.0);
                 }
 
+                // Zoom
                 let scroll_delta = ui.input(|i| i.scroll_delta);
                 if scroll_delta != Vec2::ZERO {
                     let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
@@ -184,11 +175,9 @@ impl eframe::App for HomeFlow {
                 let bounds = [-10.0, 10.0, -10.0, 10.0];
                 let window_size_meters = ui.ctx().available_rect().size() / self.zoom / 2.0;
 
-                // Calculate the minimum and maximum translation values
                 let min_translation = Vec2::new(bounds[0] + window_size_meters.x, bounds[2] + window_size_meters.y);
                 let max_translation = Vec2::new(bounds[1] - window_size_meters.x, bounds[3] - window_size_meters.y);
 
-                // Check if minimum is less than or equal to maximum
                 if min_translation.x <= max_translation.x {
                     self.translation.x = self.translation.x.clamp(min_translation.x, max_translation.x);
                 } else {
@@ -199,76 +188,19 @@ impl eframe::App for HomeFlow {
                 } else {
                     self.translation.y = 0.0;
                 }
-                self.render_box(
-                    &painter,
-                    canvas_center,
-                    Pos2::new((bounds[0] + bounds[1]) / 2.0, (bounds[2] + bounds[3]) / 2.0),
-                    Vec2::new(bounds[1] - bounds[0], bounds[3] - bounds[2]),
-                    Color32::from_rgb(0, 0, 100),
-                );
 
                 self.render_grid(&painter, &response.rect, canvas_center);
-                self.render_box(
-                    &painter,
-                    canvas_center,
-                    Pos2::new(3.0, 0.0),
-                    Vec2::new(1.0, 1.0),
-                    Color32::from_rgb(255, 0, 0),
-                );
-                self.render_box(
-                    &painter,
-                    canvas_center,
-                    Pos2::new(-3.0, 0.0),
-                    Vec2::new(1.0, 1.0),
-                    Color32::from_rgb(0, 255, 0),
-                );
-                self.render_box(
-                    &painter,
-                    canvas_center,
-                    Pos2::new(0.0, 3.0),
-                    Vec2::new(1.0, 1.0),
-                    Color32::from_rgb(0, 0, 255),
-                );
-                self.render_box(
-                    &painter,
-                    canvas_center,
-                    Pos2::new(0.0, -3.0),
-                    Vec2::new(1.0, 1.0),
-                    Color32::from_rgb(255, 255, 0),
-                );
 
                 for room in &self.layout.rooms {
-                    let pos = room.pos;
-                    let size = Vec2::new(room.size.x, room.size.y);
-                    let size_half = size / 2.0;
+                    let (vertices, indices) = room.triangles();
+                    let vertices = vertices.iter().map(|vertex| Pos2::new(vertex.x, vertex.y)).collect::<Vec<Pos2>>();
+                    let indices = indices
+                        .iter()
+                        .map(|index| [index[0] as u32, index[1] as u32, index[2] as u32])
+                        .collect::<Vec<[u32; 3]>>()
+                        .concat();
 
-                    // Define vertices for the rectangle
-                    let bottom_left = Vertex {
-                        pos: Pos2::new(pos.x - size_half.x, pos.y - size_half.y),
-                        uv: Pos2::new(0.0, 0.0),
-                        color: Color32::from_rgb(255, 0, 0),
-                    };
-                    let bottom_right = Vertex {
-                        pos: Pos2::new(pos.x + size_half.x, pos.y - size_half.y),
-                        uv: Pos2::new(0.0, 0.0),
-                        color: Color32::from_rgb(0, 255, 0),
-                    };
-                    let top_right = Vertex {
-                        pos: Pos2::new(pos.x + size_half.x, pos.y + size_half.y),
-                        uv: Pos2::new(0.0, 0.0),
-                        color: Color32::from_rgb(0, 0, 255),
-                    };
-                    let top_left = Vertex {
-                        pos: Pos2::new(pos.x - size_half.x, pos.y + size_half.y),
-                        uv: Pos2::new(0.0, 0.0),
-                        color: Color32::from_rgb(255, 255, 0),
-                    };
-
-                    self.render_mesh(
-                        &painter,
-                        canvas_center,
-                        vec![bottom_left, bottom_right, top_right, top_right, top_left, bottom_left],
-                    );
+                    self.render_mesh(&painter, canvas_center, indices, vertices, Color32::from_rgb(150, 50, 50));
                 }
 
                 let plot_location = self.world_to_pixels(canvas_center, 3.0, -2.0);

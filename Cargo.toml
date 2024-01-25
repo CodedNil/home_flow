@@ -16,6 +16,8 @@ eframe = { version = "0.25.0", default-features = false, features = [
 serde = { version = "1.0.195", features = ["derive"] }
 serde_json = "1.0.111"
 egui_plot = { version = "0.25.0", optional = true }
+geo = "0.27.0"
+geo-types = "0.7.12"
 geo-booleanop = "0.3.2"
 
 # WebAssembly dependencies
