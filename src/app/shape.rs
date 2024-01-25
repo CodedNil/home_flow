@@ -5,39 +5,21 @@ use serde::{Deserialize, Serialize};
 impl Room {
     pub fn vertices(&self) -> Vec<Vec2> {
         let mut vertices = self.shape.vertices(self.pos, self.size);
+        let poly1 = create_polygon(&vertices);
         for operation in &self.operations {
             let operation_vertices = operation.shape.vertices(operation.pos, operation.size);
-            let self_vertices_corrected = vertices
-                .iter()
-                .map(|v| geo_types::Coord {
-                    x: v.x as f64,
-                    y: v.y as f64,
-                })
-                .collect::<Vec<_>>();
-            let operation_vertices_corrected = operation_vertices
-                .iter()
-                .map(|v| geo_types::Coord {
-                    x: v.x as f64,
-                    y: v.y as f64,
-                })
-                .collect::<Vec<_>>();
-            let poly1 = geo::Polygon::new(geo::LineString::from(self_vertices_corrected), vec![]);
-            let poly2 = geo::Polygon::new(geo::LineString::from(operation_vertices_corrected), vec![]);
+            let poly2 = create_polygon(&operation_vertices);
+
             let operated: geo_types::MultiPolygon = match operation.action {
                 Action::Add => poly1.union(&poly2),
                 Action::Subtract => poly1.difference(&poly2),
             };
-            vertices = operated
-                .0
-                .first()
-                .expect("Expected at least one polygon")
-                .exterior()
-                .points()
-                .map(|c: geo_types::Point| Vec2 {
-                    x: c.x() as f32,
-                    y: c.y() as f32,
-                })
-                .collect::<Vec<_>>();
+
+            if let Some(polygon) = operated.0.first() {
+                vertices = polygon.exterior().points().map(coord_to_vec2).collect();
+            } else {
+                return Vec::new();
+            }
         }
         vertices
     }
@@ -85,6 +67,26 @@ impl Room {
     }
 }
 
+fn vec2_to_coord(v: &Vec2) -> geo_types::Coord<f64> {
+    geo_types::Coord {
+        x: v.x as f64,
+        y: v.y as f64,
+    }
+}
+
+fn coord_to_vec2(c: geo_types::Point<f64>) -> Vec2 {
+    Vec2 {
+        x: c.x() as f32,
+        y: c.y() as f32,
+    }
+}
+
+fn create_polygon(vertices: &[Vec2]) -> geo::Polygon<f64> {
+    geo::Polygon::new(
+        geo::LineString::from(vertices.iter().map(vec2_to_coord).collect::<Vec<_>>()),
+        vec![],
+    )
+}
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Shape {
     Rectangle,
@@ -95,38 +97,35 @@ impl Shape {
     pub fn vertices(&self, pos: Vec2, size: Vec2) -> Vec<Vec2> {
         match self {
             Self::Rectangle => {
-                let size_half = Vec2 {
-                    x: size.x / 2.0,
-                    y: size.y / 2.0,
-                };
                 vec![
                     Vec2 {
-                        x: pos.x - size_half.x,
-                        y: pos.y - size_half.y,
+                        x: pos.x - size.x / 2.0,
+                        y: pos.y - size.y / 2.0,
                     },
                     Vec2 {
-                        x: pos.x + size_half.x,
-                        y: pos.y - size_half.y,
+                        x: pos.x + size.x / 2.0,
+                        y: pos.y - size.y / 2.0,
                     },
                     Vec2 {
-                        x: pos.x + size_half.x,
-                        y: pos.y + size_half.y,
+                        x: pos.x + size.x / 2.0,
+                        y: pos.y + size.y / 2.0,
                     },
                     Vec2 {
-                        x: pos.x - size_half.x,
-                        y: pos.y + size_half.y,
+                        x: pos.x - size.x / 2.0,
+                        y: pos.y + size.y / 2.0,
                     },
                 ]
             }
             Self::Circle => {
-                let radius = size.x / 2.0;
+                let radius_x = size.x / 2.0;
+                let radius_y = size.y / 2.0;
                 let quality = 90;
                 let mut vertices = Vec::new();
                 for i in 0..quality {
                     let angle = (i as f32 / quality as f32) * std::f32::consts::PI * 2.0;
                     vertices.push(Vec2 {
-                        x: pos.x + angle.cos() * radius,
-                        y: pos.y + angle.sin() * radius,
+                        x: pos.x + angle.cos() * radius_x,
+                        y: pos.y + angle.sin() * radius_y,
                     });
                 }
                 vertices

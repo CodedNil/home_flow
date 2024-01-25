@@ -28,7 +28,7 @@ impl Default for Home {
                     action: Action::Subtract,
                     shape: Shape::Circle,
                     pos: Vec2 { x: 2.0, y: 2.0 },
-                    size: Vec2 { x: 2.0, y: 2.0 },
+                    size: Vec2 { x: 4.0, y: 2.0 },
                 }],
             }],
         }

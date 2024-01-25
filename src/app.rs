@@ -3,7 +3,10 @@ use egui::{
     CentralPanel, Color32, Context, Frame, Mesh, Painter, Pos2, Rect, Sense, Shape, Stroke, TextureId, Vec2, Window,
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 
 mod layout;
 mod shape;
@@ -21,6 +24,11 @@ pub struct HomeFlow {
 
     #[serde(skip)]
     layout: layout::Home,
+
+    #[serde(skip)]
+    last_frame: Instant,
+    #[serde(skip)]
+    frame_times: Vec<Duration>,
 }
 
 impl Default for HomeFlow {
@@ -30,6 +38,8 @@ impl Default for HomeFlow {
             translation: Vec2::ZERO,
             zoom: 100.0,
             layout: layout::Home::load(),
+            last_frame: Instant::now(),
+            frame_times: Vec::new(),
         }
     }
 }
@@ -134,6 +144,28 @@ impl eframe::App for HomeFlow {
     /// Called each time the UI needs repainting, which may be many times per second.
     #[allow(clippy::too_many_lines)]
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        let now = Instant::now();
+        self.frame_times.push(now - self.last_frame);
+        self.last_frame = now;
+
+        // Keep only the last 100 frame times
+        if self.frame_times.len() > 100 {
+            self.frame_times.remove(0);
+        }
+
+        let average_frame_time = self.frame_times.iter().sum::<Duration>() / self.frame_times.len() as u32;
+        let fps = 1.0 / average_frame_time.as_secs_f32();
+
+        Window::new("Performance")
+            .fixed_pos(Pos2::new(20.0, 20.0))
+            .title_bar(false)
+            .resizable(false)
+            .interactable(false)
+            .frame(Frame::none())
+            .show(ctx, |ui| {
+                ui.label(format!("FPS: {fps:.2}"));
+            });
+
         let inner_frame = Frame {
             shadow: Shadow::small_dark(),
             stroke: Stroke::new(4.0, Color32::from_rgb(60, 60, 60)),
@@ -193,13 +225,11 @@ impl eframe::App for HomeFlow {
 
                 for room in &self.layout.rooms {
                     let (vertices, indices) = room.triangles();
-                    let vertices = vertices.iter().map(|vertex| Pos2::new(vertex.x, vertex.y)).collect::<Vec<Pos2>>();
+                    let vertices = vertices.iter().map(|vertex| Pos2::new(vertex.x, vertex.y)).collect();
                     let indices = indices
                         .iter()
-                        .map(|index| [index[0] as u32, index[1] as u32, index[2] as u32])
-                        .collect::<Vec<[u32; 3]>>()
-                        .concat();
-
+                        .flat_map(|&index| [index[0] as u32, index[1] as u32, index[2] as u32])
+                        .collect();
                     self.render_mesh(&painter, canvas_center, indices, vertices, Color32::from_rgb(150, 50, 50));
                 }
 
