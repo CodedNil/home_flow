@@ -15,7 +15,9 @@ async fn main() {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
     // Set up router
-    let app = axum::Router::new().nest_service("/", tower_http::services::ServeDir::new("dist"));
+    let app = axum::Router::new()
+        .nest_service("/", tower_http::services::ServeDir::new("dist"))
+        .layer(tower_http::compression::CompressionLayer::new());
 
     // Start server
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
