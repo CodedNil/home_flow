@@ -1,5 +1,5 @@
-use egui::{CentralPanel, Color32, Context, Painter, Pos2, Rect, Stroke, Vec2};
-use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, Plot, PlotPoints};
+use egui::{epaint::Shadow, CentralPanel, Color32, Context, Frame, Painter, Pos2, Rect, Sense, Stroke, Vec2, Window};
+use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
 use std::collections::HashSet;
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -67,7 +67,7 @@ impl HomeFlow {
                 } else {
                     1.0
                 },
-                Stroke::new(1.5, Color32::from_gray(100)),
+                Stroke::new(1.5, Color32::from_rgb(85, 85, 100)),
             ),
             (
                 if self.zoom <= 40.0 {
@@ -77,7 +77,7 @@ impl HomeFlow {
                 } else {
                     0.25
                 },
-                Stroke::new(1.5, Color32::from_gray(50)),
+                Stroke::new(1.5, Color32::from_rgb(55, 55, 70)),
             ),
         ];
 
@@ -129,12 +129,12 @@ impl HomeFlow {
         }
     }
 
-    fn render_box(&self, painter: &Painter, canvas_center: Pos2) {
-        let box_size = Vec2::new(2.0 * self.zoom, 2.0 * self.zoom);
+    fn render_box(&self, painter: &Painter, canvas_center: Pos2, pos: Pos2, size: Vec2, color: Color32) {
+        let box_size = Vec2::new(size.x * self.zoom, size.y * self.zoom);
         painter.rect_filled(
-            Rect::from_center_size(self.world_to_pixels(canvas_center, Pos2::new(3.0, 1.0)), box_size),
+            Rect::from_center_size(self.world_to_pixels(canvas_center, pos), box_size),
             0.0,
-            Color32::from_rgb(255, 0, 0),
+            color,
         );
     }
 }
@@ -147,53 +147,93 @@ impl eframe::App for HomeFlow {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        CentralPanel::default().show(ctx, |ui| {
-            // ui.ctx().request_repaint();
-            self.time += ui.input(|i| i.unstable_dt) as f64;
+        let inner_frame = Frame {
+            shadow: Shadow::small_dark(),
+            stroke: Stroke::new(4.0, Color32::from_rgb(60, 60, 60)),
+            fill: Color32::from_rgb(27, 27, 27),
+            ..Default::default()
+        };
+        CentralPanel::default()
+            .frame(Frame {
+                fill: Color32::from_rgb(35, 35, 50),
+                ..Default::default()
+            })
+            .show(ctx, |ui| {
+                // ui.ctx().request_repaint();
+                self.time += ui.input(|i| i.unstable_dt) as f64;
 
-            let (response, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::drag());
-            let canvas_center = response.rect.center();
+                let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::drag());
+                let canvas_center = response.rect.center();
 
-            if response.dragged() {
-                self.translation += response.drag_delta() * 0.01 / (self.zoom / 100.0);
-            }
-
-            let scroll_delta = ui.input(|i| i.scroll_delta);
-            if scroll_delta != Vec2::ZERO {
-                let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
-                if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
-                    let mouse_world_before_zoom = self.pixels_to_world(canvas_center, mouse_pos);
-                    self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
-                    let mouse_world_after_zoom = self.pixels_to_world(canvas_center, mouse_pos);
-                    self.translation += mouse_world_after_zoom - mouse_world_before_zoom;
-                } else {
-                    self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
+                if response.dragged() {
+                    self.translation += response.drag_delta() * 0.01 / (self.zoom / 100.0);
                 }
-            }
 
-            self.render_grid(&painter, &response.rect, canvas_center);
-            self.render_box(&painter, canvas_center);
+                let scroll_delta = ui.input(|i| i.scroll_delta);
+                if scroll_delta != Vec2::ZERO {
+                    let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
+                    if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
+                        let mouse_world_before_zoom = self.pixels_to_world(canvas_center, mouse_pos);
+                        self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
+                        let mouse_world_after_zoom = self.pixels_to_world(canvas_center, mouse_pos);
+                        self.translation += mouse_world_after_zoom - mouse_world_before_zoom;
+                    } else {
+                        self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
+                    }
+                }
 
-            let plot_location = self.world_to_pixels(canvas_center, Pos2::new(3.0, 2.0));
-            egui::Window::new("Plot Window")
-                .fixed_pos(plot_location)
-                .fixed_size(Vec2::new(400.0, 400.0))
-                .title_bar(false)
-                .resizable(false)
-                .constrain(false)
-                .show(ctx, |ui| {
-                    Plot::new("lines_demo")
-                        .legend(Legend::default())
-                        .y_axis_width(4)
-                        .show_axes(true)
-                        .show_grid(true)
-                        .data_aspect(1.0)
-                        .coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default())
-                        .show(ui, |plot_ui| {
-                            plot_ui.line(sin(self.time));
-                        });
-                });
-        });
+                // Clamp translation to bounds
+                let bounds = [-10.0, 10.0, -10.0, 10.0];
+                let window_size_meters = ui.ctx().available_rect().size() / self.zoom / 2.0;
+
+                // Calculate the minimum and maximum translation values
+                let min_translation = Vec2::new(bounds[0] + window_size_meters.x, bounds[2] + window_size_meters.y);
+                let max_translation = Vec2::new(bounds[1] - window_size_meters.x, bounds[3] - window_size_meters.y);
+
+                // Check if minimum is less than or equal to maximum
+                if min_translation.x <= max_translation.x && min_translation.y <= max_translation.y {
+                    self.translation = self.translation.clamp(min_translation, max_translation);
+                } else {
+                    // Handle the situation where the zoom is too far out
+                    self.translation = Vec2::new(0.0, 0.0);
+                }
+                self.render_box(
+                    &painter,
+                    canvas_center,
+                    Pos2::new((bounds[0] + bounds[1]) / 2.0, (bounds[2] + bounds[3]) / 2.0),
+                    Vec2::new(bounds[1] - bounds[0] - 1.0, bounds[3] - bounds[2] - 1.0),
+                    Color32::from_rgb(0, 0, 100),
+                );
+
+                self.render_grid(&painter, &response.rect, canvas_center);
+                self.render_box(
+                    &painter,
+                    canvas_center,
+                    Pos2::new(3.0, 1.0),
+                    Vec2::new(2.0, 2.0),
+                    Color32::from_rgb(255, 0, 0),
+                );
+
+                let plot_location = self.world_to_pixels(canvas_center, Pos2::new(3.0, 2.0));
+                let plot_end_location = self.world_to_pixels(canvas_center, Pos2::new(8.0, 6.0));
+                Window::new("Plot Window")
+                    .fixed_pos(plot_location)
+                    .fixed_size(plot_end_location - plot_location)
+                    .title_bar(false)
+                    .resizable(false)
+                    .constrain(false)
+                    .frame(inner_frame)
+                    .show(ctx, |ui| {
+                        Plot::new("lines_demo")
+                            .legend(Legend::default())
+                            .show_axes(false)
+                            .data_aspect(1.0)
+                            .coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default())
+                            .show(ui, |plot_ui| {
+                                plot_ui.line(sin(self.time));
+                            });
+                    });
+            });
     }
 }
 
@@ -204,6 +244,6 @@ fn sin(time: f64) -> Line {
         512,
     ))
     .color(Color32::from_rgb(200, 100, 100))
-    .style(egui_plot::LineStyle::Solid)
+    .style(LineStyle::Solid)
     .name("wave")
 }
