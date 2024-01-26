@@ -1,13 +1,7 @@
-use super::layout::{Action, Room, Vec2, RESOLUTION_FACTOR};
+use super::layout::{Action, Room, RoomRender, Vec2, RESOLUTION_FACTOR, RESOLUTION_FACTOR_NOISE};
 use image::{ImageBuffer, Rgba};
 use noise::{NoiseFn, Perlin};
 use serde::{Deserialize, Serialize};
-
-pub struct RoomTexture {
-    pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
-    pub center: Vec2,
-    pub size: Vec2,
-}
 
 impl Room {
     pub fn bounds(&self) -> (Vec2, Vec2) {
@@ -26,7 +20,8 @@ impl Room {
     }
 
     #[allow(clippy::cast_sign_loss)]
-    pub fn texture(&self) -> RoomTexture {
+    pub fn render(&self) -> RoomRender {
+        // Calculate the center and size of the room
         let (bounds_min, bounds_max) = self.bounds();
         let new_center = (bounds_min + bounds_max) / 2.0;
         let new_size = bounds_max - bounds_min;
@@ -51,7 +46,7 @@ impl Room {
                 if self.shape.contains(point_in_world, self.pos, self.size) {
                     let noise_value = render
                         .noise
-                        .map_or(0, |noise| (perlin.get([x as f64 * 1.11, y as f64 * 1.11]) * noise) as i32);
+                        .map_or(0, |noise| generate_fixed_resolution_noise(&perlin, x as f64, y as f64, noise));
 
                     *pixel = Rgba([
                         (render.color[0] as i32 + noise_value).clamp(0, 255) as u8,
@@ -69,7 +64,7 @@ impl Room {
                             if operation.shape.contains(point_in_world, operation.pos, operation.size) {
                                 let noise_value = render
                                     .noise
-                                    .map_or(0, |noise| (perlin.get([x as f64 * 1.11, y as f64 * 1.11]) * noise) as i32);
+                                    .map_or(0, |noise| generate_fixed_resolution_noise(&perlin, x as f64, y as f64, noise));
 
                                 *pixel = Rgba([
                                     (render.color[0] as i32 + noise_value).clamp(0, 255) as u8,
@@ -89,12 +84,19 @@ impl Room {
             }
         }
 
-        RoomTexture {
-            texture: canvas,
+        RoomRender {
+            texture: canvas.clone(),
             center: new_center,
             size: new_size,
         }
     }
+}
+
+fn generate_fixed_resolution_noise(perlin: &Perlin, x: f64, y: f64, amount: f64) -> i32 {
+    let base_factor = RESOLUTION_FACTOR as f64;
+    let x_rounded = (x / base_factor * RESOLUTION_FACTOR_NOISE).floor() * base_factor / RESOLUTION_FACTOR_NOISE;
+    let y_rounded = (y / base_factor * RESOLUTION_FACTOR_NOISE).floor() * base_factor / RESOLUTION_FACTOR_NOISE;
+    (perlin.get([x_rounded * 1.11, y_rounded * 1.11]) * amount) as i32
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

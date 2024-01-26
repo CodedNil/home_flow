@@ -2,7 +2,7 @@ use egui::{
     epaint::Shadow, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect, Sense, Stroke, TextureOptions, Vec2, Window,
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 mod layout;
 mod shape;
@@ -170,15 +170,25 @@ impl eframe::App for HomeFlow {
                     self.translation.y = 0.0;
                 }
 
+                let mut update_rooms_render = HashMap::new();
                 for room in &self.layout.rooms {
-                    let room_texture = room.texture();
-                    let texture = room_texture.texture;
-                    let canvas_size = texture.dimensions();
-                    let egui_image = ColorImage::from_rgba_unmultiplied([canvas_size.0 as usize, canvas_size.1 as usize], &texture);
+                    // Retrieve render from cache or render fresh and store in cache
+                    let room_render = room.render.as_ref().map_or_else(
+                        || {
+                            let render = room.render();
+                            update_rooms_render.insert(room.name.clone(), render);
+                            update_rooms_render.get(&room.name).unwrap()
+                        },
+                        |render| render,
+                    );
+
+                    let canvas_size = room_render.texture.dimensions();
+                    let egui_image =
+                        ColorImage::from_rgba_unmultiplied([canvas_size.0 as usize, canvas_size.1 as usize], &room_render.texture);
                     let canvas_texture_id = ctx.load_texture("noise", egui_image, TextureOptions::NEAREST).id();
                     let rect = Rect::from_center_size(
-                        self.world_to_pixels(canvas_center, room_texture.center.x, room_texture.center.y),
-                        Vec2::new(room_texture.size.x * self.zoom, -room_texture.size.y * self.zoom),
+                        self.world_to_pixels(canvas_center, room_render.center.x, room_render.center.y),
+                        Vec2::new(room_render.size.x * self.zoom, -room_render.size.y * self.zoom),
                     );
                     painter.image(
                         canvas_texture_id,
@@ -186,6 +196,15 @@ impl eframe::App for HomeFlow {
                         Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
                         Color32::WHITE,
                     );
+                }
+                // Update cache if needed
+                if !update_rooms_render.is_empty() {
+                    for room in &mut self.layout.rooms {
+                        if let Some(render) = update_rooms_render.get(&room.name) {
+                            room.render = Some(render.clone());
+                        }
+                    }
+                    self.layout.save_memory();
                 }
 
                 self.render_grid(&painter, &response.rect, canvas_center);

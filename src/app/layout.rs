@@ -1,4 +1,5 @@
 use anyhow::Result;
+use image::{ImageBuffer, Rgba};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -9,7 +10,8 @@ use super::shape::Shape;
 
 const LAYOUT_VERSION: &str = "0.1";
 const LAYOUT_PATH: &str = "home_layout.json";
-pub const RESOLUTION_FACTOR: f32 = 10.0; // Pixels per meter
+pub const RESOLUTION_FACTOR: f32 = 100.0; // Pixels per meter, the displayed resolution
+pub const RESOLUTION_FACTOR_NOISE: f64 = 10.0; // Pixels per meter, the resolution noise is generated at
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Home {
@@ -28,6 +30,7 @@ impl Default for Home {
                     color: [50, 50, 200, 255],
                     noise: Some(40.0),
                 }),
+                render: None,
                 pos: Vec2 { x: 0.0, y: 0.0 },
                 size: Vec2 { x: 10.0, y: 6.0 },
                 operations: vec![Operation {
@@ -50,6 +53,8 @@ pub struct Room {
     pub name: String,
     pub shape: Shape,
     pub render_options: Option<RenderOptions>,
+    #[serde(skip)]
+    pub render: Option<RoomRender>,
     pub pos: Vec2,
     pub size: Vec2,
     pub operations: Vec<Operation>,
@@ -68,6 +73,13 @@ pub struct Operation {
 pub struct RenderOptions {
     pub color: [u8; 4],
     pub noise: Option<f64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct RoomRender {
+    pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    pub center: Vec2,
+    pub size: Vec2,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -107,6 +119,11 @@ impl Home {
             },
             |layout| layout,
         )
+    }
+
+    pub fn save_memory(&self) {
+        let mut layout_lock = LAYOUT.lock().unwrap();
+        *layout_lock = Some(self.clone());
     }
 
     pub fn save(&self) -> Result<()> {
