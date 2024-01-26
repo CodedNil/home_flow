@@ -1,3 +1,4 @@
+use super::shape::{Material, Shape};
 use anyhow::Result;
 use image::{ImageBuffer, Rgba};
 use once_cell::sync::Lazy;
@@ -6,12 +7,9 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 
-use super::shape::Shape;
-
 const LAYOUT_VERSION: &str = "0.1";
 const LAYOUT_PATH: &str = "home_layout.json";
-pub const RESOLUTION_FACTOR: f32 = 100.0; // Pixels per meter, the displayed resolution
-pub const RESOLUTION_FACTOR_NOISE: f64 = 10.0; // Pixels per meter, the resolution noise is generated at
+pub const RESOLUTION_FACTOR: f32 = 50.0; // Pixels per meter
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Home {
@@ -25,17 +23,20 @@ impl Default for Home {
             version: LAYOUT_VERSION.to_string(),
             rooms: vec![Room {
                 name: "Living Room".to_string(),
-                render_options: Some(RenderOptions {
-                    color: [50, 50, 200],
-                    noise: Some(40.0),
-                }),
+                render_options: RenderOptions {
+                    material: Material::Carpet,
+                    tint: None,
+                },
                 render: None,
                 pos: Vec2 { x: 0.0, y: 0.0 },
                 size: Vec2 { x: 10.0, y: 6.0 },
                 operations: vec![Operation {
-                    action: Action::Subtract,
+                    action: Action::Add,
                     shape: Shape::Circle,
-                    render_options: None,
+                    render_options: Some(RenderOptions {
+                        material: Material::Marble,
+                        tint: None,
+                    }),
                     pos: Vec2 { x: 2.0, y: 3.0 },
                     size: Vec2 { x: 4.0, y: 2.0 },
                 }],
@@ -47,7 +48,7 @@ impl Default for Home {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Room {
     pub name: String,
-    pub render_options: Option<RenderOptions>,
+    pub render_options: RenderOptions,
     #[serde(skip)]
     pub render: Option<RoomRender>,
     pub pos: Vec2,
@@ -66,8 +67,8 @@ pub struct Operation {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RenderOptions {
-    pub color: [u8; 3],
-    pub noise: Option<f64>,
+    pub material: Material,
+    pub tint: Option<[u8; 3]>,
 }
 
 #[derive(Clone, Debug)]

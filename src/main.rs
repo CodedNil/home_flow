@@ -46,7 +46,7 @@ fn main() -> eframe::Result<()> {
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
-    eframe::WebLogger::init(log::LevelFilter::Debug).ok(); // Redirect `log` message to `console.log`
+    eframe::WebLogger::init(log::LevelFilter::Error).ok(); // Redirect `log` message to `console.log`
 
     let web_options = eframe::WebOptions::default();
 

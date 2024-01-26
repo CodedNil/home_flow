@@ -176,6 +176,8 @@ impl eframe::App for HomeFlow {
                 let mouse_pos = ui.input(|i| i.pointer.latest_pos()).map_or(Pos2::ZERO, |mouse_pos| mouse_pos);
                 let mouse_pos_world = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
 
+                self.render_grid(&painter, &response.rect, canvas_center);
+
                 let mut update_rooms_render = HashMap::new();
                 for room in &self.layout.rooms {
                     // Retrieve render from cache or render fresh and store in cache
@@ -223,8 +225,6 @@ impl eframe::App for HomeFlow {
                     }
                     self.layout.save_memory();
                 }
-
-                self.render_grid(&painter, &response.rect, canvas_center);
 
                 Window::new("Bottom Right")
                     .fixed_pos(Pos2::new(response.rect.right() - 10.0, response.rect.bottom() - 10.0))

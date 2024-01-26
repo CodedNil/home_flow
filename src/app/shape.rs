@@ -1,8 +1,9 @@
-use super::layout::{Action, Room, RoomRender, Vec2, RESOLUTION_FACTOR, RESOLUTION_FACTOR_NOISE};
+use super::layout::{Action, Room, RoomRender, Vec2, RESOLUTION_FACTOR};
 use geo::BooleanOps;
-use image::{ImageBuffer, Rgba};
-use noise::{NoiseFn, Perlin};
+use image::{ImageBuffer, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use strum_macros::Display;
 
 impl Room {
     pub fn bounds(&self) -> (Vec2, Vec2) {
@@ -55,7 +56,23 @@ impl Room {
         // Create an image buffer with the calculated size, filled with transparent pixels
         let mut canvas = ImageBuffer::new(width as u32, height as u32);
 
-        let perlin = Perlin::new(1230);
+        // Load required textures
+        let mut textures: HashMap<Material, RgbaImage> = HashMap::new();
+        textures.insert(
+            self.render_options.material,
+            image::load_from_memory(self.render_options.material.get_image())
+                .unwrap()
+                .into_rgba8(),
+        );
+        for operation in &self.operations {
+            if operation.action == Action::Add {
+                if let Some(render) = &operation.render_options {
+                    textures
+                        .entry(render.material)
+                        .or_insert_with(|| image::load_from_memory(render.material.get_image()).unwrap().into_rgba8());
+                }
+            }
+        }
 
         // Draw the room's shape on the canvas
         for (x, y, pixel) in canvas.enumerate_pixels_mut() {
@@ -64,36 +81,30 @@ impl Room {
                 y: 1.0 - (y as f32 / height),
             };
             let point_in_world = bounds_min + point * new_size;
-            if let Some(render) = &self.render_options {
-                if Shape::Rectangle.contains(point_in_world, self.pos, self.size) {
-                    let noise_value = render
-                        .noise
-                        .map_or(0, |noise| generate_fixed_resolution_noise(&perlin, x as f64, y as f64, noise));
-
-                    *pixel = Rgba([
-                        (render.color[0] as i32 + noise_value).clamp(0, 255) as u8,
-                        (render.color[1] as i32 + noise_value).clamp(0, 255) as u8,
-                        (render.color[2] as i32 + noise_value).clamp(0, 255) as u8,
-                        255,
-                    ]);
+            if Shape::Rectangle.contains(point_in_world, self.pos, self.size) {
+                // let color = self.render_options.material.render(&simplex, x as f32, y as f32);
+                // *pixel = Rgba([color[0], color[1], color[2], 255]);
+                if let Some(texture) = textures.get(&self.render_options.material) {
+                    let scale = self.render_options.material.get_scale() / RESOLUTION_FACTOR;
+                    *pixel = *texture.get_pixel(
+                        (x as f32 * scale) as u32 % texture.width(),
+                        (y as f32 * scale) as u32 % texture.height(),
+                    );
                 }
             }
 
             for operation in &self.operations {
                 match operation.action {
                     Action::Add => {
-                        if let Some(render) = &operation.render_options {
+                        if let Some(render_options) = &operation.render_options {
                             if operation.shape.contains(point_in_world, operation.pos, operation.size) {
-                                let noise_value = render
-                                    .noise
-                                    .map_or(0, |noise| generate_fixed_resolution_noise(&perlin, x as f64, y as f64, noise));
-
-                                *pixel = Rgba([
-                                    (render.color[0] as i32 + noise_value).clamp(0, 255) as u8,
-                                    (render.color[1] as i32 + noise_value).clamp(0, 255) as u8,
-                                    (render.color[2] as i32 + noise_value).clamp(0, 255) as u8,
-                                    255,
-                                ]);
+                                if let Some(texture) = textures.get(&render_options.material) {
+                                    let scale = self.render_options.material.get_scale() / RESOLUTION_FACTOR;
+                                    *pixel = *texture.get_pixel(
+                                        (x as f32 * scale) as u32 % texture.width(),
+                                        (y as f32 * scale) as u32 % texture.height(),
+                                    );
+                                }
                             }
                         }
                     }
@@ -136,11 +147,29 @@ impl Room {
     }
 }
 
-fn generate_fixed_resolution_noise(perlin: &Perlin, x: f64, y: f64, amount: f64) -> i32 {
-    let base_factor = RESOLUTION_FACTOR as f64;
-    let x_rounded = (x / base_factor * RESOLUTION_FACTOR_NOISE).floor() * base_factor / RESOLUTION_FACTOR_NOISE;
-    let y_rounded = (y / base_factor * RESOLUTION_FACTOR_NOISE).floor() * base_factor / RESOLUTION_FACTOR_NOISE;
-    (perlin.get([x_rounded * 1.11, y_rounded * 1.11]) * amount) as i32
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Display, PartialEq, Eq, Hash)]
+pub enum Material {
+    Carpet,
+    Marble,
+    Granite,
+}
+
+impl Material {
+    pub const fn get_scale(&self) -> f32 {
+        match self {
+            Self::Carpet => 25.0,
+            Self::Marble => 1.0,
+            Self::Granite => 0.5,
+        }
+    }
+
+    pub const fn get_image(&self) -> &[u8] {
+        match self {
+            Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
+            Self::Marble => include_bytes!("../../assets/textures/marble.png"),
+            Self::Granite => include_bytes!("../../assets/textures/granite.png"),
+        }
+    }
 }
 
 const fn vec2_to_coord(v: &Vec2) -> geo_types::Coord<f64> {
