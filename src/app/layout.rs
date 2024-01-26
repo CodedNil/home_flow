@@ -27,7 +27,7 @@ impl Default for Home {
                 name: "Living Room".to_string(),
                 shape: Shape::Rectangle,
                 render_options: Some(RenderOptions {
-                    color: [50, 50, 200, 255],
+                    color: [50, 50, 200],
                     noise: Some(40.0),
                 }),
                 render: None,
@@ -37,7 +37,7 @@ impl Default for Home {
                     action: Action::Add,
                     shape: Shape::Circle,
                     render_options: Some(RenderOptions {
-                        color: [200, 50, 50, 255],
+                        color: [200, 50, 50],
                         noise: Some(40.0),
                     }),
                     pos: Vec2 { x: 2.0, y: 3.0 },
@@ -71,7 +71,7 @@ pub struct Operation {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RenderOptions {
-    pub color: [u8; 4],
+    pub color: [u8; 3],
     pub noise: Option<f64>,
 }
 

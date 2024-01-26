@@ -1,5 +1,6 @@
 use egui::{
-    epaint::Shadow, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect, Sense, Stroke, TextureOptions, Vec2, Window,
+    epaint::Shadow, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect, Sense, Shape, Stroke, TextureOptions,
+    Vec2, Window,
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
 use std::collections::{HashMap, HashSet};
@@ -20,6 +21,9 @@ pub struct HomeFlow {
 
     #[serde(skip)]
     layout: layout::Home,
+
+    #[serde(skip)]
+    edit_mode: bool,
 }
 
 impl Default for HomeFlow {
@@ -29,6 +33,7 @@ impl Default for HomeFlow {
             translation: Vec2::ZERO,
             zoom: 100.0,
             layout: layout::Home::load(),
+            edit_mode: false,
         }
     }
 }
@@ -113,7 +118,6 @@ impl eframe::App for HomeFlow {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    #[allow(clippy::too_many_lines)]
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         let inner_frame = Frame {
             shadow: Shadow::small_dark(),
@@ -153,12 +157,10 @@ impl eframe::App for HomeFlow {
                 }
 
                 // Clamp translation to bounds
-                let bounds = [-10.0, 10.0, -10.0, 10.0];
+                let bounds = [-30.0, 30.0, -30.0, 30.0];
                 let window_size_meters = ui.ctx().available_rect().size() / self.zoom / 2.0;
-
                 let min_translation = Vec2::new(bounds[0] + window_size_meters.x, bounds[2] + window_size_meters.y);
                 let max_translation = Vec2::new(bounds[1] - window_size_meters.x, bounds[3] - window_size_meters.y);
-
                 if min_translation.x <= max_translation.x {
                     self.translation.x = self.translation.x.clamp(min_translation.x, max_translation.x);
                 } else {
@@ -169,6 +171,9 @@ impl eframe::App for HomeFlow {
                 } else {
                     self.translation.y = 0.0;
                 }
+
+                let mouse_pos = ui.input(|i| i.pointer.latest_pos()).map_or(Pos2::ZERO, |mouse_pos| mouse_pos);
+                let mouse_pos_world = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
 
                 let mut update_rooms_render = HashMap::new();
                 for room in &self.layout.rooms {
@@ -196,6 +201,17 @@ impl eframe::App for HomeFlow {
                         Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
                         Color32::WHITE,
                     );
+
+                    // Render outline if mouse within the shape and in edit mode
+                    if self.edit_mode && room.contains(mouse_pos_world.x, mouse_pos_world.y) {
+                        let vertices = room.vertices();
+                        let points = vertices
+                            .iter()
+                            .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
+                            .collect::<Vec<_>>();
+                        let glow = (225.0 + (self.time * 10.0).sin() * 30.0).clamp(0.0, 255.0) as u8;
+                        painter.add(Shape::closed_line(points, Stroke::new(10.0, Color32::from_rgb(glow, glow, glow))));
+                    }
                 }
                 // Update cache if needed
                 if !update_rooms_render.is_empty() {
@@ -209,7 +225,21 @@ impl eframe::App for HomeFlow {
 
                 self.render_grid(&painter, &response.rect, canvas_center);
 
-                let plot_location = self.world_to_pixels(canvas_center, 3.0, -2.0);
+                Window::new("Bottom Right")
+                    .fixed_pos(Pos2::new(response.rect.right() - 10.0, response.rect.bottom() - 10.0))
+                    .auto_sized()
+                    .pivot(Align2::RIGHT_BOTTOM)
+                    .title_bar(false)
+                    .resizable(false)
+                    .constrain(false)
+                    .frame(inner_frame)
+                    .show(ctx, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.checkbox(&mut self.edit_mode, "Edit Mode");
+                        });
+                    });
+
+                let plot_location = self.world_to_pixels(canvas_center, 4.0, -3.0);
                 let plot_end_location = self.world_to_pixels(canvas_center, 8.0, -6.0);
                 Window::new("Plot Window")
                     .fixed_pos(plot_location)

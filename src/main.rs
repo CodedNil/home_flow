@@ -2,7 +2,10 @@
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::suboptimal_flops,
-    clippy::cast_lossless
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::too_many_lines
 )]
 
 #[cfg(feature = "gui")]

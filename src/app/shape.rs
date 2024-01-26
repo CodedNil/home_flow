@@ -1,4 +1,5 @@
 use super::layout::{Action, Room, RoomRender, Vec2, RESOLUTION_FACTOR, RESOLUTION_FACTOR_NOISE};
+use geo::BooleanOps;
 use image::{ImageBuffer, Rgba};
 use noise::{NoiseFn, Perlin};
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,28 @@ impl Room {
         (min, max)
     }
 
-    #[allow(clippy::cast_sign_loss)]
+    // Check if the point is inside the room's shape after operations applied
+    pub fn contains(&self, x: f32, y: f32) -> bool {
+        let point = Vec2 { x, y };
+        let mut inside = self.shape.contains(point, self.pos, self.size);
+        for operation in &self.operations {
+            match operation.action {
+                Action::Add => {
+                    if operation.shape.contains(point, operation.pos, operation.size) {
+                        inside = true;
+                    }
+                }
+                Action::Subtract => {
+                    if operation.shape.contains(point, operation.pos, operation.size) {
+                        inside = false;
+                        break;
+                    }
+                }
+            }
+        }
+        inside
+    }
+
     pub fn render(&self) -> RoomRender {
         // Calculate the center and size of the room
         let (bounds_min, bounds_max) = self.bounds();
@@ -52,7 +74,7 @@ impl Room {
                         (render.color[0] as i32 + noise_value).clamp(0, 255) as u8,
                         (render.color[1] as i32 + noise_value).clamp(0, 255) as u8,
                         (render.color[2] as i32 + noise_value).clamp(0, 255) as u8,
-                        render.color[3],
+                        255,
                     ]);
                 }
             }
@@ -70,7 +92,7 @@ impl Room {
                                     (render.color[0] as i32 + noise_value).clamp(0, 255) as u8,
                                     (render.color[1] as i32 + noise_value).clamp(0, 255) as u8,
                                     (render.color[2] as i32 + noise_value).clamp(0, 255) as u8,
-                                    render.color[3],
+                                    255,
                                 ]);
                             }
                         }
@@ -90,6 +112,27 @@ impl Room {
             size: new_size,
         }
     }
+
+    pub fn vertices(&self) -> Vec<Vec2> {
+        let mut vertices = self.shape.vertices(self.pos, self.size);
+        let poly1 = create_polygon(&vertices);
+        for operation in &self.operations {
+            let operation_vertices = operation.shape.vertices(operation.pos, operation.size);
+            let poly2 = create_polygon(&operation_vertices);
+
+            let operated: geo_types::MultiPolygon = match operation.action {
+                Action::Add => poly1.union(&poly2),
+                Action::Subtract => poly1.difference(&poly2),
+            };
+
+            if let Some(polygon) = operated.0.first() {
+                vertices = polygon.exterior().points().map(coord_to_vec2).collect();
+            } else {
+                return Vec::new();
+            }
+        }
+        vertices
+    }
 }
 
 fn generate_fixed_resolution_noise(perlin: &Perlin, x: f64, y: f64, amount: f64) -> i32 {
@@ -97,6 +140,27 @@ fn generate_fixed_resolution_noise(perlin: &Perlin, x: f64, y: f64, amount: f64)
     let x_rounded = (x / base_factor * RESOLUTION_FACTOR_NOISE).floor() * base_factor / RESOLUTION_FACTOR_NOISE;
     let y_rounded = (y / base_factor * RESOLUTION_FACTOR_NOISE).floor() * base_factor / RESOLUTION_FACTOR_NOISE;
     (perlin.get([x_rounded * 1.11, y_rounded * 1.11]) * amount) as i32
+}
+
+const fn vec2_to_coord(v: &Vec2) -> geo_types::Coord<f64> {
+    geo_types::Coord {
+        x: v.x as f64,
+        y: v.y as f64,
+    }
+}
+
+fn coord_to_vec2(c: geo_types::Point<f64>) -> Vec2 {
+    Vec2 {
+        x: c.x() as f32,
+        y: c.y() as f32,
+    }
+}
+
+fn create_polygon(vertices: &[Vec2]) -> geo::Polygon<f64> {
+    geo::Polygon::new(
+        geo::LineString::from(vertices.iter().map(vec2_to_coord).collect::<Vec<_>>()),
+        vec![],
+    )
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -121,6 +185,45 @@ impl Shape {
                 let dy = (point.y - center.y) / b;
 
                 dx * dx + dy * dy <= 1.0
+            }
+        }
+    }
+
+    pub fn vertices(&self, pos: Vec2, size: Vec2) -> Vec<Vec2> {
+        match self {
+            Self::Rectangle => {
+                vec![
+                    Vec2 {
+                        x: pos.x - size.x / 2.0,
+                        y: pos.y - size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: pos.x + size.x / 2.0,
+                        y: pos.y - size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: pos.x + size.x / 2.0,
+                        y: pos.y + size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: pos.x - size.x / 2.0,
+                        y: pos.y + size.y / 2.0,
+                    },
+                ]
+            }
+            Self::Circle => {
+                let radius_x = size.x / 2.0;
+                let radius_y = size.y / 2.0;
+                let quality = 90;
+                let mut vertices = Vec::new();
+                for i in 0..quality {
+                    let angle = (i as f32 / quality as f32) * std::f32::consts::PI * 2.0;
+                    vertices.push(Vec2 {
+                        x: pos.x + angle.cos() * radius_x,
+                        y: pos.y + angle.sin() * radius_y,
+                    });
+                }
+                vertices
             }
         }
     }
@@ -190,7 +293,6 @@ impl std::ops::Mul<Self> for Vec2 {
     }
 }
 
-#[allow(clippy::trivially_copy_pass_by_ref)]
 impl Vec2 {
     pub fn min(&self, other: Self) -> Self {
         Self {
