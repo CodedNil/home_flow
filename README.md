@@ -9,6 +9,6 @@
     <br>
     <img src="https://img.shields.io/github/repo-size/CodedNil/home_flow"/>
     <img src="https://img.shields.io/github/languages/code-size/CodedNil/home_flow"/>
-    <img src="https://img.shields.io/badge/binary_size-TBD-blue"/>
+    <img src="https://img.shields.io/github/size/CodedNil/home_flow/home_flow.wasm?branch=gh-pages"/>
     <img src="https://img.shields.io/badge/wasm_size-TBD-blue"/>
 </h1>
