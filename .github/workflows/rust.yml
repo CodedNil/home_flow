@@ -3,8 +3,6 @@ name: Rust
 on:
   push:
     branches: ["main"]
-    paths-ignore:
-      - "README.md"
   pull_request:
     branches: ["main"]
 
@@ -38,10 +36,6 @@ jobs:
 
       - name: Build
         run: cargo build --no-default-features --target-dir target/server --verbose
-
-      - name: Get Server Binary Size
-        id: server-size
-        run: echo "::set-output name=size::$(du -b target/server/home_flow | cut -f1)"
 
   build-wasm:
     runs-on: ubuntu-latest
@@ -77,22 +71,3 @@ jobs:
 
       - name: Build
         run: trunk build --release
-
-      - name: Get Wasm File Size
-        id: wasm-size
-        run: echo "::set-output name=size::$(du -b dist/home_flow-*_bg.wasm | cut -f1)"
-
-  update-readme:
-    runs-on: ubuntu-latest
-    needs: [build-server, build-wasm]
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Update README with Binary Sizes
-        run: python update_readme.py ${{ needs.build-server.outputs.server-size }} ${{ needs.build-wasm.outputs.wasm-size }}
-
-      - name: Commit and Push Changes
-        run: |
-          git add README.md
-          git commit -m "Update binary sizes in README"
-          git push
