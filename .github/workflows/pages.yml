@@ -13,7 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
@@ -29,8 +30,8 @@ jobs:
       - name: Build
         run: ./trunk build --release --public-url "${GITHUB_REPOSITORY#*/}"
 
-      - name: Copy Wasm File
-        run: cp dist/home_flow-*-bg.wasm dist/home_flow.wasm
+      # - name: Copy Wasm File
+      #   run: cp dist/home_flow-*-bg.wasm dist/home_flow.wasm
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4

@@ -23,16 +23,8 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1
 
       - name: Build
         run: cargo build --no-default-features --target-dir target/server --verbose
@@ -51,23 +43,11 @@ jobs:
           override: true
           target: wasm32-unknown-unknown
 
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1
 
-      - name: Install trunk
-        run: |
-          if ! command -v trunk &> /dev/null
-          then
-            cargo install trunk
-          fi
+      - name: Download and install Trunk binary
+        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
 
       - name: Build
-        run: trunk build --release
+        run: ./trunk build --release
