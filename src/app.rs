@@ -1,14 +1,8 @@
 use egui::{
-    epaint::{Shadow, Vertex},
-    CentralPanel, Color32, Context, Frame, Mesh, Painter, Pos2, Rect, Sense, Shape, SizeHint, Stroke, TextureId, TextureOptions, Vec2,
-    Window,
+    epaint::Shadow, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect, Sense, Stroke, TextureOptions, Vec2, Window,
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
-use env_logger::fmt::style::Color;
-use std::{
-    collections::HashSet,
-    time::{Duration, Instant},
-};
+use std::collections::HashSet;
 
 mod layout;
 mod shape;
@@ -26,11 +20,6 @@ pub struct HomeFlow {
 
     #[serde(skip)]
     layout: layout::Home,
-
-    #[serde(skip)]
-    last_frame: Instant,
-    #[serde(skip)]
-    frame_times: Vec<Duration>,
 }
 
 impl Default for HomeFlow {
@@ -40,8 +29,6 @@ impl Default for HomeFlow {
             translation: Vec2::ZERO,
             zoom: 100.0,
             layout: layout::Home::load(),
-            last_frame: Instant::now(),
-            frame_times: Vec::new(),
         }
     }
 }
@@ -117,32 +104,6 @@ impl HomeFlow {
             painter.line_segment([line.0, line.1], line.2);
         }
     }
-
-    fn render_mesh(
-        &self,
-        painter: &Painter,
-        canvas_center: Pos2,
-        indices: Vec<u32>,
-        vertices: Vec<Pos2>,
-        texture_id: TextureId,
-        color: Color32,
-    ) {
-        let mut vertices_pixels = Vec::new();
-        for vertex in vertices {
-            vertices_pixels.push(Vertex {
-                pos: self.world_to_pixels(canvas_center, vertex.x, vertex.y),
-                uv: Pos2::new(vertex.x, vertex.y),
-                color,
-            });
-        }
-
-        let mesh = Mesh {
-            indices,
-            vertices: vertices_pixels,
-            texture_id,
-        };
-        painter.add(Shape::mesh(mesh));
-    }
 }
 
 impl eframe::App for HomeFlow {
@@ -154,40 +115,12 @@ impl eframe::App for HomeFlow {
     /// Called each time the UI needs repainting, which may be many times per second.
     #[allow(clippy::too_many_lines)]
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        let now = Instant::now();
-        self.frame_times.push(now - self.last_frame);
-        self.last_frame = now;
-
-        // Keep only the last 100 frame times
-        if self.frame_times.len() > 100 {
-            self.frame_times.remove(0);
-        }
-
-        let average_frame_time = self.frame_times.iter().sum::<Duration>() / self.frame_times.len() as u32;
-        let fps = 1.0 / average_frame_time.as_secs_f32();
-
-        Window::new("Performance")
-            .fixed_pos(Pos2::new(20.0, 20.0))
-            .title_bar(false)
-            .resizable(false)
-            .interactable(false)
-            .frame(Frame::none())
-            .show(ctx, |ui| {
-                ui.label(format!("FPS: {fps:.2}"));
-            });
-
         let inner_frame = Frame {
             shadow: Shadow::small_dark(),
             stroke: Stroke::new(4.0, Color32::from_rgb(60, 60, 60)),
             fill: Color32::from_rgb(27, 27, 27),
             ..Default::default()
         };
-
-        egui_extras::install_image_loaders(ctx);
-        ctx.include_bytes("noise", include_bytes!("../assets/noise.png"));
-        let noise_texture = ctx.try_load_texture("noise", TextureOptions::NEAREST, SizeHint::default()).unwrap();
-        let noise_texture_id = noise_texture.texture_id().unwrap();
-
         CentralPanel::default()
             .frame(Frame {
                 fill: Color32::from_rgb(35, 35, 50),
@@ -237,24 +170,25 @@ impl eframe::App for HomeFlow {
                     self.translation.y = 0.0;
                 }
 
-                self.render_grid(&painter, &response.rect, canvas_center);
-
                 for room in &self.layout.rooms {
-                    let (vertices, indices) = room.triangles();
-                    let vertices = vertices.iter().map(|vertex| Pos2::new(vertex.x, vertex.y)).collect();
-                    let indices = indices
-                        .iter()
-                        .flat_map(|&index| [index[0] as u32, index[1] as u32, index[2] as u32])
-                        .collect();
-                    self.render_mesh(
-                        &painter,
-                        canvas_center,
-                        indices,
-                        vertices,
-                        noise_texture_id,
-                        Color32::from_rgb(150, 50, 50),
+                    let room_texture = room.texture();
+                    let texture = room_texture.texture;
+                    let canvas_size = texture.dimensions();
+                    let egui_image = ColorImage::from_rgba_unmultiplied([canvas_size.0 as usize, canvas_size.1 as usize], &texture);
+                    let canvas_texture_id = ctx.load_texture("noise", egui_image, TextureOptions::NEAREST).id();
+                    let rect = Rect::from_center_size(
+                        self.world_to_pixels(canvas_center, room_texture.center.x, room_texture.center.y),
+                        Vec2::new(room_texture.size.x * self.zoom, -room_texture.size.y * self.zoom),
+                    );
+                    painter.image(
+                        canvas_texture_id,
+                        rect,
+                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
+                        Color32::WHITE,
                     );
                 }
+
+                self.render_grid(&painter, &response.rect, canvas_center);
 
                 let plot_location = self.world_to_pixels(canvas_center, 3.0, -2.0);
                 let plot_end_location = self.world_to_pixels(canvas_center, 8.0, -6.0);

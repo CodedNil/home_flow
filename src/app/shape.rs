@@ -1,135 +1,136 @@
-use super::layout::{Action, Room, Vec2};
-use geo::BooleanOps;
+use super::layout::{Action, Room, Vec2, RESOLUTION_FACTOR};
+use image::{ImageBuffer, Rgba};
+use noise::{NoiseFn, Perlin};
 use serde::{Deserialize, Serialize};
 
+pub struct RoomTexture {
+    pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    pub center: Vec2,
+    pub size: Vec2,
+}
+
 impl Room {
-    pub fn vertices(&self) -> Vec<Vec2> {
-        let mut vertices = self.shape.vertices(self.pos, self.size);
-        let poly1 = create_polygon(&vertices);
+    pub fn bounds(&self) -> (Vec2, Vec2) {
+        let mut min = self.pos - self.size / 2.0;
+        let mut max = self.pos + self.size / 2.0;
+
         for operation in &self.operations {
-            let operation_vertices = operation.shape.vertices(operation.pos, operation.size);
-            let poly2 = create_polygon(&operation_vertices);
-
-            let operated: geo_types::MultiPolygon = match operation.action {
-                Action::Add => poly1.union(&poly2),
-                Action::Subtract => poly1.difference(&poly2),
-            };
-
-            if let Some(polygon) = operated.0.first() {
-                vertices = polygon.exterior().points().map(coord_to_vec2).collect();
-            } else {
-                return Vec::new();
+            if operation.action == Action::Add {
+                let (operation_min, operation_max) = (operation.pos - operation.size / 2.0, operation.pos + operation.size / 2.0);
+                min = min.min(operation_min);
+                max = max.max(operation_max);
             }
         }
-        vertices
+
+        (min, max)
     }
 
-    pub fn triangles(&self) -> (Vec<Vec2>, Vec<[usize; 3]>) {
-        let vertices = self.vertices();
-        let mut triangles = Vec::new();
+    #[allow(clippy::cast_sign_loss)]
+    pub fn texture(&self) -> RoomTexture {
+        let (bounds_min, bounds_max) = self.bounds();
+        let new_center = (bounds_min + bounds_max) / 2.0;
+        let new_size = bounds_max - bounds_min;
 
-        // Convert vertices to a mutable Vec of indices
-        let mut indices: Vec<usize> = (0..vertices.len()).collect();
+        // Calculate the size of the canvas based on the room size and resolution factor
+        let width = new_size.x * RESOLUTION_FACTOR;
+        let height = new_size.y * RESOLUTION_FACTOR;
 
-        // Ear clipping triangulation
-        while indices.len() > 3 {
-            let mut ear_found = false;
+        // Create an image buffer with the calculated size, filled with transparent pixels
+        let mut canvas = ImageBuffer::new(width as u32, height as u32);
 
-            for i in 0..indices.len() {
-                let prev = if i == 0 { indices.len() - 1 } else { i - 1 };
-                let next = if i == indices.len() - 1 { 0 } else { i + 1 };
+        let perlin = Perlin::new(1230);
 
-                let a = vertices[indices[prev]];
-                let b = vertices[indices[i]];
-                let c = vertices[indices[next]];
+        // Draw the room's shape on the canvas
+        for (x, y, pixel) in canvas.enumerate_pixels_mut() {
+            let point = Vec2 {
+                x: x as f32 / width,
+                y: y as f32 / height,
+            };
+            let point_in_world = bounds_min + point * new_size;
+            if let Some(render) = &self.render_options {
+                if self.shape.contains(point_in_world, self.pos, self.size) {
+                    let noise_value = render
+                        .noise
+                        .map_or(0, |noise| (perlin.get([x as f64 * 1.11, y as f64 * 1.11]) * noise) as i32);
 
-                if is_ear(a, b, c, &vertices, &indices) {
-                    // Found an ear
-                    triangles.push([indices[prev], indices[i], indices[next]]);
-                    indices.remove(i);
-                    ear_found = true;
-                    break;
+                    *pixel = Rgba([
+                        (render.color[0] as i32 + noise_value).clamp(0, 255) as u8,
+                        (render.color[1] as i32 + noise_value).clamp(0, 255) as u8,
+                        (render.color[2] as i32 + noise_value).clamp(0, 255) as u8,
+                        render.color[3],
+                    ]);
                 }
             }
 
-            // Break if no ear is found to prevent an infinite loop
-            if !ear_found {
-                break;
+            for operation in &self.operations {
+                match operation.action {
+                    Action::Add => {
+                        if let Some(render) = &operation.render_options {
+                            if operation.shape.contains(point_in_world, operation.pos, operation.size) {
+                                let noise_value = render
+                                    .noise
+                                    .map_or(0, |noise| (perlin.get([x as f64 * 1.11, y as f64 * 1.11]) * noise) as i32);
+
+                                *pixel = Rgba([
+                                    (render.color[0] as i32 + noise_value).clamp(0, 255) as u8,
+                                    (render.color[1] as i32 + noise_value).clamp(0, 255) as u8,
+                                    (render.color[2] as i32 + noise_value).clamp(0, 255) as u8,
+                                    render.color[3],
+                                ]);
+                            }
+                        }
+                    }
+                    Action::Subtract => {
+                        if operation.shape.contains(point_in_world, operation.pos, operation.size) {
+                            *pixel = Rgba([0, 0, 0, 0]);
+                        }
+                    }
+                }
             }
         }
 
-        // Add the remaining triangle
-        if indices.len() == 3 {
-            triangles.push([indices[0], indices[1], indices[2]]);
+        RoomTexture {
+            texture: canvas,
+            center: new_center,
+            size: new_size,
         }
-
-        (vertices, triangles)
     }
 }
 
-fn vec2_to_coord(v: &Vec2) -> geo_types::Coord<f64> {
-    geo_types::Coord {
-        x: v.x as f64,
-        y: v.y as f64,
-    }
-}
-
-fn coord_to_vec2(c: geo_types::Point<f64>) -> Vec2 {
-    Vec2 {
-        x: c.x() as f32,
-        y: c.y() as f32,
-    }
-}
-
-fn create_polygon(vertices: &[Vec2]) -> geo::Polygon<f64> {
-    geo::Polygon::new(
-        geo::LineString::from(vertices.iter().map(vec2_to_coord).collect::<Vec<_>>()),
-        vec![],
-    )
-}
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Shape {
     Rectangle,
     Circle,
 }
 
 impl Shape {
-    pub fn vertices(&self, pos: Vec2, size: Vec2) -> Vec<Vec2> {
-        match self {
+    fn contains(&self, point: Vec2, center: Vec2, size: Vec2) -> bool {
+        match *self {
             Self::Rectangle => {
-                vec![
-                    Vec2 {
-                        x: pos.x - size.x / 2.0,
-                        y: pos.y - size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: pos.x + size.x / 2.0,
-                        y: pos.y - size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: pos.x + size.x / 2.0,
-                        y: pos.y + size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: pos.x - size.x / 2.0,
-                        y: pos.y + size.y / 2.0,
-                    },
-                ]
+                point.x >= center.x - size.x / 2.0
+                    && point.x < center.x + size.x / 2.0
+                    && point.y >= center.y - size.y / 2.0
+                    && point.y < center.y + size.y / 2.0
             }
             Self::Circle => {
-                let radius_x = size.x / 2.0;
-                let radius_y = size.y / 2.0;
-                let quality = 90;
-                let mut vertices = Vec::new();
-                for i in 0..quality {
-                    let angle = (i as f32 / quality as f32) * std::f32::consts::PI * 2.0;
-                    vertices.push(Vec2 {
-                        x: pos.x + angle.cos() * radius_x,
-                        y: pos.y + angle.sin() * radius_y,
-                    });
-                }
-                vertices
+                let a = size.x / 2.0;
+                let b = size.y / 2.0;
+                let dx = (point.x - center.x) / a;
+                let dy = (point.y - center.y) / b;
+
+                dx * dx + dy * dy <= 1.0
             }
+        }
+    }
+}
+
+impl std::ops::Add for Vec2 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
         }
     }
 }
@@ -137,47 +138,69 @@ impl Shape {
 impl std::ops::Sub for Vec2 {
     type Output = Self;
 
-    fn sub(self, other: Self) -> Self {
+    fn sub(self, rhs: Self) -> Self::Output {
         Self {
-            x: self.x - other.x,
-            y: self.y - other.y,
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
         }
     }
 }
 
-fn is_ear(a: Vec2, b: Vec2, c: Vec2, vertices: &[Vec2], indices: &[usize]) -> bool {
-    // Check if triangle ABC is convex and no other vertices lie inside it
-    if is_convex(a, b, c) {
-        for &i in indices {
-            let p = vertices[i];
-            if p != a && p != b && p != c && point_in_triangle(p, a, b, c) {
-                return false;
-            }
+impl std::ops::Div<f32> for Vec2 {
+    type Output = Self;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        Self {
+            x: self.x / rhs,
+            y: self.y / rhs,
         }
-        true
-    } else {
-        false
+    }
+}
+impl std::ops::Div<Self> for Vec2 {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x / rhs.x,
+            y: self.y / rhs.y,
+        }
     }
 }
 
-fn point_in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
-    // Calculate vectors from the point to the vertices of the triangle
-    let pa = a - p;
-    let pb = b - p;
-    let pc = c - p;
+impl std::ops::Mul<f32> for Vec2 {
+    type Output = Self;
 
-    // Calculate cross products to get z components of 3D vectors
-    let cross_pa_pb = pa.x * pb.y - pa.y * pb.x;
-    let cross_pb_pc = pb.x * pc.y - pb.y * pc.x;
-    let cross_pc_pa = pc.x * pa.y - pc.y * pa.x;
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+impl std::ops::Mul<Self> for Vec2 {
+    type Output = Self;
 
-    // Check if point is inside triangle by comparing the signs of the z components
-    cross_pa_pb.signum() == cross_pb_pc.signum() && cross_pb_pc.signum() == cross_pc_pa.signum()
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x * rhs.x,
+            y: self.y * rhs.y,
+        }
+    }
 }
 
-fn is_convex(a: Vec2, b: Vec2, c: Vec2) -> bool {
-    let ab = b - a;
-    let bc = c - b;
-    let cross_product_z = ab.x * bc.y - ab.y * bc.x;
-    cross_product_z > 0.0
+#[allow(clippy::trivially_copy_pass_by_ref)]
+impl Vec2 {
+    pub fn min(&self, other: Self) -> Self {
+        Self {
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
+        }
+    }
+
+    pub fn max(&self, other: Self) -> Self {
+        Self {
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
+        }
+    }
 }

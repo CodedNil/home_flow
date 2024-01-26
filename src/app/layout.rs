@@ -1,15 +1,17 @@
 use anyhow::Result;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::sync::{Arc, Mutex};
 
 use super::shape::Shape;
 
 const LAYOUT_VERSION: &str = "0.1";
 const LAYOUT_PATH: &str = "home_layout.json";
+pub const RESOLUTION_FACTOR: f32 = 10.0; // Pixels per meter
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Home {
     version: String,
     pub rooms: Vec<Room>,
@@ -22,12 +24,20 @@ impl Default for Home {
             rooms: vec![Room {
                 name: "Living Room".to_string(),
                 shape: Shape::Rectangle,
+                render_options: Some(RenderOptions {
+                    color: [50, 50, 200, 255],
+                    noise: Some(40.0),
+                }),
                 pos: Vec2 { x: 0.0, y: 0.0 },
-                size: Vec2 { x: 10.0, y: 5.0 },
+                size: Vec2 { x: 10.0, y: 6.0 },
                 operations: vec![Operation {
-                    action: Action::Subtract,
+                    action: Action::Add,
                     shape: Shape::Circle,
-                    pos: Vec2 { x: 2.0, y: 2.0 },
+                    render_options: Some(RenderOptions {
+                        color: [200, 50, 50, 255],
+                        noise: Some(40.0),
+                    }),
+                    pos: Vec2 { x: 2.0, y: 3.0 },
                     size: Vec2 { x: 4.0, y: 2.0 },
                 }],
             }],
@@ -35,24 +45,32 @@ impl Default for Home {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Room {
     pub name: String,
     pub shape: Shape,
+    pub render_options: Option<RenderOptions>,
     pub pos: Vec2,
     pub size: Vec2,
     pub operations: Vec<Operation>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Operation {
     pub action: Action,
     pub shape: Shape,
+    pub render_options: Option<RenderOptions>,
     pub pos: Vec2,
     pub size: Vec2,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct RenderOptions {
+    pub color: [u8; 4],
+    pub noise: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     Subtract,
     Add,
@@ -64,27 +82,31 @@ pub struct Vec2 {
     pub y: f32,
 }
 
+static LAYOUT: Lazy<Arc<Mutex<Option<Home>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
+
 impl Home {
     pub fn load() -> Self {
-        // if let Ok(mut file) = File::open(LAYOUT_PATH) {
-        //     let mut contents = String::new();
-        //     if file.read_to_string(&mut contents).is_ok() {
-        //         if let Ok(json) = serde_json::from_str::<Value>(&contents) {
-        //             if let Some(version) = json.get("version").and_then(Value::as_str) {
-        //                 if version != LAYOUT_VERSION {
-        //                     todo!("Upgrade layout version")
-        //                 }
-        //             }
-        //         }
-        //         if let Ok(layout) = serde_json::from_str::<Self>(&contents) {
-        //             return layout;
-        //         }
-        //     }
-        // }
-        // let default_layout = Self::default();
-        // let _ = default_layout.save();
-        // default_layout
-        Self::default()
+        let mut layout_lock = LAYOUT.lock().unwrap();
+        layout_lock.clone().map_or_else(
+            || {
+                // Load from file or use default
+                let loaded_layout = File::open(LAYOUT_PATH).map_or_else(
+                    |_| Self::default(),
+                    |mut file| {
+                        let mut contents = String::new();
+                        file.read_to_string(&mut contents).map_or_else(
+                            |_| Self::default(),
+                            |_| serde_json::from_str::<Self>(&contents).unwrap_or_else(|_| Self::default()),
+                        )
+                    },
+                );
+
+                // Update the in-memory layout
+                *layout_lock = Some(loaded_layout.clone());
+                loaded_layout
+            },
+            |layout| layout,
+        )
     }
 
     pub fn save(&self) -> Result<()> {
