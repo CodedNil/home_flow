@@ -1,11 +1,11 @@
 default:
-    cargo run --release
+    cargo run --target-dir target/desktop
 
 build-web:
     trunk build --release
 
 serve:
-    cargo run --release --no-default-features
+    cargo run --no-default-features --target-dir target/server
 
 check:
     cargo check --all-targets

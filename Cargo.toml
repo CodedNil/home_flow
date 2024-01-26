@@ -45,7 +45,5 @@ tower-http = { version = "0.5.1", features = [
 default = ["gui"]
 gui = ["egui", "eframe", "egui_plot", "image"]
 
-# Optimise for size
 [profile.release]
 lto = true
-opt-level = "z"
