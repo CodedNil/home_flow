@@ -29,8 +29,18 @@ jobs:
       - name: Build
         run: ./trunk build --release --public-url "${GITHUB_REPOSITORY#*/}"
 
-      - name: Rename Wasm File
-        run: mv dist/home_flow-*_bg.wasm dist/home_flow.wasm
+      - name: Get Wasm File Size
+        id: wasm-size
+        run: |
+          wasm_file="dist/home_flow-*_bg.wasm"
+          if [ -f "$wasm_file" ]; then
+            size_bytes=$(du -b "$wasm_file" | cut -f1)
+            size_human_readable=$(du -h "$wasm_file" | cut -f1)
+            echo "{\"size_bytes\": \"$size_bytes\", \"size_human_readable\": \"$size_human_readable\"}" > wasm_size.json
+          else
+            echo "Wasm file not found!"
+            exit 1
+          fi
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
