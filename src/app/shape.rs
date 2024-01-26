@@ -61,7 +61,7 @@ impl Room {
         for (x, y, pixel) in canvas.enumerate_pixels_mut() {
             let point = Vec2 {
                 x: x as f32 / width,
-                y: y as f32 / height,
+                y: 1.0 - (y as f32 / height),
             };
             let point_in_world = bounds_min + point * new_size;
             if let Some(render) = &self.render_options {
@@ -110,6 +110,7 @@ impl Room {
             texture: canvas.clone(),
             center: new_center,
             size: new_size,
+            vertices: self.vertices(),
         }
     }
 

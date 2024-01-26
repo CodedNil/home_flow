@@ -48,7 +48,7 @@ impl HomeFlow {
     }
 
     fn pixels_to_world(&self, canvas_center: Pos2, x: f32, y: f32) -> Pos2 {
-        Pos2::new(x - canvas_center.x, canvas_center.y - y) / self.zoom - self.translation
+        Pos2::new(x - canvas_center.x, canvas_center.y - y) / self.zoom - Vec2::new(self.translation.x, -self.translation.y)
     }
 
     fn world_to_pixels(&self, canvas_center: Pos2, x: f32, y: f32) -> Pos2 {
@@ -63,8 +63,8 @@ impl HomeFlow {
         ];
 
         let (bottom_edge_world, top_edge_world) = (
-            -self.pixels_to_world(canvas_center, 0.0, visible_rect.top()).y,
-            -self.pixels_to_world(canvas_center, 0.0, visible_rect.bottom()).y,
+            self.pixels_to_world(canvas_center, 0.0, visible_rect.bottom()).y,
+            self.pixels_to_world(canvas_center, 0.0, visible_rect.top()).y,
         );
         let (left_edge_world, right_edge_world) = (
             self.pixels_to_world(canvas_center, visible_rect.left(), 0.0).x,
@@ -150,7 +150,8 @@ impl eframe::App for HomeFlow {
                         let mouse_world_before_zoom = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
                         self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
                         let mouse_world_after_zoom = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
-                        self.translation += mouse_world_after_zoom - mouse_world_before_zoom;
+                        let difference = mouse_world_after_zoom - mouse_world_before_zoom;
+                        self.translation += Vec2::new(difference.x, -difference.y);
                     } else {
                         self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
                     }
@@ -193,7 +194,7 @@ impl eframe::App for HomeFlow {
                     let canvas_texture_id = ctx.load_texture("noise", egui_image, TextureOptions::NEAREST).id();
                     let rect = Rect::from_center_size(
                         self.world_to_pixels(canvas_center, room_render.center.x, room_render.center.y),
-                        Vec2::new(room_render.size.x * self.zoom, -room_render.size.y * self.zoom),
+                        Vec2::new(room_render.size.x * self.zoom, room_render.size.y * self.zoom),
                     );
                     painter.image(
                         canvas_texture_id,
@@ -204,8 +205,8 @@ impl eframe::App for HomeFlow {
 
                     // Render outline if mouse within the shape and in edit mode
                     if self.edit_mode && room.contains(mouse_pos_world.x, mouse_pos_world.y) {
-                        let vertices = room.vertices();
-                        let points = vertices
+                        let points = room_render
+                            .vertices
                             .iter()
                             .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
                             .collect::<Vec<_>>();

@@ -34,12 +34,9 @@ impl Default for Home {
                 pos: Vec2 { x: 0.0, y: 0.0 },
                 size: Vec2 { x: 10.0, y: 6.0 },
                 operations: vec![Operation {
-                    action: Action::Add,
+                    action: Action::Subtract,
                     shape: Shape::Circle,
-                    render_options: Some(RenderOptions {
-                        color: [200, 50, 50],
-                        noise: Some(40.0),
-                    }),
+                    render_options: None,
                     pos: Vec2 { x: 2.0, y: 3.0 },
                     size: Vec2 { x: 4.0, y: 2.0 },
                 }],
@@ -80,6 +77,7 @@ pub struct RoomRender {
     pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
     pub center: Vec2,
     pub size: Vec2,
+    pub vertices: Vec<Vec2>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
