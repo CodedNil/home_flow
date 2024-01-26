@@ -23,7 +23,7 @@ impl Room {
     // Check if the point is inside the room's shape after operations applied
     pub fn contains(&self, x: f32, y: f32) -> bool {
         let point = Vec2 { x, y };
-        let mut inside = self.shape.contains(point, self.pos, self.size);
+        let mut inside = Shape::Rectangle.contains(point, self.pos, self.size);
         for operation in &self.operations {
             match operation.action {
                 Action::Add => {
@@ -65,7 +65,7 @@ impl Room {
             };
             let point_in_world = bounds_min + point * new_size;
             if let Some(render) = &self.render_options {
-                if self.shape.contains(point_in_world, self.pos, self.size) {
+                if Shape::Rectangle.contains(point_in_world, self.pos, self.size) {
                     let noise_value = render
                         .noise
                         .map_or(0, |noise| generate_fixed_resolution_noise(&perlin, x as f64, y as f64, noise));
@@ -115,7 +115,7 @@ impl Room {
     }
 
     pub fn vertices(&self) -> Vec<Vec2> {
-        let mut vertices = self.shape.vertices(self.pos, self.size);
+        let mut vertices = Shape::Rectangle.vertices(self.pos, self.size);
         let poly1 = create_polygon(&vertices);
         for operation in &self.operations {
             let operation_vertices = operation.shape.vertices(operation.pos, operation.size);

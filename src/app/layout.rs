@@ -25,7 +25,6 @@ impl Default for Home {
             version: LAYOUT_VERSION.to_string(),
             rooms: vec![Room {
                 name: "Living Room".to_string(),
-                shape: Shape::Rectangle,
                 render_options: Some(RenderOptions {
                     color: [50, 50, 200],
                     noise: Some(40.0),
@@ -48,7 +47,6 @@ impl Default for Home {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Room {
     pub name: String,
-    pub shape: Shape,
     pub render_options: Option<RenderOptions>,
     #[serde(skip)]
     pub render: Option<RoomRender>,
@@ -78,6 +76,14 @@ pub struct RoomRender {
     pub center: Vec2,
     pub size: Vec2,
     pub vertices: Vec<Vec2>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Furniture {
+    pub pos: Vec2,
+    pub size: Vec2,
+    pub rotation: f32,
+    pub sub_furniture: Vec<Furniture>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
