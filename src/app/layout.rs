@@ -30,16 +30,48 @@ impl Default for Home {
                 render: None,
                 pos: Vec2 { x: 0.0, y: 0.0 },
                 size: Vec2 { x: 10.0, y: 6.0 },
-                operations: vec![Operation {
-                    action: Action::Add,
-                    shape: Shape::Circle,
-                    render_options: Some(RenderOptions {
-                        material: Material::Marble,
-                        tint: None,
-                    }),
-                    pos: Vec2 { x: 2.0, y: 3.0 },
-                    size: Vec2 { x: 4.0, y: 2.0 },
-                }],
+                operations: vec![
+                    Operation {
+                        action: Action::Add,
+                        shape: Shape::Circle,
+                        render_options: Some(RenderOptions {
+                            material: Material::Marble,
+                            tint: None,
+                        }),
+                        pos: Vec2 { x: 2.0, y: 3.0 },
+                        size: Vec2 { x: 4.0, y: 2.0 },
+                    },
+                    Operation {
+                        action: Action::Add,
+                        shape: Shape::Rectangle,
+                        render_options: Some(RenderOptions {
+                            material: Material::Granite,
+                            tint: None,
+                        }),
+                        pos: Vec2 { x: -2.0, y: 3.0 },
+                        size: Vec2 { x: 4.0, y: 2.0 },
+                    },
+                    Operation {
+                        action: Action::Add,
+                        shape: Shape::Circle,
+                        render_options: Some(RenderOptions {
+                            material: Material::Wood,
+                            tint: None,
+                        }),
+                        pos: Vec2 { x: 2.0, y: -3.0 },
+                        size: Vec2 { x: 4.0, y: 2.0 },
+                    },
+                    Operation {
+                        action: Action::Add,
+                        shape: Shape::Circle,
+                        render_options: Some(RenderOptions {
+                            material: Material::WoodPlanks,
+                            tint: None,
+                        }),
+                        pos: Vec2 { x: -2.0, y: -3.0 },
+                        size: Vec2 { x: 4.0, y: 2.0 },
+                    },
+                ],
             }],
         }
     }

@@ -47,3 +47,4 @@ gui = ["egui", "eframe", "egui_plot", "image"]
 
 [profile.release]
 lto = true
+codegen-units = 1

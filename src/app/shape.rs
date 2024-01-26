@@ -99,7 +99,7 @@ impl Room {
                         if let Some(render_options) = &operation.render_options {
                             if operation.shape.contains(point_in_world, operation.pos, operation.size) {
                                 if let Some(texture) = textures.get(&render_options.material) {
-                                    let scale = self.render_options.material.get_scale() / RESOLUTION_FACTOR;
+                                    let scale = render_options.material.get_scale() / RESOLUTION_FACTOR;
                                     *pixel = *texture.get_pixel(
                                         (x as f32 * scale) as u32 % texture.width(),
                                         (y as f32 * scale) as u32 % texture.height(),
@@ -152,14 +152,15 @@ pub enum Material {
     Carpet,
     Marble,
     Granite,
+    Wood,
+    WoodPlanks,
 }
 
 impl Material {
     pub const fn get_scale(&self) -> f32 {
         match self {
-            Self::Carpet => 25.0,
-            Self::Marble => 1.0,
-            Self::Granite => 0.5,
+            Self::Carpet | Self::Granite | Self::Wood => 25.0,
+            Self::Marble | Self::WoodPlanks => 40.0,
         }
     }
 
@@ -168,6 +169,8 @@ impl Material {
             Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
+            Self::Wood => include_bytes!("../../assets/textures/wood.png"),
+            Self::WoodPlanks => include_bytes!("../../assets/textures/wood_planks.png"),
         }
     }
 }
