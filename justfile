@@ -5,4 +5,4 @@ build-web:
     trunk build --release
 
 serve:
-    cargo run --no-default-features --target-dir target/server
+    cargo run --release --no-default-features --target-dir target/server
