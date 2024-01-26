@@ -1,8 +1,10 @@
 use egui::{
     epaint::{Shadow, Vertex},
-    CentralPanel, Color32, Context, Frame, Mesh, Painter, Pos2, Rect, Sense, Shape, Stroke, TextureId, Vec2, Window,
+    CentralPanel, Color32, Context, Frame, Mesh, Painter, Pos2, Rect, Sense, Shape, SizeHint, Stroke, TextureId, TextureOptions, Vec2,
+    Window,
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
+use env_logger::fmt::style::Color;
 use std::{
     collections::HashSet,
     time::{Duration, Instant},
@@ -116,20 +118,28 @@ impl HomeFlow {
         }
     }
 
-    fn render_mesh(&self, painter: &Painter, canvas_center: Pos2, indices: Vec<u32>, vertices: Vec<Pos2>, color: Color32) {
+    fn render_mesh(
+        &self,
+        painter: &Painter,
+        canvas_center: Pos2,
+        indices: Vec<u32>,
+        vertices: Vec<Pos2>,
+        texture_id: TextureId,
+        color: Color32,
+    ) {
         let mut vertices_pixels = Vec::new();
         for vertex in vertices {
             vertices_pixels.push(Vertex {
                 pos: self.world_to_pixels(canvas_center, vertex.x, vertex.y),
+                uv: Pos2::new(vertex.x, vertex.y),
                 color,
-                ..Default::default()
             });
         }
 
         let mesh = Mesh {
             indices,
             vertices: vertices_pixels,
-            texture_id: TextureId::Managed(0),
+            texture_id,
         };
         painter.add(Shape::mesh(mesh));
     }
@@ -172,6 +182,12 @@ impl eframe::App for HomeFlow {
             fill: Color32::from_rgb(27, 27, 27),
             ..Default::default()
         };
+
+        egui_extras::install_image_loaders(ctx);
+        ctx.include_bytes("noise", include_bytes!("../assets/noise.png"));
+        let noise_texture = ctx.try_load_texture("noise", TextureOptions::NEAREST, SizeHint::default()).unwrap();
+        let noise_texture_id = noise_texture.texture_id().unwrap();
+
         CentralPanel::default()
             .frame(Frame {
                 fill: Color32::from_rgb(35, 35, 50),
@@ -230,7 +246,14 @@ impl eframe::App for HomeFlow {
                         .iter()
                         .flat_map(|&index| [index[0] as u32, index[1] as u32, index[2] as u32])
                         .collect();
-                    self.render_mesh(&painter, canvas_center, indices, vertices, Color32::from_rgb(150, 50, 50));
+                    self.render_mesh(
+                        &painter,
+                        canvas_center,
+                        indices,
+                        vertices,
+                        noise_texture_id,
+                        Color32::from_rgb(150, 50, 50),
+                    );
                 }
 
                 let plot_location = self.world_to_pixels(canvas_center, 3.0, -2.0);
