@@ -6,9 +6,3 @@ build-web:
 
 serve:
     cargo run --no-default-features --target-dir target/server
-
-check:
-    cargo check --all-targets
-    cargo check --all-features --target wasm32-unknown-unknown
-    cargo fmt --all -- --check
-    cargo clippy --all-targets --all-features --  -D warnings -W clippy::all
