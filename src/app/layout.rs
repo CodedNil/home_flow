@@ -1,5 +1,6 @@
 use super::shape::{Material, Shape};
 use anyhow::Result;
+use egui::Color32;
 use image::{ImageBuffer, Rgba};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -9,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 const LAYOUT_VERSION: &str = "0.1";
 const LAYOUT_PATH: &str = "home_layout.json";
-pub const RESOLUTION_FACTOR: f32 = 50.0; // Pixels per meter
+pub const RESOLUTION_FACTOR: f32 = 80.0; // Pixels per meter
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Home {
@@ -28,7 +29,12 @@ impl Default for Home {
                     "Kitchen",
                     Vec2::new(-3.5 / 2.0, 3.0 / 2.0),
                     Vec2::new(3.5, 3.0),
-                    Material::TileSmall,
+                    RenderOptions::new(
+                        Material::Marble,
+                        1.0,
+                        Some("#fff8e8"),
+                        Some(TileOptions::new(9, "#ffffff00", 0.03, "#505050cc")),
+                    ),
                     vec![
                         (RoomSide::Left, WallType::Exterior),
                         (RoomSide::Top, WallType::Exterior),
@@ -38,7 +44,7 @@ impl Default for Home {
                     "Lounge",
                     Vec2::new(-3.5 + 6.1 / 2.0, -2.7 / 2.0),
                     Vec2::new(6.1, 2.7),
-                    Material::Carpet,
+                    RenderOptions::new(Material::Carpet, 1.0, None, None),
                     vec![
                         (RoomSide::Left, WallType::Exterior),
                         (RoomSide::Bottom, WallType::Exterior),
@@ -76,7 +82,17 @@ pub struct Operation {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RenderOptions {
     pub material: Material,
-    pub tint: Option<[u8; 3]>,
+    pub scale: f32,
+    pub tint: Option<Color32>,
+    pub tiles: Option<TileOptions>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TileOptions {
+    pub scale: u8,
+    pub odd_tint: Color32,
+    pub grout_width: f32,
+    pub grout_tint: Color32,
 }
 
 #[derive(Clone, Debug)]

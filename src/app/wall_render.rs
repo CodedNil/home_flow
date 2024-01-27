@@ -28,8 +28,8 @@ impl HomeFlow {
         // Render walls with faux 3D effect
         let mut wall_render = Vec::new();
         let mut faux_wall_render = Vec::new();
-        let wall_distance_scale = 4.0;
-        let wall_distance_factor = 0.5;
+        let wall_distance_scale = 5.0;
+        let wall_distance_factor = 0.2;
         for wall in walls {
             let wall_width = match wall.wall_type {
                 layout::WallType::Interior => 0.1,
@@ -91,31 +91,25 @@ impl HomeFlow {
 
             // Calculate triangles for the faux 3D effect
             let camera_on_left = if norm_dist_x < 0.0 { -0.95 } else { 0.95 };
-            let segment_start_reduced = wall.start
-                + rotated_direction * -norm_dist_x
-                + normalized_direction * (-norm_dist_start_y + wall_width_half);
-            let segment_end_reduced = wall.end
-                + rotated_direction * -norm_dist_x
-                + normalized_direction * (-norm_dist_end_y - wall_width_half);
             let offset_start = rotated_direction * (wall_width_half * camera_on_left);
             let offset_end = rotated_direction * (wall_width_half * camera_on_left);
             faux_wall_render.push((
                 wall.start + offset_start + normalized_direction * wall_width_half,
-                segment_start_reduced + offset_start,
+                segment_start + offset_start + normalized_direction * wall_width,
                 wall.end + offset_end + normalized_direction * -wall_width_half,
-                segment_end_reduced + offset_end,
+                segment_end + offset_end - normalized_direction * wall_width,
                 offset_color,
             ));
-            // End caps
+            // Edges of the wall
             faux_wall_render.push((
                 wall.start + offset_start + normalized_direction * wall_width_half,
                 wall.start + offset_start + normalized_direction * -wall_width_half,
-                segment_start_reduced + offset_start,
+                segment_start + offset_start + normalized_direction * wall_width,
                 segment_start + offset_start,
                 offset_color,
             ));
             faux_wall_render.push((
-                segment_end_reduced + offset_end,
+                segment_end + offset_end - normalized_direction * wall_width,
                 segment_end + offset_end,
                 wall.end + offset_end + normalized_direction * -wall_width_half,
                 wall.end + offset_end + normalized_direction * wall_width_half,
@@ -129,24 +123,6 @@ impl HomeFlow {
             dist_b.partial_cmp(&dist_a).unwrap()
         });
         for (p1, p2, p3, p4, color) in faux_wall_render {
-            if p4 == Vec2::new(0.0, 0.0) {
-                let indices = vec![0, 1, 2];
-                let mut vertices = Vec::with_capacity(3);
-                for point in &[p1, p2, p3] {
-                    vertices.push(Vertex {
-                        pos: self.world_to_pixels(canvas_center, point.x, point.y),
-                        uv: Pos2::default(),
-                        color,
-                    });
-                }
-                let mesh = Mesh {
-                    indices,
-                    vertices,
-                    texture_id: TextureId::Managed(0),
-                };
-                painter.add(Shape::mesh(mesh));
-                continue;
-            }
             let indices = vec![0, 1, 2, 2, 1, 3];
             let mut vertices = Vec::with_capacity(4);
             for point in &[p1, p2, p3, p4] {

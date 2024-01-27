@@ -1,8 +1,11 @@
 use super::layout::{
-    Action, RenderOptions, Room, RoomRender, RoomSide, Vec2, Wall, WallType, RESOLUTION_FACTOR,
+    Action, RenderOptions, Room, RoomRender, RoomSide, TileOptions, Vec2, Wall, WallType,
+    RESOLUTION_FACTOR,
 };
+use anyhow::{anyhow, bail, Result};
+use egui::Color32;
 use geo::BooleanOps;
-use image::{ImageBuffer, Rgba, RgbaImage};
+use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum_macros::Display;
@@ -96,10 +99,13 @@ impl Room {
             let point_in_world = bounds_min + point * new_size;
             if Shape::Rectangle.contains(point_in_world, self.pos, self.size) {
                 if let Some(texture) = textures.get(&self.render_options.material) {
-                    let scale = self.render_options.material.get_scale() / RESOLUTION_FACTOR;
-                    *pixel = *texture.get_pixel(
-                        (x as f32 * scale) as u32 % texture.width(),
-                        (y as f32 * scale) as u32 % texture.height(),
+                    *pixel = apply_render_options(
+                        &self.render_options,
+                        texture,
+                        x as f32,
+                        y as f32,
+                        point,
+                        width / height,
                     );
                 }
             }
@@ -114,11 +120,13 @@ impl Room {
                                 operation.size,
                             ) {
                                 if let Some(texture) = textures.get(&render_options.material) {
-                                    let scale =
-                                        render_options.material.get_scale() / RESOLUTION_FACTOR;
-                                    *pixel = *texture.get_pixel(
-                                        (x as f32 * scale) as u32 % texture.width(),
-                                        (y as f32 * scale) as u32 % texture.height(),
+                                    *pixel = apply_render_options(
+                                        render_options,
+                                        texture,
+                                        x as f32,
+                                        y as f32,
+                                        point,
+                                        width / height,
                                     );
                                 }
                             }
@@ -166,13 +174,78 @@ impl Room {
     }
 }
 
+fn apply_render_options(
+    render_options: &RenderOptions,
+    texture: &RgbaImage,
+    x: f32,
+    y: f32,
+    point: Vec2,
+    aspect_ratio: f32,
+) -> Rgba<u8> {
+    // Get texture
+    let scale = render_options.material.get_scale() * render_options.scale / RESOLUTION_FACTOR;
+    let mut texture_color = *texture.get_pixel(
+        (x * scale) as u32 % texture.width(),
+        (y * scale) as u32 % texture.height(),
+    );
+    // Tint the texture if a tint color is specified
+    if let Some(tint) = render_options.tint {
+        texture_color = Rgba([
+            (texture_color[0] as f32 * tint.r() as f32 / 255.0) as u8,
+            (texture_color[1] as f32 * tint.g() as f32 / 255.0) as u8,
+            (texture_color[2] as f32 * tint.b() as f32 / 255.0) as u8,
+            texture_color[3],
+        ]);
+    }
+    // Add tiles if specified
+    if let Some(tile_options) = &render_options.tiles {
+        let tile_scale_x = tile_options.scale as f32;
+        let tile_scale_y = (tile_scale_x / aspect_ratio).round();
+        let tile_x = point.x * tile_scale_x;
+        let tile_y = point.y * tile_scale_y;
+
+        if tile_options.odd_tint.a() > 0 {
+            let odd_tile = (tile_x as u32 + tile_y as u32) % 2 == 1;
+            if odd_tile {
+                let tile_color = tile_options.odd_tint;
+                texture_color.blend(&Rgba([
+                    tile_color.r(),
+                    tile_color.g(),
+                    tile_color.b(),
+                    tile_color.a(),
+                ]));
+            }
+        }
+        // Add grout
+        if tile_options.grout_width > 0.0 {
+            let grout_x = tile_x % 1.0;
+            let grout_y = tile_y % 1.0;
+            let grout_width_x = tile_options.grout_width;
+            let grout_width_y = grout_width_x * aspect_ratio;
+            if grout_x >= 1.0 - grout_width_x
+                || grout_x < grout_width_x
+                || grout_y >= 1.0 - grout_width_y
+                || grout_y < grout_width_y
+            {
+                let tile_color = tile_options.grout_tint;
+                texture_color.blend(&Rgba([
+                    tile_color.r(),
+                    tile_color.g(),
+                    tile_color.b(),
+                    tile_color.a(),
+                ]));
+            }
+        }
+    }
+
+    texture_color
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Display, PartialEq, Eq, Hash)]
 pub enum Material {
     Carpet,
     Marble,
     Granite,
-    Tile,
-    TileSmall,
     Wood,
     WoodPlanks,
 }
@@ -182,8 +255,6 @@ impl Material {
         match self {
             Self::Carpet | Self::Granite | Self::Wood => 25.0,
             Self::Marble | Self::WoodPlanks => 40.0,
-            Self::Tile => 80.0,
-            Self::TileSmall => 110.0,
         }
     }
 
@@ -192,8 +263,6 @@ impl Material {
             Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
-            Self::Tile => include_bytes!("../../assets/textures/tile.png"),
-            Self::TileSmall => include_bytes!("../../assets/textures/tile_small.png"),
             Self::Wood => include_bytes!("../../assets/textures/wood.png"),
             Self::WoodPlanks => include_bytes!("../../assets/textures/wood_planks.png"),
         }
@@ -399,11 +468,64 @@ impl Wall {
     }
 }
 
+fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
+    let hex = hex.trim_start_matches('#');
+    if hex.len() != 6 && hex.len() != 8 {
+        bail!("Invalid hex color");
+    }
+
+    let parse_color = |i: usize| -> Result<u8> {
+        u8::from_str_radix(&hex[i..i + 2], 16)
+            .map_err(|_| anyhow!("Invalid value for color component"))
+    };
+
+    let r = parse_color(0)?;
+    let g = parse_color(2)?;
+    let b = parse_color(4)?;
+    let a = if hex.len() == 8 { parse_color(6)? } else { 255 };
+
+    Ok([r, g, b, a])
+}
+
 impl RenderOptions {
-    pub const fn new(material: Material) -> Self {
+    pub fn new(
+        material: Material,
+        scale: f32,
+        tint: Option<&str>,
+        tiles: Option<TileOptions>,
+    ) -> Self {
+        let tint = tint.map(|tint| {
+            let color = hex_to_rgba(tint).unwrap_or([255, 255, 255, 255]);
+            Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3])
+        });
         Self {
             material,
-            tint: None,
+            scale,
+            tint,
+            tiles,
+        }
+    }
+}
+
+impl TileOptions {
+    pub fn new(scale: u8, odd_tint: &str, grout_width: f32, grout_tint: &str) -> Self {
+        let odd_tint = hex_to_rgba(odd_tint).unwrap_or([255, 255, 255, 255]);
+        let grout_tint = hex_to_rgba(grout_tint).unwrap_or([255, 255, 255, 255]);
+        Self {
+            scale,
+            odd_tint: Color32::from_rgba_premultiplied(
+                odd_tint[0],
+                odd_tint[1],
+                odd_tint[2],
+                odd_tint[3],
+            ),
+            grout_width,
+            grout_tint: Color32::from_rgba_premultiplied(
+                grout_tint[0],
+                grout_tint[1],
+                grout_tint[2],
+                grout_tint[3],
+            ),
         }
     }
 }
@@ -413,7 +535,7 @@ impl Room {
         name: &str,
         pos: Vec2,
         size: Vec2,
-        material: Material,
+        render_options: RenderOptions,
         wall_data: Vec<(RoomSide, WallType)>,
     ) -> Self {
         // Transform input wall data into Wall structs
@@ -431,7 +553,7 @@ impl Room {
 
         Self {
             name: name.to_owned(),
-            render_options: RenderOptions::new(material),
+            render_options,
             render: None,
             pos,
             size,
