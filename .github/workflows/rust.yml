@@ -3,60 +3,77 @@ name: Rust
 on:
     push:
         branches: ["main"]
-    pull_request:
-        branches: ["main"]
 
 env:
     CARGO_TERM_COLOR: always
 
+permissions:
+    contents: write
+
 jobs:
-    build-server:
-        runs-on: ubuntu-latest
-
-        steps:
-            - uses: actions/checkout@v3
-
-            - name: Install Rust toolchain
-              uses: actions-rs/toolchain@v1
-              with:
-                  profile: minimal
-                  toolchain: stable
-                  override: true
-
-            - name: Install lld
-              run: sudo apt-get install -y lld
-
-            - name: Rust Cache
-              uses: Swatinem/rust-cache@v1
-
-            - name: Setup .cargo/config.toml
-              run: |
-                  mkdir -p .cargo
-                  echo '[target.x86_64-unknown-linux-gnu]' > .cargo/config.toml
-                  echo 'linker = "lld"' >> .cargo/config.toml
-
-            - name: Build
-              run: cargo build --no-default-features --target-dir target/server --verbose
-
     build-wasm:
         runs-on: ubuntu-latest
-
         steps:
-            - uses: actions/checkout@v3
-
-            - name: Install Rust toolchain with wasm target
-              uses: actions-rs/toolchain@v1
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
               with:
-                  profile: minimal
-                  toolchain: stable
-                  override: true
-                  target: wasm32-unknown-unknown
+                  targets: wasm32-unknown-unknown
+            - uses: Swatinem/rust-cache@v2
 
-            - name: Rust Cache
-              uses: Swatinem/rust-cache@v1
-
-            - name: Download and install Trunk binary
+            - name: Install Trunk
               run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
 
-            - name: Build
-              run: ./trunk build --release
+            - name: Build WASM
+              run: ./trunk build --release --public-url "${GITHUB_REPOSITORY#*/}"
+
+            - name: Copy Wasm File
+              run: cp dist/home_flow-*_bg.wasm dist/home_flow.wasm
+
+            - name: Upload Dist Folder
+              uses: actions/upload-artifact@v2
+              with:
+                  name: wasm-dist
+                  path: dist
+
+    build-server:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+
+            - name: Build Server
+              run: cargo build --release --no-default-features --target-dir target/server --verbose
+
+            - name: Copy Server File
+              run: cp target/server/release/home_flow dist/home_flow_server
+
+            - name: Upload Server File
+              uses: actions/upload-artifact@v2
+              with:
+                  name: server-artifact
+                  path: target/server/release/home_flow
+
+    deploy:
+        needs: [build-wasm, build-server]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Download WASM dist folder
+              uses: actions/download-artifact@v2
+              with:
+                  name: wasm-dist
+                  path: dist
+
+            - name: Download Server Artifact
+              uses: actions/download-artifact@v2
+              with:
+                  name: server-artifact
+                  path: dist
+
+            - name: Deploy
+              uses: JamesIves/github-pages-deploy-action@v4
+              with:
+                  folder: dist
+                  single-commit: true
