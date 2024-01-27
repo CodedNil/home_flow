@@ -45,9 +45,6 @@ jobs:
             - name: Build Server
               run: cargo build --release --no-default-features --target-dir target/server --verbose
 
-            - name: Copy Server File
-              run: cp target/server/release/home_flow dist/home_flow_server
-
             - name: Upload Server File
               uses: actions/upload-artifact@v2
               with:
