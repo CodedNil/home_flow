@@ -29,11 +29,14 @@ jobs:
             - name: Rust Cache
               uses: Swatinem/rust-cache@v1
 
-            - name: Build
+            - name: Setup .cargo/config.toml
               run: |
+                  mkdir -p .cargo
                   echo '[target.x86_64-unknown-linux-gnu]' > .cargo/config.toml
                   echo 'linker = "lld"' >> .cargo/config.toml
-                  cargo build --no-default-features --target-dir target/server --verbose
+
+            - name: Build
+              run: cargo build --no-default-features --target-dir target/server --verbose
 
     build-wasm:
         runs-on: ubuntu-latest
