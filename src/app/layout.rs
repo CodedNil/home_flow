@@ -15,64 +15,39 @@ pub const RESOLUTION_FACTOR: f32 = 50.0; // Pixels per meter
 pub struct Home {
     version: String,
     pub rooms: Vec<Room>,
+    pub furniture: Vec<Furniture>,
+    pub walls: Vec<Wall>,
 }
 
 impl Default for Home {
     fn default() -> Self {
         Self {
             version: LAYOUT_VERSION.to_string(),
-            rooms: vec![Room {
-                name: "Living Room".to_string(),
-                render_options: RenderOptions {
-                    material: Material::Carpet,
-                    tint: None,
-                },
-                render: None,
-                pos: Vec2 { x: 0.0, y: 0.0 },
-                size: Vec2 { x: 10.0, y: 6.0 },
-                operations: vec![
-                    Operation {
-                        action: Action::Add,
-                        shape: Shape::Circle,
-                        render_options: Some(RenderOptions {
-                            material: Material::Marble,
-                            tint: None,
-                        }),
-                        pos: Vec2 { x: 2.0, y: 3.0 },
-                        size: Vec2 { x: 4.0, y: 2.0 },
-                    },
-                    Operation {
-                        action: Action::Add,
-                        shape: Shape::Rectangle,
-                        render_options: Some(RenderOptions {
-                            material: Material::Granite,
-                            tint: None,
-                        }),
-                        pos: Vec2 { x: -2.0, y: 3.0 },
-                        size: Vec2 { x: 4.0, y: 2.0 },
-                    },
-                    Operation {
-                        action: Action::Add,
-                        shape: Shape::Circle,
-                        render_options: Some(RenderOptions {
-                            material: Material::Wood,
-                            tint: None,
-                        }),
-                        pos: Vec2 { x: 2.0, y: -3.0 },
-                        size: Vec2 { x: 4.0, y: 2.0 },
-                    },
-                    Operation {
-                        action: Action::Add,
-                        shape: Shape::Circle,
-                        render_options: Some(RenderOptions {
-                            material: Material::WoodPlanks,
-                            tint: None,
-                        }),
-                        pos: Vec2 { x: -2.0, y: -3.0 },
-                        size: Vec2 { x: 4.0, y: 2.0 },
-                    },
-                ],
-            }],
+            rooms: vec![
+                Room::new(
+                    "Kitchen",
+                    Vec2::new(-3.5 / 2.0, 3.0 / 2.0),
+                    Vec2::new(3.5, 3.0),
+                    Material::TileSmall,
+                    vec![
+                        (RoomSide::Left, WallType::Exterior),
+                        (RoomSide::Top, WallType::Exterior),
+                    ],
+                ),
+                Room::new(
+                    "Lounge",
+                    Vec2::new(-3.5 + 6.1 / 2.0, -2.7 / 2.0),
+                    Vec2::new(6.1, 2.7),
+                    Material::Carpet,
+                    vec![
+                        (RoomSide::Left, WallType::Exterior),
+                        (RoomSide::Bottom, WallType::Exterior),
+                        (RoomSide::Right, WallType::Interior),
+                    ],
+                ),
+            ],
+            furniture: vec![],
+            walls: vec![],
         }
     }
 }
@@ -86,6 +61,7 @@ pub struct Room {
     pub pos: Vec2,
     pub size: Vec2,
     pub operations: Vec<Operation>,
+    pub walls: Vec<Wall>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -116,13 +92,34 @@ pub struct Furniture {
     pub pos: Vec2,
     pub size: Vec2,
     pub rotation: f32,
-    pub sub_furniture: Vec<Furniture>,
+    pub children: Vec<Furniture>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     Subtract,
     Add,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum RoomSide {
+    Left,
+    Top,
+    Right,
+    Bottom,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Wall {
+    pub start: Vec2,
+    pub end: Vec2,
+    pub wall_type: WallType,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum WallType {
+    Interior,
+    Exterior,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
@@ -145,7 +142,10 @@ impl Home {
                         let mut contents = String::new();
                         file.read_to_string(&mut contents).map_or_else(
                             |_| Self::default(),
-                            |_| serde_json::from_str::<Self>(&contents).unwrap_or_else(|_| Self::default()),
+                            |_| {
+                                serde_json::from_str::<Self>(&contents)
+                                    .unwrap_or_else(|_| Self::default())
+                            },
                         )
                     },
                 );

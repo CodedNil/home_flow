@@ -5,7 +5,8 @@
     clippy::cast_sign_loss,
     clippy::cast_lossless,
     clippy::trivially_copy_pass_by_ref,
-    clippy::too_many_lines
+    clippy::too_many_lines,
+    clippy::struct_field_names
 )]
 
 #[cfg(feature = "gui")]
@@ -38,10 +39,17 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([400.0, 300.0])
             .with_min_inner_size([300.0, 220.0])
-            .with_icon(eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..]).unwrap()),
+            .with_icon(
+                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
+                    .unwrap(),
+            ),
         ..Default::default()
     };
-    eframe::run_native("HomeFlow", native_options, Box::new(|cc| Box::new(app::HomeFlow::new(cc))))
+    eframe::run_native(
+        "HomeFlow",
+        native_options,
+        Box::new(|cc| Box::new(app::HomeFlow::new(cc))),
+    )
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -52,7 +60,11 @@ fn main() {
 
     wasm_bindgen_futures::spawn_local(async {
         eframe::WebRunner::new()
-            .start("homeflow_canvas", web_options, Box::new(|cc| Box::new(app::HomeFlow::new(cc))))
+            .start(
+                "homeflow_canvas",
+                web_options,
+                Box::new(|cc| Box::new(app::HomeFlow::new(cc))),
+            )
             .await
             .expect("failed to start eframe");
     });

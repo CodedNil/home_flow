@@ -1,12 +1,13 @@
 use egui::{
-    epaint::Shadow, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect, Sense, Shape, Stroke, TextureOptions,
-    Vec2, Window,
+    epaint::Shadow, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect,
+    Sense, Shape, Stroke, TextureOptions, Vec2, Window,
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
 use std::collections::{HashMap, HashSet};
 
 mod layout;
 mod shape;
+mod wall_render;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -48,27 +49,39 @@ impl HomeFlow {
     }
 
     fn pixels_to_world(&self, canvas_center: Pos2, x: f32, y: f32) -> Pos2 {
-        Pos2::new(x - canvas_center.x, canvas_center.y - y) / self.zoom - Vec2::new(self.translation.x, -self.translation.y)
+        Pos2::new(x - canvas_center.x, canvas_center.y - y) / self.zoom
+            - Vec2::new(self.translation.x, -self.translation.y)
     }
 
     fn world_to_pixels(&self, canvas_center: Pos2, x: f32, y: f32) -> Pos2 {
-        Pos2::new(x + self.translation.x, self.translation.y - y) * self.zoom + Vec2::new(canvas_center.x, canvas_center.y)
+        Pos2::new(x + self.translation.x, self.translation.y - y) * self.zoom
+            + Vec2::new(canvas_center.x, canvas_center.y)
     }
 
     fn render_grid(&self, painter: &Painter, visible_rect: &Rect, canvas_center: Pos2) {
         let grid_interval = 2.0_f32.powf((160.0 / self.zoom).abs().log2().round());
         let grid_intervals = [
-            (grid_interval, Stroke::new(1.5, Color32::from_rgb(85, 85, 100))),
-            (grid_interval / 4.0, Stroke::new(1.5, Color32::from_rgb(55, 55, 70))),
+            (
+                grid_interval,
+                Stroke::new(1.5, Color32::from_rgb(85, 85, 100)),
+            ),
+            (
+                grid_interval / 4.0,
+                Stroke::new(1.5, Color32::from_rgb(55, 55, 70)),
+            ),
         ];
 
         let (bottom_edge_world, top_edge_world) = (
-            self.pixels_to_world(canvas_center, 0.0, visible_rect.bottom()).y,
-            self.pixels_to_world(canvas_center, 0.0, visible_rect.top()).y,
+            self.pixels_to_world(canvas_center, 0.0, visible_rect.bottom())
+                .y,
+            self.pixels_to_world(canvas_center, 0.0, visible_rect.top())
+                .y,
         );
         let (left_edge_world, right_edge_world) = (
-            self.pixels_to_world(canvas_center, visible_rect.left(), 0.0).x,
-            self.pixels_to_world(canvas_center, visible_rect.right(), 0.0).x,
+            self.pixels_to_world(canvas_center, visible_rect.left(), 0.0)
+                .x,
+            self.pixels_to_world(canvas_center, visible_rect.right(), 0.0)
+                .x,
         );
 
         let mut rendered_vertical = HashSet::new();
@@ -76,8 +89,12 @@ impl HomeFlow {
         let mut lines = Vec::new();
         for (grid_interval, stroke) in grid_intervals {
             // Draw vertical grid lines
-            for x in ((left_edge_world / grid_interval).ceil() as i32)..=((right_edge_world / grid_interval).floor() as i32) {
-                let grid_line_pixel = self.world_to_pixels(canvas_center, x as f32 * grid_interval, 0.0).x;
+            for x in ((left_edge_world / grid_interval).ceil() as i32)
+                ..=((right_edge_world / grid_interval).floor() as i32)
+            {
+                let grid_line_pixel = self
+                    .world_to_pixels(canvas_center, x as f32 * grid_interval, 0.0)
+                    .x;
                 let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
                 if rendered_vertical.contains(&grid_line_pixel_int) {
                     continue;
@@ -91,8 +108,12 @@ impl HomeFlow {
             }
 
             // Draw horizontal grid lines
-            for y in ((bottom_edge_world / grid_interval).ceil() as i32)..=((top_edge_world / grid_interval).floor() as i32) {
-                let grid_line_pixel = self.world_to_pixels(canvas_center, 0.0, y as f32 * grid_interval).y;
+            for y in ((bottom_edge_world / grid_interval).ceil() as i32)
+                ..=((top_edge_world / grid_interval).floor() as i32)
+            {
+                let grid_line_pixel = self
+                    .world_to_pixels(canvas_center, 0.0, y as f32 * grid_interval)
+                    .y;
                 let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
                 if rendered_horizontal.contains(&grid_line_pixel_int) {
                     continue;
@@ -147,9 +168,11 @@ impl eframe::App for HomeFlow {
                 if scroll_delta != Vec2::ZERO {
                     let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
                     if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
-                        let mouse_world_before_zoom = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
+                        let mouse_world_before_zoom =
+                            self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
                         self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
-                        let mouse_world_after_zoom = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
+                        let mouse_world_after_zoom =
+                            self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
                         let difference = mouse_world_after_zoom - mouse_world_before_zoom;
                         self.translation += Vec2::new(difference.x, -difference.y);
                     } else {
@@ -160,23 +183,37 @@ impl eframe::App for HomeFlow {
                 // Clamp translation to bounds
                 let bounds = [-30.0, 30.0, -30.0, 30.0];
                 let window_size_meters = ui.ctx().available_rect().size() / self.zoom / 2.0;
-                let min_translation = Vec2::new(bounds[0] + window_size_meters.x, bounds[2] + window_size_meters.y);
-                let max_translation = Vec2::new(bounds[1] - window_size_meters.x, bounds[3] - window_size_meters.y);
+                let min_translation = Vec2::new(
+                    bounds[0] + window_size_meters.x,
+                    bounds[2] + window_size_meters.y,
+                );
+                let max_translation = Vec2::new(
+                    bounds[1] - window_size_meters.x,
+                    bounds[3] - window_size_meters.y,
+                );
                 if min_translation.x <= max_translation.x {
-                    self.translation.x = self.translation.x.clamp(min_translation.x, max_translation.x);
+                    self.translation.x = self
+                        .translation
+                        .x
+                        .clamp(min_translation.x, max_translation.x);
                 } else {
                     self.translation.x = 0.0;
                 }
                 if min_translation.y <= max_translation.y {
-                    self.translation.y = self.translation.y.clamp(min_translation.y, max_translation.y);
+                    self.translation.y = self
+                        .translation
+                        .y
+                        .clamp(min_translation.y, max_translation.y);
                 } else {
                     self.translation.y = 0.0;
                 }
 
-                let mouse_pos = ui.input(|i| i.pointer.latest_pos()).map_or(Pos2::ZERO, |mouse_pos| mouse_pos);
+                let mouse_pos = ui
+                    .input(|i| i.pointer.latest_pos())
+                    .map_or(Pos2::ZERO, |mouse_pos| mouse_pos);
                 let mouse_pos_world = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
 
-                self.render_grid(&painter, &response.rect, canvas_center);
+                // self.render_grid(&painter, &response.rect, canvas_center);
 
                 let mut update_rooms_render = HashMap::new();
                 for room in &self.layout.rooms {
@@ -191,12 +228,23 @@ impl eframe::App for HomeFlow {
                     );
 
                     let canvas_size = room_render.texture.dimensions();
-                    let egui_image =
-                        ColorImage::from_rgba_unmultiplied([canvas_size.0 as usize, canvas_size.1 as usize], &room_render.texture);
-                    let canvas_texture_id = ctx.load_texture("noise", egui_image, TextureOptions::NEAREST).id();
+                    let egui_image = ColorImage::from_rgba_unmultiplied(
+                        [canvas_size.0 as usize, canvas_size.1 as usize],
+                        &room_render.texture,
+                    );
+                    let canvas_texture_id = ctx
+                        .load_texture("noise", egui_image, TextureOptions::NEAREST)
+                        .id();
                     let rect = Rect::from_center_size(
-                        self.world_to_pixels(canvas_center, room_render.center.x, room_render.center.y),
-                        Vec2::new(room_render.size.x * self.zoom, room_render.size.y * self.zoom),
+                        self.world_to_pixels(
+                            canvas_center,
+                            room_render.center.x,
+                            room_render.center.y,
+                        ),
+                        Vec2::new(
+                            room_render.size.x * self.zoom,
+                            room_render.size.y * self.zoom,
+                        ),
                     );
                     painter.image(
                         canvas_texture_id,
@@ -204,17 +252,6 @@ impl eframe::App for HomeFlow {
                         Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
                         Color32::WHITE,
                     );
-
-                    // Render outline if mouse within the shape and in edit mode
-                    if self.edit_mode && room.contains(mouse_pos_world.x, mouse_pos_world.y) {
-                        let points = room_render
-                            .vertices
-                            .iter()
-                            .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
-                            .collect::<Vec<_>>();
-                        let glow = (225.0 + (self.time * 10.0).sin() * 30.0).clamp(0.0, 255.0) as u8;
-                        painter.add(Shape::closed_line(points, Stroke::new(10.0, Color32::from_rgb(glow, glow, glow))));
-                    }
                 }
                 // Update cache if needed
                 if !update_rooms_render.is_empty() {
@@ -226,8 +263,32 @@ impl eframe::App for HomeFlow {
                     self.layout.save_memory();
                 }
 
+                self.render_walls(&painter, canvas_center);
+
+                // Edit mode logic
+                if self.edit_mode {
+                    for room in &self.layout.rooms {
+                        let room_render = room.render.as_ref().unwrap();
+                        // Render outline if mouse within the shape and in edit mode
+                        if room.contains(mouse_pos_world.x, mouse_pos_world.y) {
+                            let points = room_render
+                                .vertices
+                                .iter()
+                                .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
+                                .collect::<Vec<_>>();
+                            painter.add(Shape::closed_line(
+                                points,
+                                Stroke::new(10.0, Color32::from_rgb(255, 255, 255)),
+                            ));
+                        }
+                    }
+                }
+
                 Window::new("Bottom Right")
-                    .fixed_pos(Pos2::new(response.rect.right() - 10.0, response.rect.bottom() - 10.0))
+                    .fixed_pos(Pos2::new(
+                        response.rect.right() - 10.0,
+                        response.rect.bottom() - 10.0,
+                    ))
                     .auto_sized()
                     .pivot(Align2::RIGHT_BOTTOM)
                     .title_bar(false)
@@ -255,7 +316,10 @@ impl eframe::App for HomeFlow {
                             .show_axes(false)
                             .data_aspect(1.0)
                             .allow_scroll(false)
-                            .coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default())
+                            .coordinates_formatter(
+                                Corner::LeftBottom,
+                                CoordinatesFormatter::default(),
+                            )
                             .show(ui, |plot_ui| {
                                 plot_ui.line(sin(self.time));
                             });

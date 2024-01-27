@@ -1,4 +1,6 @@
-use super::layout::{Action, Room, RoomRender, Vec2, RESOLUTION_FACTOR};
+use super::layout::{
+    Action, RenderOptions, Room, RoomRender, RoomSide, Vec2, Wall, WallType, RESOLUTION_FACTOR,
+};
 use geo::BooleanOps;
 use image::{ImageBuffer, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
@@ -12,9 +14,12 @@ impl Room {
 
         for operation in &self.operations {
             if operation.action == Action::Add {
-                let (operation_min, operation_max) = (operation.pos - operation.size / 2.0, operation.pos + operation.size / 2.0);
-                min = min.min(operation_min);
-                max = max.max(operation_max);
+                let (operation_min, operation_max) = (
+                    operation.pos - operation.size / 2.0,
+                    operation.pos + operation.size / 2.0,
+                );
+                min = min.min(&operation_min);
+                max = max.max(&operation_max);
             }
         }
 
@@ -28,12 +33,18 @@ impl Room {
         for operation in &self.operations {
             match operation.action {
                 Action::Add => {
-                    if operation.shape.contains(point, operation.pos, operation.size) {
+                    if operation
+                        .shape
+                        .contains(point, operation.pos, operation.size)
+                    {
                         inside = true;
                     }
                 }
                 Action::Subtract => {
-                    if operation.shape.contains(point, operation.pos, operation.size) {
+                    if operation
+                        .shape
+                        .contains(point, operation.pos, operation.size)
+                    {
                         inside = false;
                         break;
                     }
@@ -67,9 +78,11 @@ impl Room {
         for operation in &self.operations {
             if operation.action == Action::Add {
                 if let Some(render) = &operation.render_options {
-                    textures
-                        .entry(render.material)
-                        .or_insert_with(|| image::load_from_memory(render.material.get_image()).unwrap().into_rgba8());
+                    textures.entry(render.material).or_insert_with(|| {
+                        image::load_from_memory(render.material.get_image())
+                            .unwrap()
+                            .into_rgba8()
+                    });
                 }
             }
         }
@@ -82,8 +95,6 @@ impl Room {
             };
             let point_in_world = bounds_min + point * new_size;
             if Shape::Rectangle.contains(point_in_world, self.pos, self.size) {
-                // let color = self.render_options.material.render(&simplex, x as f32, y as f32);
-                // *pixel = Rgba([color[0], color[1], color[2], 255]);
                 if let Some(texture) = textures.get(&self.render_options.material) {
                     let scale = self.render_options.material.get_scale() / RESOLUTION_FACTOR;
                     *pixel = *texture.get_pixel(
@@ -97,9 +108,14 @@ impl Room {
                 match operation.action {
                     Action::Add => {
                         if let Some(render_options) = &operation.render_options {
-                            if operation.shape.contains(point_in_world, operation.pos, operation.size) {
+                            if operation.shape.contains(
+                                point_in_world,
+                                operation.pos,
+                                operation.size,
+                            ) {
                                 if let Some(texture) = textures.get(&render_options.material) {
-                                    let scale = render_options.material.get_scale() / RESOLUTION_FACTOR;
+                                    let scale =
+                                        render_options.material.get_scale() / RESOLUTION_FACTOR;
                                     *pixel = *texture.get_pixel(
                                         (x as f32 * scale) as u32 % texture.width(),
                                         (y as f32 * scale) as u32 % texture.height(),
@@ -109,7 +125,10 @@ impl Room {
                         }
                     }
                     Action::Subtract => {
-                        if operation.shape.contains(point_in_world, operation.pos, operation.size) {
+                        if operation
+                            .shape
+                            .contains(point_in_world, operation.pos, operation.size)
+                        {
                             *pixel = Rgba([0, 0, 0, 0]);
                         }
                     }
@@ -152,6 +171,8 @@ pub enum Material {
     Carpet,
     Marble,
     Granite,
+    Tile,
+    TileSmall,
     Wood,
     WoodPlanks,
 }
@@ -161,6 +182,8 @@ impl Material {
         match self {
             Self::Carpet | Self::Granite | Self::Wood => 25.0,
             Self::Marble | Self::WoodPlanks => 40.0,
+            Self::Tile => 80.0,
+            Self::TileSmall => 110.0,
         }
     }
 
@@ -169,6 +192,8 @@ impl Material {
             Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
+            Self::Tile => include_bytes!("../../assets/textures/tile.png"),
+            Self::TileSmall => include_bytes!("../../assets/textures/tile_small.png"),
             Self::Wood => include_bytes!("../../assets/textures/wood.png"),
             Self::WoodPlanks => include_bytes!("../../assets/textures/wood_planks.png"),
         }
@@ -207,9 +232,9 @@ impl Shape {
         match *self {
             Self::Rectangle => {
                 point.x >= center.x - size.x / 2.0
-                    && point.x < center.x + size.x / 2.0
+                    && point.x <= center.x + size.x / 2.0
                     && point.y >= center.y - size.y / 2.0
-                    && point.y < center.y + size.y / 2.0
+                    && point.y <= center.y + size.y / 2.0
             }
             Self::Circle => {
                 let a = size.x / 2.0;
@@ -327,17 +352,112 @@ impl std::ops::Mul<Self> for Vec2 {
 }
 
 impl Vec2 {
-    pub fn min(&self, other: Self) -> Self {
+    pub const fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+
+    pub fn min(&self, other: &Self) -> Self {
         Self {
             x: self.x.min(other.x),
             y: self.y.min(other.y),
         }
     }
 
-    pub fn max(&self, other: Self) -> Self {
+    pub fn max(&self, other: &Self) -> Self {
         Self {
             x: self.x.max(other.x),
             y: self.y.max(other.y),
         }
+    }
+
+    pub fn dot(&self, other: &Self) -> f32 {
+        self.x * other.x + self.y * other.y
+    }
+
+    pub fn normalize(&self) -> Self {
+        let length = self.x.hypot(self.y);
+        Self {
+            x: self.x / length,
+            y: self.y / length,
+        }
+    }
+
+    pub fn length(&self) -> f32 {
+        self.x.hypot(self.y)
+    }
+
+    pub fn approx_eq(&self, other: &Self) -> bool {
+        const EPSILON: f32 = 1e-6;
+        (self.x - other.x).abs() < EPSILON && (self.y - other.y).abs() < EPSILON
+    }
+}
+
+impl Wall {
+    pub fn is_mirrored_equal(&self, other: &Self) -> bool {
+        (self.start.approx_eq(&other.start) && self.end.approx_eq(&other.end))
+            || (self.start.approx_eq(&other.end) && self.end.approx_eq(&other.start))
+    }
+}
+
+impl RenderOptions {
+    pub const fn new(material: Material) -> Self {
+        Self {
+            material,
+            tint: None,
+        }
+    }
+}
+
+impl Room {
+    pub fn new(
+        name: &str,
+        pos: Vec2,
+        size: Vec2,
+        material: Material,
+        wall_data: Vec<(RoomSide, WallType)>,
+    ) -> Self {
+        // Transform input wall data into Wall structs
+        let walls = wall_data
+            .into_iter()
+            .map(|(side, wall_type)| {
+                let (start, end) = calculate_wall_positions(&pos, &size, &side);
+                Wall {
+                    start,
+                    end,
+                    wall_type,
+                }
+            })
+            .collect();
+
+        Self {
+            name: name.to_owned(),
+            render_options: RenderOptions::new(material),
+            render: None,
+            pos,
+            size,
+            operations: Vec::new(),
+            walls,
+        }
+    }
+}
+
+fn calculate_wall_positions(pos: &Vec2, size: &Vec2, room_side: &RoomSide) -> (Vec2, Vec2) {
+    match room_side {
+        RoomSide::Left => (
+            *pos + Vec2::new(-size.x / 2.0, -size.y / 2.0),
+            *pos + Vec2::new(-size.x / 2.0, size.y / 2.0),
+        ),
+        RoomSide::Top => (
+            *pos + Vec2::new(-size.x / 2.0, size.y / 2.0),
+            *pos + Vec2::new(size.x / 2.0, size.y / 2.0),
+        ),
+        RoomSide::Right => (
+            *pos + Vec2::new(size.x / 2.0, size.y / 2.0),
+            *pos + Vec2::new(size.x / 2.0, -size.y / 2.0),
+        ),
+        RoomSide::Bottom => (
+            *pos + Vec2::new(size.x / 2.0, -size.y / 2.0),
+            *pos + Vec2::new(-size.x / 2.0, -size.y / 2.0),
+        ),
     }
 }
