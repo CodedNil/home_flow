@@ -1,15 +1,14 @@
-use egui::{epaint::Vertex, Color32, Mesh, Painter, Pos2, Shape, Stroke, TextureId};
-
 use super::{
-    layout::{self, Wall},
+    layout::{self, Vec2, Wall},
     HomeFlow,
 };
+use egui::{epaint::Vertex, Color32, Mesh, Painter, Pos2, Shape, Stroke, TextureId};
 
 impl HomeFlow {
     pub fn render_walls(&self, painter: &Painter, canvas_center: Pos2) {
         // Get camera (center screen) position in world coordinates
         let camera_pos = self.pixels_to_world(canvas_center, canvas_center.x, canvas_center.y);
-        let camera_pos_2d = layout::Vec2::new(camera_pos.x, camera_pos.y);
+        let camera_pos_2d = Vec2::new(camera_pos.x, camera_pos.y);
 
         // Get all walls
         let mut walls = Vec::new();
@@ -49,8 +48,7 @@ impl HomeFlow {
             };
 
             // Rotate the direction vector by 90 degrees
-            let rotated_direction =
-                layout::Vec2::new(-normalized_direction.y, normalized_direction.x);
+            let rotated_direction = Vec2::new(-normalized_direction.y, normalized_direction.x);
 
             // Calculate the distance from the camera to the wall
             let norm_dist_x = ((camera_pos_2d - wall_center).dot(&rotated_direction)
@@ -82,7 +80,7 @@ impl HomeFlow {
             ));
 
             // Calculate the light intensity based on the wall direction and light direction
-            let light_direction = layout::Vec2::new(1.0, 1.0).normalize();
+            let light_direction = Vec2::new(1.0, 1.0).normalize();
             let light_intensity = normalized_direction.dot(&light_direction).clamp(0.0, 1.0);
             let shaded_color_multiplier = 0.5 + 0.5 * light_intensity;
             let offset_color = Color32::from_rgb(
@@ -93,13 +91,34 @@ impl HomeFlow {
 
             // Calculate triangles for the faux 3D effect
             let camera_on_left = if norm_dist_x < 0.0 { -0.95 } else { 0.95 };
+            let segment_start_reduced = wall.start
+                + rotated_direction * -norm_dist_x
+                + normalized_direction * (-norm_dist_start_y + wall_width_half);
+            let segment_end_reduced = wall.end
+                + rotated_direction * -norm_dist_x
+                + normalized_direction * (-norm_dist_end_y - wall_width_half);
             let offset_start = rotated_direction * (wall_width_half * camera_on_left);
             let offset_end = rotated_direction * (wall_width_half * camera_on_left);
             faux_wall_render.push((
+                wall.start + offset_start + normalized_direction * wall_width_half,
+                segment_start_reduced + offset_start,
+                wall.end + offset_end + normalized_direction * -wall_width_half,
+                segment_end_reduced + offset_end,
+                offset_color,
+            ));
+            // End caps
+            faux_wall_render.push((
+                wall.start + offset_start + normalized_direction * wall_width_half,
                 wall.start + offset_start + normalized_direction * -wall_width_half,
+                segment_start_reduced + offset_start,
                 segment_start + offset_start,
-                wall.end + offset_end + normalized_direction * wall_width_half,
+                offset_color,
+            ));
+            faux_wall_render.push((
+                segment_end_reduced + offset_end,
                 segment_end + offset_end,
+                wall.end + offset_end + normalized_direction * -wall_width_half,
+                wall.end + offset_end + normalized_direction * wall_width_half,
                 offset_color,
             ));
         }
@@ -110,6 +129,24 @@ impl HomeFlow {
             dist_b.partial_cmp(&dist_a).unwrap()
         });
         for (p1, p2, p3, p4, color) in faux_wall_render {
+            if p4 == Vec2::new(0.0, 0.0) {
+                let indices = vec![0, 1, 2];
+                let mut vertices = Vec::with_capacity(3);
+                for point in &[p1, p2, p3] {
+                    vertices.push(Vertex {
+                        pos: self.world_to_pixels(canvas_center, point.x, point.y),
+                        uv: Pos2::default(),
+                        color,
+                    });
+                }
+                let mesh = Mesh {
+                    indices,
+                    vertices,
+                    texture_id: TextureId::Managed(0),
+                };
+                painter.add(Shape::mesh(mesh));
+                continue;
+            }
             let indices = vec![0, 1, 2, 2, 1, 3];
             let mut vertices = Vec::with_capacity(4);
             for point in &[p1, p2, p3, p4] {
