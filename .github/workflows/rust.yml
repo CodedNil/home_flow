@@ -1,53 +1,59 @@
 name: Rust
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
 
 env:
-  CARGO_TERM_COLOR: always
+    CARGO_TERM_COLOR: always
 
 jobs:
-  build-server:
-    runs-on: ubuntu-latest
+    build-server:
+        runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
+        steps:
+            - uses: actions/checkout@v3
 
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+            - name: Install Rust toolchain
+              uses: actions-rs/toolchain@v1
+              with:
+                  profile: minimal
+                  toolchain: stable
+                  override: true
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v1
+            - name: Install lld
+              run: sudo apt-get install -y lld
 
-      - name: Build
-        run: cargo build --no-default-features --target-dir target/server --verbose
+            - name: Rust Cache
+              uses: Swatinem/rust-cache@v1
 
-  build-wasm:
-    runs-on: ubuntu-latest
+            - name: Build
+              run: |
+                  echo '[target.x86_64-unknown-linux-gnu]' > .cargo/config.toml
+                  echo 'linker = "lld"' >> .cargo/config.toml
+                  cargo build --no-default-features --target-dir target/server --verbose
 
-    steps:
-      - uses: actions/checkout@v3
+    build-wasm:
+        runs-on: ubuntu-latest
 
-      - name: Install Rust toolchain with wasm target
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          target: wasm32-unknown-unknown
+        steps:
+            - uses: actions/checkout@v3
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v1
+            - name: Install Rust toolchain with wasm target
+              uses: actions-rs/toolchain@v1
+              with:
+                  profile: minimal
+                  toolchain: stable
+                  override: true
+                  target: wasm32-unknown-unknown
 
-      - name: Download and install Trunk binary
-        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
+            - name: Rust Cache
+              uses: Swatinem/rust-cache@v1
 
-      - name: Build
-        run: ./trunk build --release
+            - name: Download and install Trunk binary
+              run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
+
+            - name: Build
+              run: ./trunk build --release
