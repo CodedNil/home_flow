@@ -342,7 +342,7 @@ impl Shape {
                 let radius_x = size.x / 2.0;
                 let radius_y = size.y / 2.0;
                 let quality = 90;
-                let mut vertices = Vec::new();
+                let mut vertices = Vec::with_capacity(quality);
                 for i in 0..quality {
                     let angle = (i as f32 / quality as f32) * std::f32::consts::PI * 2.0;
                     vertices.push(Vec2 {

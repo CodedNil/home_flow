@@ -4,6 +4,9 @@ use super::{
 };
 use egui::{epaint::Vertex, Color32, Mesh, Painter, Pos2, Shape, Stroke, TextureId};
 
+const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
+const WALL_SIDE_COLOR: Color32 = Color32::from_rgb(200, 140, 50);
+
 impl HomeFlow {
     pub fn render_walls(&self, painter: &Painter, canvas_center: Pos2) {
         // Get camera (center screen) position in world coordinates
@@ -24,12 +27,17 @@ impl HomeFlow {
                 }
             }
         }
+        let walls = walls;
 
         // Render walls with faux 3D effect
-        let mut wall_render = Vec::new();
-        let mut faux_wall_render = Vec::new();
         let wall_distance_scale = 5.0;
         let wall_distance_factor = 0.2;
+
+        let mut wall_render = Vec::with_capacity(walls.len());
+        let mut faux_wall_render_primaries = Vec::with_capacity(walls.len());
+        let mut faux_wall_render_edges = Vec::with_capacity(walls.len() * 2);
+        let mut faux_wall_render_caps = Vec::with_capacity(walls.len() * 2);
+
         for wall in walls {
             let wall_width = match wall.wall_type {
                 layout::WallType::Interior => 0.1,
@@ -72,60 +80,129 @@ impl HomeFlow {
                 + rotated_direction * -norm_dist_x
                 + normalized_direction * (-norm_dist_end_y + wall_width_half);
             wall_render.push((
-                [
-                    self.world_to_pixels(canvas_center, segment_start.x, segment_start.y),
-                    self.world_to_pixels(canvas_center, segment_end.x, segment_end.y),
-                ],
-                Stroke::new(wall_width * self.zoom, Color32::from_rgb(130, 80, 20)),
+                self.world_to_pixels(canvas_center, segment_start.x, segment_start.y),
+                self.world_to_pixels(canvas_center, segment_end.x, segment_end.y),
+                wall_width * self.zoom,
             ));
-
-            // Calculate the light intensity based on the wall direction and light direction
-            let light_direction = Vec2::new(1.0, 1.0).normalize();
-            let light_intensity = normalized_direction.dot(&light_direction).clamp(0.0, 1.0);
-            let shaded_color_multiplier = 0.5 + 0.5 * light_intensity;
-            let offset_color = Color32::from_rgb(
-                (200.0 * shaded_color_multiplier) as u8,
-                (140.0 * shaded_color_multiplier) as u8,
-                (50.0 * shaded_color_multiplier) as u8,
-            );
 
             // Calculate triangles for the faux 3D effect
             let camera_on_left = if norm_dist_x < 0.0 { -0.95 } else { 0.95 };
             let offset_start = rotated_direction * (wall_width_half * camera_on_left);
             let offset_end = rotated_direction * (wall_width_half * camera_on_left);
-            faux_wall_render.push((
-                wall.start + offset_start + normalized_direction * wall_width_half,
-                segment_start + offset_start + normalized_direction * wall_width,
-                wall.end + offset_end + normalized_direction * -wall_width_half,
-                segment_end + offset_end - normalized_direction * wall_width,
-                offset_color,
+
+            let wall_start = wall.start + offset_start;
+            let wall_end = wall.end + offset_end;
+            let segment_start = segment_start + offset_start;
+            let segment_end = segment_end + offset_end;
+
+            let dir_half = normalized_direction * wall_width_half;
+            let dir_full = normalized_direction * wall_width;
+
+            faux_wall_render_primaries.push((
+                wall_start + dir_half,
+                wall_end - dir_half,
+                segment_start + dir_full,
+                segment_end - dir_full,
+                camera_on_left,
             ));
             // Edges of the wall
-            faux_wall_render.push((
-                wall.start + offset_start + normalized_direction * wall_width_half,
-                wall.start + offset_start + normalized_direction * -wall_width_half,
-                segment_start + offset_start + normalized_direction * wall_width,
-                segment_start + offset_start,
-                offset_color,
+            faux_wall_render_edges.push((
+                wall_start - dir_half,
+                wall_start + dir_half,
+                segment_start + dir_full,
+                segment_start,
+                camera_on_left,
             ));
-            faux_wall_render.push((
-                segment_end + offset_end - normalized_direction * wall_width,
-                segment_end + offset_end,
-                wall.end + offset_end + normalized_direction * -wall_width_half,
-                wall.end + offset_end + normalized_direction * wall_width_half,
-                offset_color,
+            faux_wall_render_edges.push((
+                wall_end - dir_half,
+                wall_end + dir_half,
+                segment_end - dir_full,
+                segment_end,
+                camera_on_left,
+            ));
+
+            // End caps
+            let offset_start_inv = rotated_direction * (wall_width_half * -camera_on_left);
+            let offset_end_inv = rotated_direction * (wall_width_half * -camera_on_left);
+
+            let wall_start_inv = wall.start + offset_start_inv;
+            let wall_end_inv = wall.end + offset_end_inv;
+            let segment_start_inv = segment_start - offset_start + offset_start_inv;
+            let segment_end_inv = segment_end - offset_end + offset_end_inv;
+            faux_wall_render_caps.push((
+                wall_start - dir_half,
+                wall_start_inv - dir_half,
+                segment_start,
+                segment_start_inv,
+                camera_on_left,
+            ));
+            faux_wall_render_caps.push((
+                wall_end + dir_half,
+                wall_end_inv + dir_half,
+                segment_end,
+                segment_end_inv,
+                camera_on_left,
             ));
         }
+
         // Sort faux walls by distance to camera
-        faux_wall_render.sort_by(|a, b| {
+        faux_wall_render_caps.sort_by(|a, b| {
             let dist_a = (camera_pos_2d - (a.0 + a.2) / 2.0).length();
             let dist_b = (camera_pos_2d - (b.0 + b.2) / 2.0).length();
             dist_b.partial_cmp(&dist_a).unwrap()
         });
-        for (p1, p2, p3, p4, color) in faux_wall_render {
-            let indices = vec![0, 1, 2, 2, 1, 3];
+        faux_wall_render_edges.sort_by(|a, b| {
+            let dist_a = (camera_pos_2d - (a.0 + a.2) / 2.0).length();
+            let dist_b = (camera_pos_2d - (b.0 + b.2) / 2.0).length();
+            dist_b.partial_cmp(&dist_a).unwrap()
+        });
+        faux_wall_render_primaries.sort_by(|a, b| {
+            let dist_a = (camera_pos_2d - (a.0 + a.2) / 2.0).length();
+            let dist_b = (camera_pos_2d - (b.0 + b.2) / 2.0).length();
+            dist_b.partial_cmp(&dist_a).unwrap()
+        });
+
+        // Combine the faux walls into a single list
+        let mut faux_wall_render = Vec::with_capacity(
+            faux_wall_render_primaries.len()
+                + faux_wall_render_edges.len()
+                + faux_wall_render_caps.len(),
+        );
+        faux_wall_render.extend(faux_wall_render_caps);
+        faux_wall_render.extend(faux_wall_render_edges);
+        faux_wall_render.extend(faux_wall_render_primaries);
+
+        for (p1, p2, p3, p4, on_left) in faux_wall_render {
+            // Calculate the centroid of the polygon
+            let centroid_x = (p1.x + p2.x + p3.x + p4.x) / 4.0;
+            let centroid_y = (p1.y + p2.y + p3.y + p4.y) / 4.0;
+
+            // Sort the points in clockwise order
+            let mut points = vec![p1, p2, p3, p4];
+            points.sort_by(|a, b| {
+                let angle_a = (a.y - centroid_y).atan2(a.x - centroid_x);
+                let angle_b = (b.y - centroid_y).atan2(b.x - centroid_x);
+                angle_a
+                    .partial_cmp(&angle_b)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            // Calculate the light intensity based on the wall direction and light direction
+            let line_direction = if on_left < 0.0 { p2 - p1 } else { p1 - p2 };
+            let normal = Vec2::new(-line_direction.y, line_direction.x).normalize();
+            let light_direction = Vec2::new(1.0, 0.5).normalize();
+            let light_intensity =
+                normal.dot(&light_direction).clamp(0.0, 1.0) + normal.x * 0.05 - normal.y * 0.05;
+            let shaded_color_multiplier = 0.5 + 0.5 * light_intensity;
+            let color = Color32::from_rgb(
+                (WALL_SIDE_COLOR.r() as f32 * shaded_color_multiplier) as u8,
+                (WALL_SIDE_COLOR.g() as f32 * shaded_color_multiplier) as u8,
+                (WALL_SIDE_COLOR.b() as f32 * shaded_color_multiplier) as u8,
+            );
+
+            let indices = vec![0, 1, 2, 0, 2, 3];
             let mut vertices = Vec::with_capacity(4);
-            for point in &[p1, p2, p3, p4] {
+            for point in &points {
                 vertices.push(Vertex {
                     pos: self.world_to_pixels(canvas_center, point.x, point.y),
                     uv: Pos2::default(),
@@ -140,8 +217,8 @@ impl HomeFlow {
             painter.add(Shape::mesh(mesh));
         }
         // TODO Any walls that share a start or end, connect into a line segment for better rendering with Shape::closed_line
-        for wall in wall_render {
-            painter.line_segment(wall.0, wall.1);
+        for (start, end, width) in wall_render {
+            painter.line_segment([start, end], Stroke::new(width, WALL_COLOR));
         }
     }
 }
