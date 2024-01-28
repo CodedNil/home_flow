@@ -27,22 +27,23 @@ impl Default for Home {
             rooms: vec![
                 Room::new(
                     "Kitchen",
-                    Vec2::new(-3.5 / 2.0, 3.0 / 2.0),
+                    Vec2::new(-1.3, 2.8),
                     Vec2::new(3.5, 3.0),
                     RenderOptions::new(
                         Material::Marble,
-                        1.0,
+                        2.0,
                         Some("#fff8e8"),
-                        Some(TileOptions::new(9, "#ffffff00", 0.03, "#505050cc")),
+                        Some(TileOptions::new(7, "#ffffff00", 0.02, "#505050cc")),
                     ),
                     vec![
                         (RoomSide::Left, WallType::Exterior),
                         (RoomSide::Top, WallType::Exterior),
                     ],
+                    vec![],
                 ),
                 Room::new(
                     "Lounge",
-                    Vec2::new(-3.5 + 6.1 / 2.0, -2.7 / 2.0),
+                    Vec2::new(0.0, 0.0),
                     Vec2::new(6.1, 2.7),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     vec![
@@ -50,6 +51,31 @@ impl Default for Home {
                         (RoomSide::Bottom, WallType::Exterior),
                         (RoomSide::Right, WallType::Interior),
                     ],
+                    vec![],
+                ),
+                Room::new(
+                    "Bathroom",
+                    Vec2::new(3.85, 0.0),
+                    Vec2::new(1.6, 2.7),
+                    RenderOptions::new(
+                        Material::Granite,
+                        2.0,
+                        Some("#fff8e8"),
+                        Some(TileOptions::new(4, "#ffffff00", 0.02, "#505050cc")),
+                    ),
+                    vec![
+                        (RoomSide::Left, WallType::Interior),
+                        (RoomSide::Top, WallType::Interior),
+                        (RoomSide::Bottom, WallType::Exterior),
+                        (RoomSide::Right, WallType::Interior),
+                    ],
+                    vec![Operation {
+                        action: Action::Subtract,
+                        shape: Shape::Rectangle,
+                        render_options: None,
+                        pos: Vec2::new(3.85 + 0.4, 2.7 / 2.0 - 0.5),
+                        size: Vec2::new(0.8, 1.0),
+                    }],
                 ),
             ],
             furniture: vec![],

@@ -213,7 +213,7 @@ impl eframe::App for HomeFlow {
                     .map_or(Pos2::ZERO, |mouse_pos| mouse_pos);
                 let mouse_pos_world = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
 
-                // self.render_grid(&painter, &response.rect, canvas_center);
+                self.render_grid(&painter, &response.rect, canvas_center);
 
                 let mut update_rooms_render = HashMap::new();
                 for room in &self.layout.rooms {
@@ -233,7 +233,7 @@ impl eframe::App for HomeFlow {
                         &room_render.texture,
                     );
                     let canvas_texture_id = ctx
-                        .load_texture("noise", egui_image, TextureOptions::NEAREST)
+                        .load_texture("room_texture", egui_image, TextureOptions::LINEAR)
                         .id();
                     let rect = Rect::from_center_size(
                         self.world_to_pixels(

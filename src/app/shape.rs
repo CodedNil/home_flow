@@ -1,6 +1,6 @@
 use super::layout::{
-    Action, RenderOptions, Room, RoomRender, RoomSide, TileOptions, Vec2, Wall, WallType,
-    RESOLUTION_FACTOR,
+    Action, Operation, RenderOptions, Room, RoomRender, RoomSide, TileOptions, Vec2, Wall,
+    WallType, RESOLUTION_FACTOR,
 };
 use anyhow::{anyhow, bail, Result};
 use egui::Color32;
@@ -253,8 +253,7 @@ pub enum Material {
 impl Material {
     pub const fn get_scale(&self) -> f32 {
         match self {
-            Self::Carpet | Self::Granite | Self::Wood => 25.0,
-            Self::Marble | Self::WoodPlanks => 40.0,
+            Self::Carpet | Self::Granite | Self::Wood | Self::Marble | Self::WoodPlanks => 40.0,
         }
     }
 
@@ -537,6 +536,7 @@ impl Room {
         size: Vec2,
         render_options: RenderOptions,
         wall_data: Vec<(RoomSide, WallType)>,
+        operations: Vec<Operation>,
     ) -> Self {
         // Transform input wall data into Wall structs
         let walls = wall_data
@@ -557,7 +557,7 @@ impl Room {
             render: None,
             pos,
             size,
-            operations: Vec::new(),
+            operations,
             walls,
         }
     }
