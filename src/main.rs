@@ -32,8 +32,22 @@ async fn main() {
 
 #[cfg(feature = "gui")]
 #[cfg(not(target_arch = "wasm32"))]
-fn main() -> eframe::Result<()> {
+#[tokio::main]
+async fn main() {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+
+    // Set up router
+    let app = axum::Router::new()
+        .nest_service("/", tower_http::services::ServeDir::new("dist"))
+        .layer(tower_http::compression::CompressionLayer::new());
+
+    tokio::spawn(async move {
+        // Start server
+        let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
+        println!("Listening on {addr}");
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        axum::serve(listener, app).await.unwrap();
+    });
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -45,11 +59,11 @@ fn main() -> eframe::Result<()> {
             ),
         ..Default::default()
     };
-    eframe::run_native(
+    let _ = eframe::run_native(
         "HomeFlow",
         native_options,
         Box::new(|cc| Box::new(app::HomeFlow::new(cc))),
-    )
+    );
 }
 
 #[cfg(target_arch = "wasm32")]
