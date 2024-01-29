@@ -15,6 +15,7 @@ geo-types = "0.7.12"
 geo-booleanop = "0.3.2"
 strum = "0.26.1"
 strum_macros = "0.26.1"
+rayon = "1.8.1"
 
 egui = { version = "0.25.0", optional = true }
 image = { version = "0.24", features = ["png"], optional = true }
@@ -24,7 +25,6 @@ eframe = { version = "0.25.0", default-features = false, features = [
     "persistence",
 ], optional = true }
 egui_plot = { version = "0.25.0", optional = true }
-rayon = "1.8.1"
 
 # WebAssembly dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]

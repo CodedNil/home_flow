@@ -5,6 +5,13 @@ use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Rounding, Shape, Stroke
 pub struct EditDetails {
     pub enabled: bool,
     pub selected_room: Option<String>,
+    pub dragging_room: Option<DragData>,
+}
+
+pub struct DragData {
+    pub room_name: String,
+    pub mouse_start_pos: Pos2,
+    pub room_start_pos: layout::Vec2,
 }
 
 pub struct EditResponse {
@@ -54,16 +61,32 @@ impl HomeFlow {
             if self.edit_mode.selected_room == Some(room.name.clone()) {
                 used_dragged = true;
                 if response.dragged() {
-                    let delta = response.drag_delta() * 0.01 / (self.zoom / 100.0);
-                    room.pos = room.pos + layout::Vec2::new(delta.x, -delta.y);
-                    room.render = None;
+                    if self.edit_mode.dragging_room.is_none() {
+                        self.edit_mode.dragging_room = Some(DragData {
+                            room_name: room.name.clone(),
+                            mouse_start_pos: mouse_pos_world,
+                            room_start_pos: room.pos,
+                        });
+                    }
+                    let drag_data = self.edit_mode.dragging_room.as_ref().unwrap();
+
+                    let delta = mouse_pos_world - drag_data.mouse_start_pos;
+                    let new_pos = drag_data.room_start_pos + layout::Vec2::new(delta.x, delta.y);
+
+                    // Snap to grid
+                    let new_pos = layout::Vec2::new(
+                        (new_pos.x * 10.0).round() / 10.0,
+                        (new_pos.y * 10.0).round() / 10.0,
+                    );
+                    room.pos = new_pos;
+                    // room.render = None;
                 }
                 if response.drag_released() {
                     room.pos = layout::Vec2::new(
                         (room.pos.x * 10.0).round() / 10.0,
                         (room.pos.y * 10.0).round() / 10.0,
                     );
-                    room.render = None;
+                    // room.render = None;
                 }
             }
         }
