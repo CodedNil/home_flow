@@ -1,5 +1,5 @@
 use super::{
-    layout::{self, Vec2, Wall},
+    layout::{Vec2, WallType},
     HomeFlow,
 };
 use egui::{epaint::Vertex, Color32, Mesh, Painter, Pos2, Shape, Stroke, TextureId};
@@ -16,14 +16,29 @@ impl HomeFlow {
         // Get all walls
         let mut walls = Vec::new();
         for wall in &self.layout.walls {
-            if !walls.iter().any(|w: &Wall| wall.is_mirrored_equal(w)) {
-                walls.push(wall.clone());
+            if wall.wall_type == WallType::None {
+                continue;
+            }
+            if wall.points.len() < 2 {
+                walls.push((wall.points[0], wall.points[1], wall.wall_type));
+            } else {
+                for window in wall.points.windows(2) {
+                    walls.push((window[0], window[1], wall.wall_type));
+                }
             }
         }
         for room in &self.layout.rooms {
-            for wall in &room.walls {
-                if !walls.iter().any(|w: &Wall| wall.is_mirrored_equal(w)) {
-                    walls.push(wall.clone());
+            let room_render = room.render.as_ref().unwrap();
+            for wall in &room_render.walls {
+                if wall.wall_type == WallType::None {
+                    continue;
+                }
+                if wall.points.len() < 2 {
+                    walls.push((wall.points[0], wall.points[1], wall.wall_type));
+                } else {
+                    for window in wall.points.windows(2) {
+                        walls.push((window[0], window[1], wall.wall_type));
+                    }
                 }
             }
         }
@@ -38,16 +53,20 @@ impl HomeFlow {
         let mut faux_wall_render_edges = Vec::with_capacity(walls.len() * 2);
         let mut faux_wall_render_caps = Vec::with_capacity(walls.len() * 2);
 
-        for wall in walls {
-            let wall_width = match wall.wall_type {
-                layout::WallType::Interior => 0.1,
-                layout::WallType::Exterior => 0.2,
+        for (start, end, wall_type) in walls {
+            let wall_width = match wall_type {
+                WallType::None => 0.0,
+                WallType::Interior => 0.1,
+                WallType::Exterior => 0.2,
             };
+            if wall_width == 0.0 {
+                continue;
+            }
             let wall_width_half = wall_width / 2.0;
-            let wall_center = (wall.start + wall.end) / 2.0;
+            let wall_center = (start + end) / 2.0;
 
             // Calculate direction vector of the wall and normalize it
-            let direction = wall.end - wall.start;
+            let direction = end - start;
             let length = direction.x.hypot(direction.y);
             let normalized_direction = if length == 0.0 {
                 direction
@@ -63,20 +82,20 @@ impl HomeFlow {
                 / wall_distance_scale)
                 .clamp(-1.0, 1.0)
                 * wall_distance_factor;
-            let norm_dist_start_y = ((camera_pos_2d - wall.start).dot(&normalized_direction)
+            let norm_dist_start_y = ((camera_pos_2d - start).dot(&normalized_direction)
                 / wall_distance_scale)
                 .clamp(-1.0, 1.0)
                 * wall_distance_factor;
-            let norm_dist_end_y = ((camera_pos_2d - wall.end).dot(&normalized_direction)
+            let norm_dist_end_y = ((camera_pos_2d - end).dot(&normalized_direction)
                 / wall_distance_scale)
                 .clamp(-1.0, 1.0)
                 * wall_distance_factor;
 
             // Draw the main wall line
-            let segment_start = wall.start
+            let segment_start = start
                 + rotated_direction * -norm_dist_x
                 + normalized_direction * (-norm_dist_start_y - wall_width_half);
-            let segment_end = wall.end
+            let segment_end = end
                 + rotated_direction * -norm_dist_x
                 + normalized_direction * (-norm_dist_end_y + wall_width_half);
             wall_render.push((
@@ -90,8 +109,8 @@ impl HomeFlow {
             let offset_start = rotated_direction * (wall_width_half * camera_on_left);
             let offset_end = rotated_direction * (wall_width_half * camera_on_left);
 
-            let wall_start = wall.start + offset_start;
-            let wall_end = wall.end + offset_end;
+            let wall_start = start + offset_start;
+            let wall_end = end + offset_end;
             let segment_start = segment_start + offset_start;
             let segment_end = segment_end + offset_end;
 
@@ -125,8 +144,8 @@ impl HomeFlow {
             let offset_start_inv = rotated_direction * (wall_width_half * -camera_on_left);
             let offset_end_inv = rotated_direction * (wall_width_half * -camera_on_left);
 
-            let wall_start_inv = wall.start + offset_start_inv;
-            let wall_end_inv = wall.end + offset_end_inv;
+            let wall_start_inv = start + offset_start_inv;
+            let wall_end_inv = end + offset_end_inv;
             let segment_start_inv = segment_start - offset_start + offset_start_inv;
             let segment_end_inv = segment_end - offset_end + offset_end_inv;
             faux_wall_render_caps.push((

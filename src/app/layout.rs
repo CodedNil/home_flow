@@ -36,8 +36,10 @@ impl Default for Home {
                         Some(TileOptions::new(7, "#ffffff00", 0.02, "#505050cc")),
                     ),
                     vec![
-                        (RoomSide::Left, WallType::Exterior),
-                        (RoomSide::Top, WallType::Exterior),
+                        WallType::Exterior,
+                        WallType::Exterior,
+                        WallType::None,
+                        WallType::None,
                     ],
                     vec![],
                 ),
@@ -47,9 +49,10 @@ impl Default for Home {
                     Vec2::new(6.1, 2.7),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     vec![
-                        (RoomSide::Left, WallType::Exterior),
-                        (RoomSide::Bottom, WallType::Exterior),
-                        (RoomSide::Right, WallType::Interior),
+                        WallType::Exterior,
+                        WallType::None,
+                        WallType::Interior,
+                        WallType::Exterior,
                     ],
                     vec![],
                 ),
@@ -61,21 +64,28 @@ impl Default for Home {
                         Material::Granite,
                         2.0,
                         Some("#fff8e8"),
-                        Some(TileOptions::new(4, "#ffffff00", 0.02, "#505050cc")),
+                        Some(TileOptions::new(4, "#ffffff00", 0.025, "#505050cc")),
                     ),
                     vec![
-                        (RoomSide::Left, WallType::Interior),
-                        (RoomSide::Top, WallType::Interior),
-                        (RoomSide::Bottom, WallType::Exterior),
-                        (RoomSide::Right, WallType::Interior),
+                        WallType::Interior,
+                        WallType::Interior,
+                        WallType::Interior,
+                        WallType::Exterior,
                     ],
                     vec![Operation {
                         action: Action::Subtract,
-                        shape: Shape::Rectangle,
+                        shape: Shape::Circle,
                         render_options: None,
-                        pos: Vec2::new(0.4, 2.7 / 2.0 - 0.5),
+                        pos: Vec2::new(0.8, 2.7 / 2.0),
                         size: Vec2::new(0.8, 1.0),
                     }],
+                    // vec![Operation {
+                    //     action: Action::Subtract,
+                    //     shape: Shape::Rectangle,
+                    //     render_options: None,
+                    //     pos: Vec2::new(0.4, 2.7 / 2.0 - 0.5),
+                    //     size: Vec2::new(0.8, 1.0),
+                    // }],
                 ),
             ],
             furniture: vec![],
@@ -93,7 +103,7 @@ pub struct Room {
     pub pos: Vec2,
     pub size: Vec2,
     pub operations: Vec<Operation>,
-    pub walls: Vec<Wall>,
+    pub walls: Vec<WallType>, // Left, Top, Right, Bottom
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -127,6 +137,7 @@ pub struct RoomRender {
     pub center: Vec2,
     pub size: Vec2,
     pub vertices: Vec<Vec2>,
+    pub walls: Vec<Wall>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -143,23 +154,15 @@ pub enum Action {
     Add,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub enum RoomSide {
-    Left,
-    Top,
-    Right,
-    Bottom,
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Wall {
-    pub start: Vec2,
-    pub end: Vec2,
+    pub points: Vec<Vec2>,
     pub wall_type: WallType,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WallType {
+    None,
     Interior,
     Exterior,
 }

@@ -1,6 +1,6 @@
 use super::layout::{
-    Action, Operation, RenderOptions, Room, RoomRender, RoomSide, TileOptions, Vec2, Wall,
-    WallType, RESOLUTION_FACTOR,
+    Action, Operation, RenderOptions, Room, RoomRender, TileOptions, Vec2, Wall, WallType,
+    RESOLUTION_FACTOR,
 };
 use anyhow::{anyhow, bail, Result};
 use egui::Color32;
@@ -145,11 +145,15 @@ impl Room {
             }
         }
 
+        let vertices = self.vertices();
+        let walls = self.walls(&vertices);
+
         RoomRender {
             texture: canvas.clone(),
             center: new_center,
             size: new_size,
-            vertices: self.vertices(),
+            vertices,
+            walls,
         }
     }
 
@@ -174,6 +178,78 @@ impl Room {
             }
         }
         vertices
+    }
+
+    pub fn walls(&self, vertices: &Vec<Vec2>) -> Vec<Wall> {
+        if vertices.is_empty() {
+            return Vec::new();
+        }
+
+        let mut top_left_index = 0;
+        let mut top_right_index = 0;
+        let mut bottom_left_index = 0;
+        let mut bottom_right_index = 0;
+
+        for (i, vertex) in vertices.iter().enumerate() {
+            if vertex.y >= vertices[top_left_index].y
+                && (vertex.y > vertices[top_left_index].y || vertex.x < vertices[top_left_index].x)
+            {
+                top_left_index = i;
+            }
+            if vertex.y >= vertices[top_right_index].y
+                && (vertex.y > vertices[top_right_index].y
+                    || vertex.x > vertices[top_right_index].x)
+            {
+                top_right_index = i;
+            }
+            if vertex.y <= vertices[bottom_left_index].y
+                && (vertex.y < vertices[bottom_left_index].y
+                    || vertex.x < vertices[bottom_left_index].x)
+            {
+                bottom_left_index = i;
+            }
+            if vertex.y <= vertices[bottom_right_index].y
+                && (vertex.y < vertices[bottom_right_index].y
+                    || vertex.x > vertices[bottom_right_index].x)
+            {
+                bottom_right_index = i;
+            }
+        }
+
+        let get_wall_vertices = |start_index: usize, end_index: usize| -> Vec<Vec2> {
+            if start_index <= end_index {
+                vertices[start_index..=end_index].to_vec()
+            } else {
+                vertices[start_index..]
+                    .iter()
+                    .chain(vertices[..=end_index].iter())
+                    .copied()
+                    .collect()
+            }
+        };
+
+        vec![
+            // Left
+            Wall {
+                points: get_wall_vertices(top_left_index, bottom_left_index),
+                wall_type: self.walls[0],
+            },
+            // Top
+            Wall {
+                points: get_wall_vertices(top_right_index, top_left_index),
+                wall_type: self.walls[1],
+            },
+            // Right
+            Wall {
+                points: get_wall_vertices(bottom_right_index, top_right_index),
+                wall_type: self.walls[2],
+            },
+            // Bottom
+            Wall {
+                points: get_wall_vertices(bottom_left_index, bottom_right_index),
+                wall_type: self.walls[3],
+            },
+        ]
     }
 }
 
@@ -463,12 +539,12 @@ impl Vec2 {
     }
 }
 
-impl Wall {
-    pub fn is_mirrored_equal(&self, other: &Self) -> bool {
-        (self.start.approx_eq(&other.start) && self.end.approx_eq(&other.end))
-            || (self.start.approx_eq(&other.end) && self.end.approx_eq(&other.start))
-    }
-}
+// impl Wall {
+//     pub fn is_mirrored_equal(&self, other: &Self) -> bool {
+//         (self.start.approx_eq(&other.start) && self.end.approx_eq(&other.end))
+//             || (self.start.approx_eq(&other.end) && self.end.approx_eq(&other.start))
+//     }
+// }
 
 fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
     let hex = hex.trim_start_matches('#');
@@ -538,51 +614,17 @@ impl Room {
         pos: Vec2,
         size: Vec2,
         render_options: RenderOptions,
-        wall_data: Vec<(RoomSide, WallType)>,
+        walls: Vec<WallType>,
         operations: Vec<Operation>,
     ) -> Self {
-        // Transform input wall data into Wall structs
-        let walls = wall_data
-            .into_iter()
-            .map(|(side, wall_type)| {
-                let (start, end) = calculate_wall_positions(&pos, &size, &side);
-                Wall {
-                    start,
-                    end,
-                    wall_type,
-                }
-            })
-            .collect();
-
         Self {
             name: name.to_owned(),
             render_options,
             render: None,
             pos,
             size,
-            operations,
             walls,
+            operations,
         }
-    }
-}
-
-fn calculate_wall_positions(pos: &Vec2, size: &Vec2, room_side: &RoomSide) -> (Vec2, Vec2) {
-    match room_side {
-        RoomSide::Left => (
-            *pos + Vec2::new(-size.x / 2.0, -size.y / 2.0),
-            *pos + Vec2::new(-size.x / 2.0, size.y / 2.0),
-        ),
-        RoomSide::Top => (
-            *pos + Vec2::new(-size.x / 2.0, size.y / 2.0),
-            *pos + Vec2::new(size.x / 2.0, size.y / 2.0),
-        ),
-        RoomSide::Right => (
-            *pos + Vec2::new(size.x / 2.0, size.y / 2.0),
-            *pos + Vec2::new(size.x / 2.0, -size.y / 2.0),
-        ),
-        RoomSide::Bottom => (
-            *pos + Vec2::new(size.x / 2.0, -size.y / 2.0),
-            *pos + Vec2::new(-size.x / 2.0, -size.y / 2.0),
-        ),
     }
 }
