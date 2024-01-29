@@ -7,14 +7,14 @@ rust-version = "1.75"
 [dependencies]
 log = "0.4.20"
 anyhow = "1.0.79"
-serde = { version = "1.0.195", features = ["derive"] }
-serde_json = "1.0.111"
+serde = { version = "1.0.196", features = ["derive"] }
+serde_json = "1.0.113"
 once_cell = "1.19.0"
 geo = "0.27.0"
 geo-types = "0.7.12"
 geo-booleanop = "0.3.2"
-strum = "0.25.0"
-strum_macros = "0.25.3"
+strum = "0.26.1"
+strum_macros = "0.26.1"
 
 egui = { version = "0.25.0", optional = true }
 image = { version = "0.24", features = ["png"], optional = true }
