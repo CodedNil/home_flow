@@ -73,7 +73,7 @@ impl Default for Home {
                         action: Action::Subtract,
                         shape: Shape::Rectangle,
                         render_options: None,
-                        pos: Vec2::new(3.85 + 0.4, 2.7 / 2.0 - 0.5),
+                        pos: Vec2::new(0.4, 2.7 / 2.0 - 0.5),
                         size: Vec2::new(0.8, 1.0),
                     }],
                 ),

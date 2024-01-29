@@ -78,7 +78,6 @@ impl HomeFlow {
         canvas_center: Pos2,
         edit_response: &EditResponse,
     ) {
-        // Top layer render
         for room in &self.layout.rooms {
             if let Some(room_name) = &edit_response.room_hovered {
                 let room = self
@@ -89,6 +88,7 @@ impl HomeFlow {
                     .unwrap();
                 let room_render = room.render.as_ref().unwrap();
 
+                // Render outline
                 let (bounds_min, bounds_max) = room.bounds();
                 let room_center = (bounds_min + bounds_max) / 2.0;
                 let render_offset = room_center - room_render.center;
@@ -104,10 +104,39 @@ impl HomeFlow {
                         )
                     })
                     .collect::<Vec<_>>();
-                painter.add(Shape::closed_line(
-                    points,
-                    Stroke::new(10.0, Color32::from_rgb(255, 255, 255)),
-                ));
+                closed_dashed_line_with_offset(
+                    painter,
+                    &points,
+                    Stroke::new(6.0, Color32::from_rgba_premultiplied(255, 255, 255, 150)),
+                    60.0,
+                    self.time as f32 * 50.0,
+                );
+
+                // Render operations
+                for operation in &room.operations {
+                    let vertices = operation
+                        .shape
+                        .vertices(room.pos + operation.pos, operation.size);
+                    let points = vertices
+                        .iter()
+                        .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
+                        .collect::<Vec<_>>();
+                    let stroke = Stroke::new(
+                        3.0,
+                        match operation.action {
+                            layout::Action::Add => Color32::from_rgb(50, 200, 50),
+                            layout::Action::Subtract => Color32::from_rgb(200, 50, 50),
+                        }
+                        .gamma_multiply(0.6),
+                    );
+                    closed_dashed_line_with_offset(
+                        painter,
+                        &points,
+                        stroke,
+                        35.0,
+                        self.time as f32 * 50.0,
+                    );
+                }
             }
 
             let mut text_lines = vec![
@@ -125,6 +154,40 @@ impl HomeFlow {
             );
         }
     }
+}
+
+fn closed_dashed_line_with_offset(
+    painter: &Painter,
+    points: &[Pos2],
+    stroke: Stroke,
+    desired_combined_length: f32,
+    time: f32,
+) {
+    let mut points = points.to_vec();
+    points.push(points[0]);
+
+    let mut total_length = 0.0;
+    for i in 0..points.len() {
+        let next_index = (i + 1) % points.len();
+        total_length += points[i].distance(points[next_index]);
+    }
+
+    let num_dashes = (total_length / desired_combined_length).round() as usize;
+    let combined_length = total_length / num_dashes as f32;
+    let dash_length = combined_length * 0.6;
+    let gap_length = combined_length - dash_length;
+
+    let offset = time % combined_length;
+    let normal = (points[1] - points[0]).normalized();
+    points.push(points[0] + normal * offset);
+
+    painter.add(Shape::dashed_line_with_offset(
+        &points,
+        stroke,
+        &[dash_length],
+        &[gap_length],
+        offset,
+    ));
 }
 
 fn paint_text_box(painter: &Painter, text_lines: &Vec<String>, font_size: f32, pos: Pos2) {

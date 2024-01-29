@@ -18,8 +18,8 @@ impl Room {
         for operation in &self.operations {
             if operation.action == Action::Add {
                 let (operation_min, operation_max) = (
-                    operation.pos - operation.size / 2.0,
-                    operation.pos + operation.size / 2.0,
+                    self.pos + operation.pos - operation.size / 2.0,
+                    self.pos + operation.pos + operation.size / 2.0,
                 );
                 min = min.min(&operation_min);
                 max = max.max(&operation_max);
@@ -38,7 +38,7 @@ impl Room {
                 Action::Add => {
                     if operation
                         .shape
-                        .contains(point, operation.pos, operation.size)
+                        .contains(point, self.pos + operation.pos, operation.size)
                     {
                         inside = true;
                     }
@@ -46,7 +46,7 @@ impl Room {
                 Action::Subtract => {
                     if operation
                         .shape
-                        .contains(point, operation.pos, operation.size)
+                        .contains(point, self.pos + operation.pos, operation.size)
                     {
                         inside = false;
                         break;
@@ -116,7 +116,7 @@ impl Room {
                         if let Some(render_options) = &operation.render_options {
                             if operation.shape.contains(
                                 point_in_world,
-                                operation.pos,
+                                self.pos + operation.pos,
                                 operation.size,
                             ) {
                                 if let Some(texture) = textures.get(&render_options.material) {
@@ -133,10 +133,11 @@ impl Room {
                         }
                     }
                     Action::Subtract => {
-                        if operation
-                            .shape
-                            .contains(point_in_world, operation.pos, operation.size)
-                        {
+                        if operation.shape.contains(
+                            point_in_world,
+                            self.pos + operation.pos,
+                            operation.size,
+                        ) {
                             *pixel = Rgba([0, 0, 0, 0]);
                         }
                     }
@@ -156,7 +157,9 @@ impl Room {
         let mut vertices = Shape::Rectangle.vertices(self.pos, self.size);
         let poly1 = create_polygon(&vertices);
         for operation in &self.operations {
-            let operation_vertices = operation.shape.vertices(operation.pos, operation.size);
+            let operation_vertices = operation
+                .shape
+                .vertices(self.pos + operation.pos, operation.size);
             let poly2 = create_polygon(&operation_vertices);
 
             let operated: geo_types::MultiPolygon = match operation.action {
