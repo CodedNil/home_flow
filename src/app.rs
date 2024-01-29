@@ -246,16 +246,14 @@ impl eframe::App for HomeFlow {
                     let canvas_texture_id = ctx
                         .load_texture("room_texture", egui_image, TextureOptions::LINEAR)
                         .id();
+
+                    let (bounds_min, bounds_max) = room.bounds();
+                    let room_center = (bounds_min + bounds_max) / 2.0;
+                    let room_size = bounds_max - bounds_min;
+
                     let rect = Rect::from_center_size(
-                        self.world_to_pixels(
-                            canvas_center,
-                            room_render.center.x,
-                            room_render.center.y,
-                        ),
-                        Vec2::new(
-                            room_render.size.x * self.zoom,
-                            room_render.size.y * self.zoom,
-                        ),
+                        self.world_to_pixels(canvas_center, room_center.x, room_center.y),
+                        Vec2::new(room_size.x * self.zoom, room_size.y * self.zoom),
                     );
                     painter.image(
                         canvas_texture_id,

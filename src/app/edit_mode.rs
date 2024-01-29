@@ -56,14 +56,12 @@ impl HomeFlow {
                 if response.dragged() {
                     let delta = response.drag_delta() * 0.01 / (self.zoom / 100.0);
                     room.pos = room.pos + layout::Vec2::new(delta.x, -delta.y);
-                    room.render = None;
                 }
                 if response.drag_released() {
                     room.pos = layout::Vec2::new(
                         (room.pos.x * 10.0).round() / 10.0,
                         (room.pos.y * 10.0).round() / 10.0,
                     );
-                    room.render = None;
                 }
             }
         }
@@ -90,10 +88,21 @@ impl HomeFlow {
                     .find(|r| &r.name == room_name)
                     .unwrap();
                 let room_render = room.render.as_ref().unwrap();
+
+                let (bounds_min, bounds_max) = room.bounds();
+                let room_center = (bounds_min + bounds_max) / 2.0;
+                let render_offset = room_center - room_render.center;
+
                 let points = room_render
                     .vertices
                     .iter()
-                    .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
+                    .map(|v| {
+                        self.world_to_pixels(
+                            canvas_center,
+                            v.x + render_offset.x,
+                            v.y + render_offset.y,
+                        )
+                    })
                     .collect::<Vec<_>>();
                 painter.add(Shape::closed_line(
                     points,
