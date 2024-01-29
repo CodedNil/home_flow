@@ -1,6 +1,5 @@
 use super::layout::{
-    Action, Operation, RenderOptions, Room, RoomRender, TileOptions, Vec2, Wall, WallType,
-    RESOLUTION_FACTOR,
+    Action, Operation, RenderOptions, Room, RoomRender, TileOptions, Vec2, Wall, RESOLUTION_FACTOR,
 };
 use anyhow::{anyhow, bail, Result};
 use egui::Color32;
@@ -9,6 +8,8 @@ use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum_macros::Display;
+
+const WALL_COLOR: Rgba<u8> = Rgba([130, 80, 20, 255]);
 
 impl Room {
     pub fn bounds(&self) -> (Vec2, Vec2) {
@@ -25,6 +26,11 @@ impl Room {
                 max = max.max(&operation_max);
             }
         }
+
+        // Add wall width border around the edges
+        let wall_width = WallType::Exterior.width();
+        min = min - Vec2::new(wall_width, wall_width);
+        max = max + Vec2::new(wall_width, wall_width);
 
         (min, max)
     }
@@ -67,11 +73,21 @@ impl Room {
         let width = new_size.x * RESOLUTION_FACTOR;
         let height = new_size.y * RESOLUTION_FACTOR;
 
+        // Calculate the vertices and walls of the room
+        let vertices = self.vertices();
+        let walls = self.walls(&vertices);
+
         // Create an image buffer with the calculated size, filled with transparent pixels
         let mut canvas = ImageBuffer::new(width as u32, height as u32);
 
         // Load required textures
         let mut textures: HashMap<Material, RgbaImage> = HashMap::new();
+        textures.insert(
+            Material::Wall,
+            image::load_from_memory(Material::Wall.get_image())
+                .unwrap()
+                .into_rgba8(),
+        );
         textures.insert(
             self.render_options.material,
             image::load_from_memory(self.render_options.material.get_image())
@@ -143,10 +159,32 @@ impl Room {
                     }
                 }
             }
-        }
 
-        let vertices = self.vertices();
-        let walls = self.walls(&vertices);
+            for wall in &walls {
+                if wall.wall_type == WallType::None {
+                    continue;
+                }
+                let point_within = wall.point_within(point_in_world);
+                if point_within {
+                    let material = Material::Wall;
+                    if let Some(texture) = textures.get(&material) {
+                        let scale = material.get_scale() / RESOLUTION_FACTOR;
+                        let mut texture_color = *texture.get_pixel(
+                            (x as f32 * scale) as u32 % texture.width(),
+                            (y as f32 * scale) as u32 % texture.height(),
+                        );
+                        texture_color.blend(&Rgba([
+                            WALL_COLOR[0],
+                            WALL_COLOR[1],
+                            WALL_COLOR[2],
+                            200,
+                        ]));
+
+                        *pixel = texture_color;
+                    }
+                }
+            }
+        }
 
         RoomRender {
             texture: canvas.clone(),
@@ -322,6 +360,7 @@ fn apply_render_options(
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Display, PartialEq, Eq, Hash)]
 pub enum Material {
+    Wall,
     Carpet,
     Marble,
     Granite,
@@ -332,12 +371,18 @@ pub enum Material {
 impl Material {
     pub const fn get_scale(&self) -> f32 {
         match self {
-            Self::Carpet | Self::Granite | Self::Wood | Self::Marble | Self::WoodPlanks => 40.0,
+            Self::Wall
+            | Self::Carpet
+            | Self::Granite
+            | Self::Wood
+            | Self::Marble
+            | Self::WoodPlanks => 40.0,
         }
     }
 
     pub const fn get_image(&self) -> &[u8] {
         match self {
+            Self::Wall => include_bytes!("../../assets/textures/wall.png"),
             Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
@@ -532,19 +577,62 @@ impl Vec2 {
     pub fn length(&self) -> f32 {
         self.x.hypot(self.y)
     }
+}
 
-    pub fn approx_eq(&self, other: &Self) -> bool {
-        const EPSILON: f32 = 1e-6;
-        (self.x - other.x).abs() < EPSILON && (self.y - other.y).abs() < EPSILON
+fn point_within_segment(p: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
+    let line_vec = end - start;
+    let line_len = line_vec.length();
+
+    if line_len == 0.0 {
+        // Line segment is a point
+        return p.x < start.x + width
+            && p.x > start.x - width
+            && p.y < start.y + width
+            && p.y > start.y - width;
+    }
+
+    // Project 'p' onto the line segment, but keep within the segment
+    let n = (p - start).dot(&line_vec);
+    let t = n / line_len.powi(2);
+    if (0.0..=1.0).contains(&t) {
+        // Projection is within the segment
+        let projection = start + line_vec * t;
+        (p - projection).length() <= width
+    } else if t < 0.0 {
+        let distance_rotated = (p - start).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
+        (t * line_len).abs() < width && distance_rotated.abs() <= width
+    } else {
+        let distance_rotated = (p - end).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
+        ((t - 1.0) * line_len).abs() < width && distance_rotated.abs() <= width
     }
 }
 
-// impl Wall {
-//     pub fn is_mirrored_equal(&self, other: &Self) -> bool {
-//         (self.start.approx_eq(&other.start) && self.end.approx_eq(&other.end))
-//             || (self.start.approx_eq(&other.end) && self.end.approx_eq(&other.start))
-//     }
-// }
+impl Wall {
+    pub fn point_within(&self, point: Vec2) -> bool {
+        let width = self.wall_type.width();
+
+        self.points
+            .windows(2)
+            .any(|window| point_within_segment(point, window[0], window[1], width))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WallType {
+    None,
+    Interior,
+    Exterior,
+}
+
+impl WallType {
+    pub const fn width(&self) -> f32 {
+        match self {
+            Self::None => 0.0,
+            Self::Interior => 0.05,
+            Self::Exterior => 0.1,
+        }
+    }
+}
 
 fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
     let hex = hex.trim_start_matches('#');

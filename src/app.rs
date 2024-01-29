@@ -10,7 +10,6 @@ use std::collections::{HashMap, HashSet};
 mod edit_mode;
 mod layout;
 mod shape;
-mod wall_render;
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
@@ -244,7 +243,7 @@ impl eframe::App for HomeFlow {
                         &room_render.texture,
                     );
                     let canvas_texture_id = ctx
-                        .load_texture("room_texture", egui_image, TextureOptions::LINEAR)
+                        .load_texture("room_texture", egui_image, TextureOptions::NEAREST)
                         .id();
 
                     let (bounds_min, bounds_max) = room.bounds();
@@ -270,10 +269,6 @@ impl eframe::App for HomeFlow {
                         }
                     }
                     self.layout.save_memory();
-                }
-
-                if !self.edit_mode.enabled {
-                    self.render_walls(&painter, canvas_center);
                 }
 
                 if self.edit_mode.enabled {

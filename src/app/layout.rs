@@ -1,4 +1,4 @@
-use super::shape::{Material, Shape};
+use super::shape::{Material, Shape, WallType};
 use anyhow::Result;
 use egui::Color32;
 use image::{ImageBuffer, Rgba};
@@ -158,13 +158,6 @@ pub enum Action {
 pub struct Wall {
     pub points: Vec<Vec2>,
     pub wall_type: WallType,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WallType {
-    None,
-    Interior,
-    Exterior,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
