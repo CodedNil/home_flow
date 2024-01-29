@@ -407,7 +407,9 @@ fn apply_render_options(
     texture_color
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Display, PartialEq, Eq, Hash, Default)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Debug, Display, PartialEq, Eq, Hash, VariantArray, Default,
+)]
 pub enum Material {
     Wall,
     #[default]

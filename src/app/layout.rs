@@ -75,18 +75,11 @@ impl Default for Home {
                     ],
                     vec![Operation {
                         action: Action::Subtract,
-                        shape: Shape::Circle,
+                        shape: Shape::Rectangle,
                         render_options: RenderOptions::default(),
-                        pos: Vec2::new(0.8, 2.7 / 2.0),
+                        pos: Vec2::new(0.4, 2.7 / 2.0 - 0.5),
                         size: Vec2::new(0.8, 1.0),
                     }],
-                    // vec![Operation {
-                    //     action: Action::Subtract,
-                    //     shape: Shape::Rectangle,
-                    //     render_options: None,
-                    //     pos: Vec2::new(0.4, 2.7 / 2.0 - 0.5),
-                    //     size: Vec2::new(0.8, 1.0),
-                    // }],
                 ),
             ],
             furniture: vec![],
@@ -117,7 +110,7 @@ pub struct Operation {
     pub size: Vec2,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RenderOptions {
     pub material: Material,
     pub scale: f32,
@@ -125,7 +118,18 @@ pub struct RenderOptions {
     pub tiles: Option<TileOptions>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+impl Default for RenderOptions {
+    fn default() -> Self {
+        Self {
+            material: Material::default(),
+            scale: 1.0,
+            tint: None,
+            tiles: None,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct TileOptions {
     pub scale: u8,
     pub odd_tint: Color32,
@@ -155,8 +159,8 @@ pub struct Furniture {
 )]
 pub enum Action {
     #[default]
-    Subtract,
     Add,
+    Subtract,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
