@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
+use strum_macros::{Display, VariantArray};
 
 const LAYOUT_VERSION: &str = "0.1";
 const LAYOUT_PATH: &str = "home_layout.json";
@@ -27,7 +28,7 @@ impl Default for Home {
             rooms: vec![
                 Room::new(
                     "Kitchen",
-                    Vec2::new(-1.3, 2.8),
+                    Vec2::new(-1.3, 2.85),
                     Vec2::new(3.5, 3.0),
                     RenderOptions::new(
                         Material::Marble,
@@ -75,7 +76,7 @@ impl Default for Home {
                     vec![Operation {
                         action: Action::Subtract,
                         shape: Shape::Circle,
-                        render_options: None,
+                        render_options: RenderOptions::default(),
                         pos: Vec2::new(0.8, 2.7 / 2.0),
                         size: Vec2::new(0.8, 1.0),
                     }],
@@ -96,6 +97,7 @@ impl Default for Home {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Room {
+    pub id: uuid::Uuid,
     pub name: String,
     pub render_options: RenderOptions,
     #[serde(skip)]
@@ -106,16 +108,16 @@ pub struct Room {
     pub walls: Vec<WallType>, // Left, Top, Right, Bottom
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Operation {
     pub action: Action,
     pub shape: Shape,
-    pub render_options: Option<RenderOptions>,
+    pub render_options: RenderOptions,
     pub pos: Vec2,
     pub size: Vec2,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct RenderOptions {
     pub material: Material,
     pub scale: f32,
@@ -148,8 +150,11 @@ pub struct Furniture {
     pub children: Vec<Furniture>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Display, VariantArray, Default,
+)]
 pub enum Action {
+    #[default]
     Subtract,
     Add,
 }
@@ -160,7 +165,7 @@ pub struct Wall {
     pub wall_type: WallType,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Default)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,

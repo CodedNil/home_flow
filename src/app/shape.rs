@@ -8,7 +8,7 @@ use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use strum_macros::Display;
+use strum_macros::{Display, VariantArray};
 
 const WALL_COLOR: Rgba<u8> = Rgba([130, 80, 20, 255]);
 const CHUNK_SIZE: u32 = 64;
@@ -29,11 +29,14 @@ impl Room {
             }
         }
 
-        // Add wall width border around the edges
+        (min, max)
+    }
+
+    pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
+        let (mut min, mut max) = self.bounds();
         let wall_width = WallType::Exterior.width();
         min = min - Vec2::new(wall_width, wall_width);
         max = max + Vec2::new(wall_width, wall_width);
-
         (min, max)
     }
 
@@ -67,7 +70,7 @@ impl Room {
 
     pub fn render(&self) -> RoomRender {
         // Calculate the center and size of the room
-        let (bounds_min, bounds_max) = self.bounds();
+        let (bounds_min, bounds_max) = self.bounds_with_walls();
         let new_center = (bounds_min + bounds_max) / 2.0;
         let new_size = bounds_max - bounds_min;
 
@@ -98,13 +101,13 @@ impl Room {
         );
         for operation in &self.operations {
             if operation.action == Action::Add {
-                if let Some(render) = &operation.render_options {
-                    textures.entry(render.material).or_insert_with(|| {
-                        image::load_from_memory(render.material.get_image())
+                textures
+                    .entry(operation.render_options.material)
+                    .or_insert_with(|| {
+                        image::load_from_memory(operation.render_options.material.get_image())
                             .unwrap()
                             .into_rgba8()
                     });
-                }
             }
         }
 
@@ -158,24 +161,22 @@ impl Room {
                         for operation in &self.operations {
                             match operation.action {
                                 Action::Add => {
-                                    if let Some(render_options) = &operation.render_options {
-                                        if operation.shape.contains(
-                                            point_in_world,
-                                            self.pos + operation.pos,
-                                            operation.size,
-                                        ) {
-                                            if let Some(texture) =
-                                                textures.get(&render_options.material)
-                                            {
-                                                pixel_color = apply_render_options(
-                                                    render_options,
-                                                    texture,
-                                                    x as f32,
-                                                    y as f32,
-                                                    point,
-                                                    width / height,
-                                                );
-                                            }
+                                    if operation.shape.contains(
+                                        point_in_world,
+                                        self.pos + operation.pos,
+                                        operation.size,
+                                    ) {
+                                        if let Some(texture) =
+                                            textures.get(&operation.render_options.material)
+                                        {
+                                            pixel_color = apply_render_options(
+                                                &operation.render_options,
+                                                texture,
+                                                x as f32,
+                                                y as f32,
+                                                point,
+                                                width / height,
+                                            );
                                         }
                                     }
                                 }
@@ -406,9 +407,10 @@ fn apply_render_options(
     texture_color
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Display, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Display, PartialEq, Eq, Hash, Default)]
 pub enum Material {
     Wall,
+    #[default]
     Carpet,
     Marble,
     Granite,
@@ -461,8 +463,11 @@ fn create_polygon(vertices: &[Vec2]) -> geo::Polygon<f64> {
     )
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Display, VariantArray, Default,
+)]
 pub enum Shape {
+    #[default]
     Rectangle,
     Circle,
 }
@@ -684,7 +689,9 @@ impl Wall {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Display, Hash, VariantArray,
+)]
 pub enum WallType {
     None,
     Interior,
@@ -773,6 +780,7 @@ impl Room {
         operations: Vec<Operation>,
     ) -> Self {
         Self {
+            id: uuid::Uuid::new_v4(),
             name: name.to_owned(),
             render_options,
             render: None,

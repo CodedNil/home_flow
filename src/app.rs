@@ -218,7 +218,7 @@ impl eframe::App for HomeFlow {
                     .map_or(Pos2::ZERO, |mouse_pos| mouse_pos);
                 let mouse_pos_world = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
 
-                let edit_mode_response = self.run_edit_mode(&response, mouse_pos_world);
+                let edit_mode_response = self.run_edit_mode(&response, mouse_pos, mouse_pos_world);
                 if !edit_mode_response.used_dragged {
                     self.handle_pan_zoom(&response, canvas_center, ui);
                 }
@@ -246,7 +246,7 @@ impl eframe::App for HomeFlow {
                         .load_texture("room_texture", egui_image, TextureOptions::NEAREST)
                         .id();
 
-                    let (bounds_min, bounds_max) = room.bounds();
+                    let (bounds_min, bounds_max) = room.bounds_with_walls();
                     let room_center = (bounds_min + bounds_max) / 2.0;
                     let room_size = bounds_max - bounds_min;
 
@@ -272,7 +272,7 @@ impl eframe::App for HomeFlow {
                 }
 
                 if self.edit_mode.enabled {
-                    self.paint_edit_mode(&painter, canvas_center, &edit_mode_response);
+                    self.paint_edit_mode(&painter, canvas_center, &edit_mode_response, ctx);
                 }
 
                 Window::new("Bottom Right")
@@ -285,7 +285,6 @@ impl eframe::App for HomeFlow {
                     .title_bar(false)
                     .resizable(false)
                     .constrain(false)
-                    .frame(inner_frame)
                     .show(ctx, |ui| {
                         ui.horizontal(|ui| {
                             ui.checkbox(&mut self.edit_mode.enabled, "Edit Mode");
