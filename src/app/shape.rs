@@ -5,11 +5,13 @@ use anyhow::{anyhow, bail, Result};
 use egui::Color32;
 use geo::BooleanOps;
 use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use strum_macros::Display;
 
 const WALL_COLOR: Rgba<u8> = Rgba([130, 80, 20, 255]);
+const CHUNK_SIZE: u32 = 64;
 
 impl Room {
     pub fn bounds(&self) -> (Vec2, Vec2) {
@@ -69,7 +71,7 @@ impl Room {
         let new_center = (bounds_min + bounds_max) / 2.0;
         let new_size = bounds_max - bounds_min;
 
-        // Calculate the size of the canvas based on the room size and resolution factor
+        // Calculate the size of the image based on the room size and resolution factor
         let width = new_size.x * RESOLUTION_FACTOR;
         let height = new_size.y * RESOLUTION_FACTOR;
 
@@ -78,7 +80,7 @@ impl Room {
         let walls = self.walls(&vertices);
 
         // Create an image buffer with the calculated size, filled with transparent pixels
-        let mut canvas = ImageBuffer::new(width as u32, height as u32);
+        let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
 
         // Load required textures
         let mut textures: HashMap<Material, RgbaImage> = HashMap::new();
@@ -106,88 +108,134 @@ impl Room {
             }
         }
 
-        // Draw the room's shape on the canvas
-        for (x, y, pixel) in canvas.enumerate_pixels_mut() {
-            let point = Vec2 {
-                x: x as f32 / width,
-                y: 1.0 - (y as f32 / height),
-            };
-            let point_in_world = bounds_min + point * new_size;
-            if Shape::Rectangle.contains(point_in_world, self.pos, self.size) {
-                if let Some(texture) = textures.get(&self.render_options.material) {
-                    *pixel = apply_render_options(
-                        &self.render_options,
-                        texture,
-                        x as f32,
-                        y as f32,
-                        point,
-                        width / height,
-                    );
-                }
-            }
+        let (image_width, image_height) = (image_buffer.width(), image_buffer.height());
+        let num_chunks_x = (image_width + CHUNK_SIZE - 1) / CHUNK_SIZE;
+        let num_chunks_y = (image_height + CHUNK_SIZE - 1) / CHUNK_SIZE;
+        let total_chunks = num_chunks_x * num_chunks_y;
 
-            for operation in &self.operations {
-                match operation.action {
-                    Action::Add => {
-                        if let Some(render_options) = &operation.render_options {
-                            if operation.shape.contains(
-                                point_in_world,
-                                self.pos + operation.pos,
-                                operation.size,
-                            ) {
-                                if let Some(texture) = textures.get(&render_options.material) {
-                                    *pixel = apply_render_options(
-                                        render_options,
-                                        texture,
-                                        x as f32,
-                                        y as f32,
-                                        point,
-                                        width / height,
-                                    );
+        // Process each chunk in parallel and collect the results
+        let chunks: Vec<_> = (0..total_chunks)
+            .into_par_iter()
+            .map(|chunk_index| {
+                let chunk_x = chunk_index % num_chunks_x;
+                let chunk_y = chunk_index / num_chunks_x;
+
+                // Calculate actual size of this chunk, handling the last chunk case
+                let chunk_width = std::cmp::min(CHUNK_SIZE, image_width - chunk_x * CHUNK_SIZE);
+                let chunk_height = std::cmp::min(CHUNK_SIZE, image_height - chunk_y * CHUNK_SIZE);
+
+                let mut chunk_buffer =
+                    vec![Rgba([0, 0, 0, 0]); (chunk_width * chunk_height) as usize];
+                let start_x = chunk_x * CHUNK_SIZE;
+                let start_y = chunk_y * CHUNK_SIZE;
+
+                for chunk_y in 0..chunk_height {
+                    for chunk_x in 0..chunk_width {
+                        let x = start_x + chunk_x;
+                        let y = start_y + chunk_y;
+
+                        let mut pixel_color = Rgba([0, 0, 0, 0]);
+
+                        let point = Vec2 {
+                            x: x as f32 / width,
+                            y: 1.0 - (y as f32 / height),
+                        };
+                        let point_in_world = bounds_min + point * new_size;
+
+                        if Shape::Rectangle.contains(point_in_world, self.pos, self.size) {
+                            if let Some(texture) = textures.get(&self.render_options.material) {
+                                pixel_color = apply_render_options(
+                                    &self.render_options,
+                                    texture,
+                                    x as f32,
+                                    y as f32,
+                                    point,
+                                    width / height,
+                                );
+                            }
+                        }
+
+                        for operation in &self.operations {
+                            match operation.action {
+                                Action::Add => {
+                                    if let Some(render_options) = &operation.render_options {
+                                        if operation.shape.contains(
+                                            point_in_world,
+                                            self.pos + operation.pos,
+                                            operation.size,
+                                        ) {
+                                            if let Some(texture) =
+                                                textures.get(&render_options.material)
+                                            {
+                                                pixel_color = apply_render_options(
+                                                    render_options,
+                                                    texture,
+                                                    x as f32,
+                                                    y as f32,
+                                                    point,
+                                                    width / height,
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                Action::Subtract => {
+                                    if operation.shape.contains(
+                                        point_in_world,
+                                        self.pos + operation.pos,
+                                        operation.size,
+                                    ) {
+                                        pixel_color = Rgba([0, 0, 0, 0]);
+                                    }
                                 }
                             }
                         }
-                    }
-                    Action::Subtract => {
-                        if operation.shape.contains(
-                            point_in_world,
-                            self.pos + operation.pos,
-                            operation.size,
-                        ) {
-                            *pixel = Rgba([0, 0, 0, 0]);
+
+                        for wall in &walls {
+                            if wall.wall_type == WallType::None {
+                                continue;
+                            }
+                            if wall.point_within(point_in_world) {
+                                let material = Material::Wall;
+                                if let Some(texture) = textures.get(&material) {
+                                    let scale = material.get_scale() / RESOLUTION_FACTOR;
+                                    let mut texture_color = *texture.get_pixel(
+                                        (x as f32 * scale) as u32 % texture.width(),
+                                        (y as f32 * scale) as u32 % texture.height(),
+                                    );
+                                    texture_color.blend(&Rgba([
+                                        WALL_COLOR[0],
+                                        WALL_COLOR[1],
+                                        WALL_COLOR[2],
+                                        200,
+                                    ]));
+
+                                    pixel_color = texture_color;
+                                }
+                            }
                         }
+
+                        chunk_buffer[(chunk_y * chunk_width + chunk_x) as usize] = pixel_color;
                     }
                 }
-            }
+                (start_x, start_y, chunk_width, chunk_height, chunk_buffer)
+            })
+            .collect();
 
-            for wall in &walls {
-                if wall.wall_type == WallType::None {
-                    continue;
-                }
-                let point_within = wall.point_within(point_in_world);
-                if point_within {
-                    let material = Material::Wall;
-                    if let Some(texture) = textures.get(&material) {
-                        let scale = material.get_scale() / RESOLUTION_FACTOR;
-                        let mut texture_color = *texture.get_pixel(
-                            (x as f32 * scale) as u32 % texture.width(),
-                            (y as f32 * scale) as u32 % texture.height(),
-                        );
-                        texture_color.blend(&Rgba([
-                            WALL_COLOR[0],
-                            WALL_COLOR[1],
-                            WALL_COLOR[2],
-                            200,
-                        ]));
-
-                        *pixel = texture_color;
+        // Combine the chunks back into the main image buffer
+        for (start_x, start_y, chunk_width, chunk_height, chunk) in chunks {
+            for y in 0..chunk_height {
+                for x in 0..chunk_width {
+                    let pixel = chunk[(y * chunk_width + x) as usize];
+                    if start_x + x < image_width && start_y + y < image_height {
+                        image_buffer.put_pixel(start_x + x, start_y + y, pixel);
                     }
                 }
             }
         }
 
         RoomRender {
-            texture: canvas.clone(),
+            texture: image_buffer,
             center: new_center,
             size: new_size,
             vertices,
@@ -577,32 +625,41 @@ impl Vec2 {
     pub fn length(&self) -> f32 {
         self.x.hypot(self.y)
     }
+
+    const MIN: Self = Self {
+        x: std::f32::MIN,
+        y: std::f32::MIN,
+    };
+    const MAX: Self = Self {
+        x: std::f32::MAX,
+        y: std::f32::MAX,
+    };
 }
 
-fn point_within_segment(p: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
+fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
     let line_vec = end - start;
     let line_len = line_vec.length();
 
     if line_len == 0.0 {
         // Line segment is a point
-        return p.x < start.x + width
-            && p.x > start.x - width
-            && p.y < start.y + width
-            && p.y > start.y - width;
+        return point.x < start.x + width
+            && point.x > start.x - width
+            && point.y < start.y + width
+            && point.y > start.y - width;
     }
 
-    // Project 'p' onto the line segment, but keep within the segment
-    let n = (p - start).dot(&line_vec);
+    // Project 'point' onto the line segment, but keep within the segment
+    let n = (point - start).dot(&line_vec);
     let t = n / line_len.powi(2);
     if (0.0..=1.0).contains(&t) {
         // Projection is within the segment
         let projection = start + line_vec * t;
-        (p - projection).length() <= width
+        (point - projection).length() <= width
     } else if t < 0.0 {
-        let distance_rotated = (p - start).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
+        let distance_rotated = (point - start).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
         (t * line_len).abs() < width && distance_rotated.abs() <= width
     } else {
-        let distance_rotated = (p - end).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
+        let distance_rotated = (point - end).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
         ((t - 1.0) * line_len).abs() < width && distance_rotated.abs() <= width
     }
 }
@@ -610,6 +667,16 @@ fn point_within_segment(p: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
 impl Wall {
     pub fn point_within(&self, point: Vec2) -> bool {
         let width = self.wall_type.width();
+
+        let mut min = Vec2::MAX;
+        let mut max = Vec2::MIN;
+        for point in &self.points {
+            min = Vec2::new(min.x.min(point.x - width), min.y.min(point.y - width));
+            max = Vec2::new(max.x.max(point.x + width), max.y.max(point.y + width));
+        }
+        if point.x < min.x || point.x > max.x || point.y < min.y || point.y > max.y {
+            return false;
+        }
 
         self.points
             .windows(2)

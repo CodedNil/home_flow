@@ -56,12 +56,14 @@ impl HomeFlow {
                 if response.dragged() {
                     let delta = response.drag_delta() * 0.01 / (self.zoom / 100.0);
                     room.pos = room.pos + layout::Vec2::new(delta.x, -delta.y);
+                    room.render = None;
                 }
                 if response.drag_released() {
                     room.pos = layout::Vec2::new(
                         (room.pos.x * 10.0).round() / 10.0,
                         (room.pos.y * 10.0).round() / 10.0,
                     );
+                    room.render = None;
                 }
             }
         }
