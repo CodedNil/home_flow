@@ -1,16 +1,12 @@
 use super::shape::{Material, Shape, WallType};
-use anyhow::Result;
 use egui::Color32;
 use image::{ImageBuffer, Rgba};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
 use std::hash::{Hash, Hasher};
-use std::io::{Read, Write};
 use strum_macros::{Display, VariantArray};
 
 const LAYOUT_VERSION: &str = "0.1";
-const LAYOUT_PATH: &str = "home_layout.json";
 pub const RESOLUTION_FACTOR: f32 = 80.0; // Pixels per meter
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -184,29 +180,4 @@ pub struct Wall {
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
-}
-
-impl Home {
-    pub fn load_file() -> Self {
-        // Load from file or use default
-        File::open(LAYOUT_PATH).map_or_else(
-            |_| Self::default(),
-            |mut file| {
-                let mut contents = String::new();
-                file.read_to_string(&mut contents).map_or_else(
-                    |_| Self::default(),
-                    |_| {
-                        serde_json::from_str::<Self>(&contents).unwrap_or_else(|_| Self::template())
-                    },
-                )
-            },
-        )
-    }
-
-    pub fn save_file(&self) -> Result<()> {
-        let mut file = File::create(LAYOUT_PATH)?;
-        let contents = serde_json::to_string_pretty(self)?;
-        file.write_all(contents.as_bytes())?;
-        Ok(())
-    }
 }

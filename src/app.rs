@@ -1,4 +1,5 @@
 use self::edit_mode::EditDetails;
+use crate::common::layout;
 use egui::{
     epaint::Shadow, util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame,
     Painter, Pos2, Rect, Sense, Stroke, TextureOptions, Vec2, Window,
@@ -8,11 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 mod edit_mode;
-pub mod layout;
-mod layout_display;
-mod shape;
-mod utils;
-
 pub struct HomeFlow {
     time: f64,
 

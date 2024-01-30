@@ -9,10 +9,13 @@
     clippy::struct_field_names
 )]
 
+#[cfg(feature = "gui")]
 mod app;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod server;
+
+mod common;
 
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
