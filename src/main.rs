@@ -9,10 +9,11 @@
     clippy::struct_field_names
 )]
 
-#[cfg(feature = "gui")]
 mod app;
 
-#[cfg(not(feature = "gui"))]
+#[cfg(not(target_arch = "wasm32"))]
+mod server;
+
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() {
@@ -23,47 +24,38 @@ async fn main() {
         .nest_service("/", tower_http::services::ServeDir::new("dist"))
         .layer(tower_http::compression::CompressionLayer::new());
 
-    // Start server
+    let app = server::setup_routes(app);
+
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    #[cfg(not(feature = "gui"))]
     axum::serve(listener, app).await.unwrap();
-}
-
-#[cfg(feature = "gui")]
-#[cfg(not(target_arch = "wasm32"))]
-#[tokio::main]
-async fn main() {
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
-
-    // Set up router
-    let app = axum::Router::new()
-        .nest_service("/", tower_http::services::ServeDir::new("dist"))
-        .layer(tower_http::compression::CompressionLayer::new());
-
+    #[cfg(feature = "gui")]
     tokio::spawn(async move {
-        // Start server
-        let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
-        println!("Listening on {addr}");
-        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
         axum::serve(listener, app).await.unwrap();
     });
 
-    let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([400.0, 300.0])
-            .with_min_inner_size([300.0, 220.0])
-            .with_icon(
-                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
+    #[cfg(feature = "gui")]
+    {
+        let native_options = eframe::NativeOptions {
+            viewport: egui::ViewportBuilder::default()
+                .with_inner_size([400.0, 300.0])
+                .with_min_inner_size([300.0, 220.0])
+                .with_icon(
+                    eframe::icon_data::from_png_bytes(
+                        &include_bytes!("../assets/icon-256.png")[..],
+                    )
                     .unwrap(),
-            ),
-        ..Default::default()
-    };
-    let _ = eframe::run_native(
-        "HomeFlow",
-        native_options,
-        Box::new(|cc| Box::new(app::HomeFlow::new(cc))),
-    );
+                ),
+            ..Default::default()
+        };
+        let _ = eframe::run_native(
+            "HomeFlow",
+            native_options,
+            Box::new(|cc| Box::new(app::HomeFlow::new(cc))),
+        );
+    }
 }
 
 #[cfg(target_arch = "wasm32")]

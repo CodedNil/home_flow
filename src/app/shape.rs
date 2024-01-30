@@ -11,7 +11,10 @@ use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    hash::{Hash, Hasher},
+};
 use strum::VariantArray;
 use strum_macros::{Display, VariantArray};
 
@@ -40,7 +43,16 @@ impl Home {
         (min, max)
     }
 
-    pub fn render(&self) -> HomeRender {
+    pub fn render(&mut self) {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        let hash = hasher.finish();
+        if let Some(rendered_data) = &self.rendered_data {
+            if rendered_data.hash == hash {
+                return;
+            }
+        }
+
         // Calculate the center and size of the home
         let (bounds_min, bounds_max) = self.bounds_with_walls();
         let new_center = (bounds_min + bounds_max) / 2.0;
@@ -246,13 +258,14 @@ impl Home {
             }
         }
 
-        HomeRender {
+        self.rendered_data = Some(HomeRender {
+            hash,
             texture: image_buffer,
             center: new_center,
             size: new_size,
             vertices,
             walls,
-        }
+        });
     }
 }
 
@@ -555,7 +568,9 @@ fn create_polygon(vertices: &[Vec2]) -> geo::Polygon<f64> {
     )
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default, Hash,
+)]
 pub enum Shape {
     #[default]
     Rectangle,

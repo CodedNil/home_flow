@@ -1,5 +1,6 @@
-use super::layout::Vec2;
+use super::layout::{Furniture, RenderOptions, TileOptions, Vec2};
 use anyhow::{anyhow, bail, Result};
+use std::hash::{Hash, Hasher};
 
 impl std::ops::Add for Vec2 {
     type Output = Self;
@@ -110,6 +111,13 @@ impl Vec2 {
     };
 }
 
+impl Hash for Vec2 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.x.to_bits().hash(state);
+        self.y.to_bits().hash(state);
+    }
+}
+
 pub fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
     let line_vec = end - start;
     let line_len = line_vec.length();
@@ -155,4 +163,33 @@ pub fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
     let a = if hex.len() == 8 { parse_color(6)? } else { 255 };
 
     Ok([r, g, b, a])
+}
+
+impl Hash for Furniture {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pos.hash(state);
+        self.size.hash(state);
+        self.rotation.to_bits().hash(state);
+        for child in &self.children {
+            child.hash(state);
+        }
+    }
+}
+
+impl Hash for RenderOptions {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.material.hash(state);
+        self.scale.to_bits().hash(state);
+        self.tint.hash(state);
+        self.tiles.hash(state);
+    }
+}
+
+impl Hash for TileOptions {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.scale.hash(state);
+        self.odd_tint.hash(state);
+        self.grout_width.to_bits().hash(state);
+        self.grout_tint.hash(state);
+    }
 }

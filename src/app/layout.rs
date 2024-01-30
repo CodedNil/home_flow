@@ -2,21 +2,20 @@ use super::shape::{Material, Shape, WallType};
 use anyhow::Result;
 use egui::Color32;
 use image::{ImageBuffer, Rgba};
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
-use std::sync::{Arc, Mutex};
 use strum_macros::{Display, VariantArray};
 
 const LAYOUT_VERSION: &str = "0.1";
 const LAYOUT_PATH: &str = "home_layout.json";
 pub const RESOLUTION_FACTOR: f32 = 80.0; // Pixels per meter
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Home {
-    version: String,
+    pub version: String,
     pub rooms: Vec<Room>,
     pub furniture: Vec<Furniture>,
     pub walls: Vec<Wall>,
@@ -24,8 +23,17 @@ pub struct Home {
     pub rendered_data: Option<HomeRender>,
 }
 
-impl Default for Home {
-    fn default() -> Self {
+impl Hash for Home {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.version.hash(state);
+        self.rooms.hash(state);
+        self.furniture.hash(state);
+        self.walls.hash(state);
+    }
+}
+
+impl Home {
+    pub fn template() -> Self {
         Self {
             version: LAYOUT_VERSION.to_string(),
             rooms: vec![
@@ -92,7 +100,7 @@ impl Default for Home {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct Room {
     pub id: uuid::Uuid,
     pub name: String,
@@ -111,7 +119,7 @@ pub struct Furniture {
     pub children: Vec<Furniture>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Hash)]
 pub struct Operation {
     pub action: Action,
     pub shape: Shape,
@@ -149,6 +157,7 @@ pub struct TileOptions {
 
 #[derive(Clone)]
 pub struct HomeRender {
+    pub hash: u64,
     pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
     pub center: Vec2,
     pub size: Vec2,
@@ -156,14 +165,16 @@ pub struct HomeRender {
     pub walls: HashMap<uuid::Uuid, Vec<Wall>>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default, Hash,
+)]
 pub enum Action {
     #[default]
     Add,
     Subtract,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct Wall {
     pub points: Vec<Vec2>,
     pub wall_type: WallType,
@@ -175,42 +186,24 @@ pub struct Vec2 {
     pub y: f32,
 }
 
-static LAYOUT: Lazy<Arc<Mutex<Option<Home>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
-
 impl Home {
-    pub fn load() -> Self {
-        let mut layout_lock = LAYOUT.lock().unwrap();
-        layout_lock.clone().map_or_else(
-            || {
-                // Load from file or use default
-                let loaded_layout = File::open(LAYOUT_PATH).map_or_else(
+    pub fn load_file() -> Self {
+        // Load from file or use default
+        File::open(LAYOUT_PATH).map_or_else(
+            |_| Self::default(),
+            |mut file| {
+                let mut contents = String::new();
+                file.read_to_string(&mut contents).map_or_else(
                     |_| Self::default(),
-                    |mut file| {
-                        let mut contents = String::new();
-                        file.read_to_string(&mut contents).map_or_else(
-                            |_| Self::default(),
-                            |_| {
-                                serde_json::from_str::<Self>(&contents)
-                                    .unwrap_or_else(|_| Self::default())
-                            },
-                        )
+                    |_| {
+                        serde_json::from_str::<Self>(&contents).unwrap_or_else(|_| Self::template())
                     },
-                );
-
-                // Update the in-memory layout
-                *layout_lock = Some(loaded_layout.clone());
-                loaded_layout
+                )
             },
-            |layout| layout,
         )
     }
 
-    pub fn save_memory(&self) {
-        let mut layout_lock = LAYOUT.lock().unwrap();
-        *layout_lock = Some(self.clone());
-    }
-
-    pub fn save(&self) -> Result<()> {
+    pub fn save_file(&self) -> Result<()> {
         let mut file = File::create(LAYOUT_PATH)?;
         let contents = serde_json::to_string_pretty(self)?;
         file.write_all(contents.as_bytes())?;

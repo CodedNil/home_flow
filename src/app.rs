@@ -8,56 +8,62 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 mod edit_mode;
-mod layout;
+pub mod layout;
 mod layout_display;
 mod shape;
 mod utils;
 
-#[derive(Deserialize, Serialize)]
-#[serde(default)]
 pub struct HomeFlow {
-    #[serde(skip)]
     time: f64,
 
-    #[serde(skip)]
     translation: Vec2,
-    #[serde(skip)]
     zoom: f32, // Zoom is meter to pixels
 
-    #[serde(skip)]
+    layout_server: layout::Home,
     layout: layout::Home,
 
-    #[serde(skip)]
     edit_mode: EditDetails,
-    #[serde(skip)]
     frame_times: History<f32>,
-    #[serde(skip)]
     host: String,
+
+    stored_data: StoredData,
+}
+
+#[derive(Deserialize, Serialize, Default)]
+#[serde(default)]
+pub struct StoredData {
+    pub test: String,
 }
 
 impl Default for HomeFlow {
     fn default() -> Self {
+        let layout = layout::Home::template();
         let max_age: f32 = 1.0;
         let max_len = (max_age * 300.0).round() as usize;
         Self {
             time: 0.0,
             translation: Vec2::ZERO,
             zoom: 100.0,
-            layout: layout::Home::load(),
+            layout_server: layout.clone(),
+            layout,
             edit_mode: EditDetails::default(),
             frame_times: History::new(0..max_len, max_age),
             host: "localhost:3000".to_string(),
+            stored_data: StoredData::default(),
         }
     }
 }
 
 impl HomeFlow {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        }
+        let stored_data = cc.storage.map_or_else(StoredData::default, |storage| {
+            eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
+        });
 
-        Self::default()
+        Self {
+            stored_data,
+            ..Default::default()
+        }
     }
 
     fn pixels_to_world(&self, canvas_center: Pos2, x: f32, y: f32) -> Pos2 {
@@ -199,7 +205,7 @@ impl HomeFlow {
 impl eframe::App for HomeFlow {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        eframe::set_value(storage, eframe::APP_KEY, &self.stored_data);
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
@@ -258,16 +264,8 @@ impl eframe::App for HomeFlow {
 
                 self.render_grid(&painter, &response.rect, canvas_center);
 
-                // Retrieve render from cache or render fresh and store in cache
-                let mut update_render = None;
-                let rendered_data = self.layout.rendered_data.as_ref().map_or_else(
-                    || {
-                        let render = self.layout.render();
-                        update_render = Some(render);
-                        update_render.as_ref().unwrap()
-                    },
-                    |render| render,
-                );
+                self.layout.render();
+                let rendered_data = self.layout.rendered_data.as_ref().unwrap();
 
                 let canvas_size = rendered_data.texture.dimensions();
                 let egui_image = ColorImage::from_rgba_unmultiplied(
@@ -292,13 +290,6 @@ impl eframe::App for HomeFlow {
                     Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
                     Color32::WHITE,
                 );
-
-                // Update cache if needed
-                if update_render.is_some() {
-                    if let Some(render) = update_render {
-                        self.layout.rendered_data = Some(render);
-                    }
-                }
 
                 if self.edit_mode.enabled {
                     self.paint_edit_mode(&painter, canvas_center, &edit_mode_response, ctx);

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    layout::{self, Action, Operation, RenderOptions, Room, TileOptions, Vec2},
+    layout::{Action, Operation, RenderOptions, Room, TileOptions, Vec2},
     shape::{Material, Shape, WallType},
     HomeFlow,
 };
@@ -41,7 +41,7 @@ impl HomeFlow {
                     self.edit_mode.preview_edits = (false, Vec::new());
                 } else {
                     let current_layout = self.layout.to_string();
-                    let initial_layout = layout::Home::load().to_string();
+                    let initial_layout = self.layout_server.to_string();
                     let diffs: Vec<diff::Result<String>> =
                         diff::lines(&initial_layout, &current_layout)
                             .into_iter()
@@ -241,7 +241,6 @@ impl HomeFlow {
                 };
 
                 room.pos = new_pos;
-                self.layout.rendered_data = None;
             }
             if response.drag_released() {
                 self.edit_mode.dragging_room = None;
@@ -356,10 +355,7 @@ impl HomeFlow {
                 .title_bar(false)
                 .resizable(false)
                 .show(ctx, |ui| {
-                    let invalidate_render = room_edit_widgets(ui, room);
-                    if invalidate_render {
-                        self.layout.rendered_data = None;
-                    }
+                    room_edit_widgets(ui, room);
 
                     let mut window_rect = ui.min_rect();
                     ui.memory(|memory| {
@@ -379,9 +375,7 @@ impl HomeFlow {
     }
 }
 
-fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
-    let mut invalidate_render = false;
-
+fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
     ui.horizontal(|ui| {
         ui.label("Room ");
         ui.text_edit_singleline(&mut room.name);
@@ -395,43 +389,23 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
         .show(ui, |ui| {
             ui.label("Position ");
             ui.horizontal(|ui| {
-                if ui
-                    .add(DragValue::new(&mut room.pos.x).speed(0.1).fixed_decimals(1))
-                    .changed
-                {
-                    invalidate_render = true;
-                }
-                if ui
-                    .add(DragValue::new(&mut room.pos.y).speed(0.1).fixed_decimals(1))
-                    .changed
-                {
-                    invalidate_render = true;
-                }
+                ui.add(DragValue::new(&mut room.pos.x).speed(0.1).fixed_decimals(1));
+                ui.add(DragValue::new(&mut room.pos.y).speed(0.1).fixed_decimals(1));
             });
             ui.end_row();
 
             ui.label("Size ");
             ui.horizontal(|ui| {
-                if ui
-                    .add(
-                        DragValue::new(&mut room.size.x)
-                            .speed(0.1)
-                            .fixed_decimals(1),
-                    )
-                    .changed
-                {
-                    invalidate_render = true;
-                }
-                if ui
-                    .add(
-                        DragValue::new(&mut room.size.y)
-                            .speed(0.1)
-                            .fixed_decimals(1),
-                    )
-                    .changed
-                {
-                    invalidate_render = true;
-                }
+                ui.add(
+                    DragValue::new(&mut room.size.x)
+                        .speed(0.1)
+                        .fixed_decimals(1),
+                );
+                ui.add(
+                    DragValue::new(&mut room.size.y)
+                        .speed(0.1)
+                        .fixed_decimals(1),
+                );
             });
             ui.end_row();
 
@@ -443,28 +417,24 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
                     2 => "Right",
                     _ => "Bottom",
                 };
-                if combo_box_for_enum(
+                combo_box_for_enum(
                     ui,
                     format!("{room_side} Wall"),
                     wall_type,
                     WallType::VARIANTS,
                     &format!("{room_side} Wall"),
-                ) {
-                    invalidate_render = true;
-                }
+                );
                 if wall_side == 1 {
                     ui.end_row();
                 }
             }
             ui.end_row();
         });
-    if render_options_widgets(
+    render_options_widgets(
         ui,
         &mut room.render_options,
         format!("Materials {}", room.id),
-    ) {
-        invalidate_render = true;
-    }
+    );
     ui.separator();
 
     // List operations with buttons to delete and button to add, and drag to reorder
@@ -472,7 +442,6 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
         ui.label("Operations");
         if ui.add(Button::new("Add")).clicked() {
             room.operations.push(Operation::default());
-            invalidate_render = true;
         }
     });
     if !room.operations.is_empty() {
@@ -485,93 +454,64 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
     for (index, operation) in room.operations.iter_mut().enumerate() {
         ui.horizontal(|ui| {
             ui.label(format!("{index}"));
-            if combo_box_for_enum(
+            combo_box_for_enum(
                 ui,
                 format!("Operation {index}"),
                 &mut operation.action,
                 Action::VARIANTS,
                 "",
-            ) {
-                invalidate_render = true;
-            }
-            if combo_box_for_enum(
+            );
+            combo_box_for_enum(
                 ui,
                 format!("Shape {index}"),
                 &mut operation.shape,
                 Shape::VARIANTS,
                 "",
-            ) {
-                invalidate_render = true;
-            }
+            );
 
             if ui.add(Button::new("Delete")).clicked() {
                 operations_to_remove.push(index);
-                invalidate_render = true;
             }
 
             if index > 0 && ui.add(Button::new("^")).clicked() {
                 operations_to_raise.push(index);
-                invalidate_render = true;
             }
             if index < num_operations - 1 && ui.add(Button::new("v")).clicked() {
                 operations_to_lower.push(index);
-                invalidate_render = true;
             }
         });
 
         ui.horizontal(|ui| {
             ui.label("Pos");
-            if ui
-                .add(
-                    DragValue::new(&mut operation.pos.x)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                )
-                .changed()
-            {
-                invalidate_render = true;
-            }
-            if ui
-                .add(
-                    DragValue::new(&mut operation.pos.y)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                )
-                .changed()
-            {
-                invalidate_render = true;
-            }
+            ui.add(
+                DragValue::new(&mut operation.pos.x)
+                    .speed(0.1)
+                    .fixed_decimals(2),
+            );
+            ui.add(
+                DragValue::new(&mut operation.pos.y)
+                    .speed(0.1)
+                    .fixed_decimals(2),
+            );
             ui.label("Size");
-            if ui
-                .add(
-                    DragValue::new(&mut operation.size.x)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                )
-                .changed()
-            {
-                invalidate_render = true;
-            }
-            if ui
-                .add(
-                    DragValue::new(&mut operation.size.y)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                )
-                .changed()
-            {
-                invalidate_render = true;
-            }
+            ui.add(
+                DragValue::new(&mut operation.size.x)
+                    .speed(0.1)
+                    .fixed_decimals(2),
+            );
+            ui.add(
+                DragValue::new(&mut operation.size.y)
+                    .speed(0.1)
+                    .fixed_decimals(2),
+            );
         });
 
-        if operation.action == Action::Add
-            && render_options_widgets(
+        if operation.action == Action::Add {
+            render_options_widgets(
                 ui,
                 &mut operation.render_options,
                 format!("Materials Operation {index}"),
-            )
-        {
-            invalidate_render = true;
+            );
         }
 
         ui.separator();
@@ -592,31 +532,17 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
             room.operations.swap(index, index + 1);
         }
     }
-
-    invalidate_render
 }
 
-fn render_options_widgets(
-    ui: &mut egui::Ui,
-    render_options: &mut RenderOptions,
-    id: String,
-) -> bool {
-    let mut invalidate_render = false;
+fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions, id: String) {
     ui.horizontal(|ui| {
-        if combo_box_for_enum(ui, id, &mut render_options.material, Material::VARIANTS, "") {
-            invalidate_render = true;
-        }
-        if ui
-            .add(
-                DragValue::new(&mut render_options.scale)
-                    .speed(0.1)
-                    .fixed_decimals(1)
-                    .clamp_range(0.1..=100.0),
-            )
-            .changed()
-        {
-            invalidate_render = true;
-        }
+        combo_box_for_enum(ui, id, &mut render_options.material, Material::VARIANTS, "");
+        ui.add(
+            DragValue::new(&mut render_options.scale)
+                .speed(0.1)
+                .fixed_decimals(1)
+                .clamp_range(0.1..=100.0),
+        );
 
         // Tint boolean and then color picker
         if ui
@@ -628,12 +554,9 @@ fn render_options_widgets(
             } else {
                 render_options.tint = Some(Color32::WHITE);
             }
-            invalidate_render = true;
         }
         if let Some(tint) = &mut render_options.tint {
-            if ui.color_edit_button_srgba(tint).changed() {
-                invalidate_render = true;
-            }
+            ui.color_edit_button_srgba(tint);
         }
     });
 
@@ -648,47 +571,24 @@ fn render_options_widgets(
             } else {
                 render_options.tiles = Some(TileOptions::default());
             }
-            invalidate_render = true;
         }
         if let Some(tile_options) = &mut render_options.tiles {
-            if ui
-                .add(
-                    DragValue::new(&mut tile_options.scale)
-                        .speed(1)
-                        .fixed_decimals(0)
-                        .clamp_range(0..=100),
-                )
-                .changed()
-            {
-                invalidate_render = true;
-            }
-            if ui
-                .color_edit_button_srgba(&mut tile_options.odd_tint)
-                .changed()
-            {
-                invalidate_render = true;
-            }
-            if ui
-                .add(
-                    DragValue::new(&mut tile_options.grout_width)
-                        .speed(0.005)
-                        .fixed_decimals(1)
-                        .clamp_range(0.0..=1.0),
-                )
-                .changed()
-            {
-                invalidate_render = true;
-            }
-            if ui
-                .color_edit_button_srgba(&mut tile_options.grout_tint)
-                .changed()
-            {
-                invalidate_render = true;
-            }
+            ui.add(
+                DragValue::new(&mut tile_options.scale)
+                    .speed(1)
+                    .fixed_decimals(0)
+                    .clamp_range(0..=100),
+            );
+            ui.color_edit_button_srgba(&mut tile_options.odd_tint);
+            ui.add(
+                DragValue::new(&mut tile_options.grout_width)
+                    .speed(0.005)
+                    .fixed_decimals(1)
+                    .clamp_range(0.0..=1.0),
+            );
+            ui.color_edit_button_srgba(&mut tile_options.grout_tint);
         }
     });
-
-    invalidate_render
 }
 
 fn combo_box_for_enum<T: ToString + PartialEq + Copy>(
@@ -697,8 +597,7 @@ fn combo_box_for_enum<T: ToString + PartialEq + Copy>(
     selected: &mut T,
     variants: &[T],
     label: &str,
-) -> bool {
-    let start_value = *selected;
+) {
     let display_label = if label.is_empty() {
         selected.to_string()
     } else {
@@ -712,7 +611,6 @@ fn combo_box_for_enum<T: ToString + PartialEq + Copy>(
                 ui.selectable_value(selected, *variant, variant.to_string());
             }
         });
-    *selected != start_value
 }
 
 fn closed_dashed_line_with_offset(

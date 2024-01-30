@@ -16,9 +16,9 @@ impl std::fmt::Display for Room {
             "Room: {} - {}x{} @ {}x{}\n",
             self.name, self.size.x, self.size.y, self.pos.x, self.pos.y
         );
-        for operation in &self.operations {
-            // string.push_str(format!("    Operation: {}\n", operation).as_str());
-        }
+        // for operation in &self.operations {
+        // string.push_str(format!("    Operation: {}\n", operation).as_str());
+        // }
 
         // Walls
         string.push_str("    Walls: ");
