@@ -6,7 +6,10 @@ use egui::{
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 
 mod edit_mode;
 pub struct HomeFlow {
@@ -23,6 +26,8 @@ pub struct HomeFlow {
     host: String,
 
     stored_data: StoredData,
+
+    download_data: Arc<Mutex<DownloadData>>,
 }
 
 #[derive(Deserialize, Serialize, Default)]
@@ -33,21 +38,34 @@ pub struct StoredData {
 
 impl Default for HomeFlow {
     fn default() -> Self {
-        let layout = layout::Home::template();
         let max_age: f32 = 1.0;
         let max_len = (max_age * 300.0).round() as usize;
         Self {
             time: 0.0,
             translation: Vec2::ZERO,
             zoom: 100.0,
-            layout_server: layout.clone(),
-            layout,
+            layout_server: layout::Home::empty(),
+            layout: layout::Home::empty(),
             edit_mode: EditDetails::default(),
             frame_times: History::new(0..max_len, max_age),
             host: "localhost:3000".to_string(),
             stored_data: StoredData::default(),
+            download_data: Arc::new(Mutex::new(DownloadData::default())),
         }
     }
+}
+
+#[derive(Default)]
+struct DownloadData {
+    layout: DownloadLayout,
+}
+
+#[derive(Default)]
+enum DownloadLayout {
+    #[default]
+    None,
+    InProgress,
+    Done(ehttp::Result<ehttp::Response>),
 }
 
 impl HomeFlow {
@@ -206,6 +224,7 @@ impl eframe::App for HomeFlow {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+        ctx.request_repaint();
         let previous_frame_time = frame.info().cpu_usage.unwrap_or_default();
         if let Some(latest) = self.frame_times.latest_mut() {
             *latest = previous_frame_time; // rewrite history now that we know
@@ -229,6 +248,53 @@ impl eframe::App for HomeFlow {
             self.host = web_info.location.host.clone();
         }
 
+        // Load layout from server if needed
+        if self.layout.version.is_empty() {
+            let download_store = self.download_data.clone();
+            let mut download_data_guard = download_store.lock().unwrap();
+            match &download_data_guard.layout {
+                DownloadLayout::None => {
+                    log::info!("Loading layout from server");
+                    download_data_guard.layout = DownloadLayout::InProgress;
+                    drop(download_data_guard);
+                    ehttp::fetch(
+                        ehttp::Request::get(format!("http://{}/load_layout", self.host)),
+                        move |response| {
+                            download_store.lock().unwrap().layout = DownloadLayout::Done(response);
+                        },
+                    );
+                }
+                DownloadLayout::InProgress => {
+                    Window::new("Layout Download")
+                        .fixed_pos(Pos2::new(
+                            ctx.available_rect().center().x,
+                            ctx.available_rect().center().y,
+                        ))
+                        .pivot(Align2::CENTER_CENTER)
+                        .title_bar(false)
+                        .resizable(false)
+                        .interactable(false)
+                        .show(ctx, |ui| {
+                            ui.label("Downloading Home Layout");
+                        });
+                }
+                DownloadLayout::Done(ref response) => {
+                    let layout = response
+                        .as_ref()
+                        .ok()
+                        .and_then(|res| res.text())
+                        .and_then(|text| serde_json::from_str::<layout::Home>(text).ok());
+                    if let Some(layout) = layout {
+                        self.layout_server = layout.clone();
+                        self.layout = layout;
+                    } else {
+                        log::error!("Failed to fetch or parse layout from server");
+                    }
+                    download_data_guard.layout = DownloadLayout::None;
+                }
+            }
+        }
+
         let inner_frame = Frame {
             shadow: Shadow::small_dark(),
             stroke: Stroke::new(4.0, Color32::from_rgb(60, 60, 60)),
@@ -241,7 +307,6 @@ impl eframe::App for HomeFlow {
                 ..Default::default()
             })
             .show(ctx, |ui| {
-                ui.ctx().request_repaint();
                 self.time += ui.input(|i| i.unstable_dt) as f64;
 
                 let (response, painter) =

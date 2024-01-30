@@ -58,9 +58,22 @@ impl HomeFlow {
                 }
             }
             if ui.button("Save Edits").clicked() {
+                log::info!("Saving layout");
+                ehttp::fetch(
+                    ehttp::Request::post(
+                        format!("http://{}/save_layout", self.host),
+                        serde_json::to_string(&self.layout)
+                            .unwrap()
+                            .as_bytes()
+                            .to_vec(),
+                    ),
+                    move |_| {},
+                );
+                self.layout_server = self.layout.clone();
                 self.edit_mode.enabled = false;
             }
             if ui.button("Discard Edits").clicked() {
+                self.layout = self.layout_server.clone();
                 self.edit_mode.enabled = false;
             }
 

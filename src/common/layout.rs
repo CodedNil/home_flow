@@ -9,7 +9,7 @@ use strum_macros::{Display, VariantArray};
 const LAYOUT_VERSION: &str = "0.1";
 pub const RESOLUTION_FACTOR: f32 = 80.0; // Pixels per meter
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Home {
     pub version: String,
     pub rooms: Vec<Room>,
@@ -89,6 +89,16 @@ impl Home {
                     }],
                 ),
             ],
+            furniture: vec![],
+            walls: vec![],
+            rendered_data: None,
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            version: String::new(),
+            rooms: vec![],
             furniture: vec![],
             walls: vec![],
             rendered_data: None,
