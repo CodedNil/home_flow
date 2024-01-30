@@ -1,7 +1,7 @@
 use self::edit_mode::EditDetails;
 use egui::{
-    epaint::Shadow, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect,
-    Sense, Stroke, TextureOptions, Vec2, Window,
+    epaint::Shadow, util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame,
+    Painter, Pos2, Rect, Sense, Stroke, TextureOptions, Vec2, Window,
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
 use serde::{Deserialize, Serialize};
@@ -27,16 +27,22 @@ pub struct HomeFlow {
 
     #[serde(skip)]
     edit_mode: EditDetails,
+
+    #[serde(skip)]
+    frame_times: History<f32>,
 }
 
 impl Default for HomeFlow {
     fn default() -> Self {
+        let max_age: f32 = 1.0;
+        let max_len = (max_age * 300.0).round() as usize;
         Self {
             time: 0.0,
             translation: Vec2::ZERO,
             zoom: 100.0,
             layout: layout::Home::load(),
             edit_mode: EditDetails::default(),
+            frame_times: History::new(0..max_len, max_age),
         }
     }
 }
@@ -193,7 +199,26 @@ impl eframe::App for HomeFlow {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+        let previous_frame_time = frame.info().cpu_usage.unwrap_or_default();
+        if let Some(latest) = self.frame_times.latest_mut() {
+            *latest = previous_frame_time; // rewrite history now that we know
+        }
+        self.frame_times
+            .add(ctx.input(|i| i.time), previous_frame_time); // projected
+        let fps = 1.0 / self.frame_times.mean_time_interval().unwrap_or_default();
+        let mean_frame_time = self.frame_times.average().unwrap_or_default();
+        Window::new("Performance")
+            .fixed_pos(Pos2::new(20.0, 20.0))
+            .pivot(Align2::LEFT_TOP)
+            .title_bar(false)
+            .resizable(false)
+            .interactable(false)
+            .show(ctx, |ui| {
+                ui.label(format!("FPS: {fps:.2}"));
+                ui.label(format!("Frame time: {mean_frame_time:.2}"));
+            });
+
         let inner_frame = Frame {
             shadow: Shadow::small_dark(),
             stroke: Stroke::new(4.0, Color32::from_rgb(60, 60, 60)),
@@ -286,8 +311,8 @@ impl eframe::App for HomeFlow {
                     .resizable(false)
                     .constrain(false)
                     .show(ctx, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.checkbox(&mut self.edit_mode.enabled, "Edit Mode");
+                        ui.vertical(|ui| {
+                            self.edit_mode_settings(ui);
                         });
                     });
 

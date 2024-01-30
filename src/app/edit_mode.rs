@@ -5,31 +5,60 @@ use super::{
     shape::{Material, Shape, WallType},
     HomeFlow,
 };
-use egui::{Align2, Color32, Context, Painter, Pos2, Shape as EShape, Stroke, Window};
+use egui::{Align2, Color32, Context, Painter, Pos2, Shape as EShape, Stroke, Ui, Window};
 use strum::VariantArray;
 use uuid::Uuid;
 
 #[derive(Default)]
 pub struct EditDetails {
     pub enabled: bool,
-    pub dragging_room: Option<DragData>,
-    pub room_window_bounds: Option<(Uuid, Pos2, Pos2)>,
+    dragging_room: Option<DragData>,
+    room_window_bounds: Option<(Uuid, Pos2, Pos2)>,
+    preview_edits: Option<PreviewEdits>,
 }
 
-pub struct DragData {
-    pub room_id: Uuid,
-    pub mouse_start_pos: Pos2,
-    pub room_start_pos: Vec2,
+struct DragData {
+    mouse_start_pos: Pos2,
+    room_start_pos: Vec2,
 }
 
 pub struct EditResponse {
     pub used_dragged: bool,
-    pub room_hovered: Option<Uuid>,
-    pub snap_line_horizontal: Option<f32>,
-    pub snap_line_vertical: Option<f32>,
+    room_hovered: Option<Uuid>,
+    snap_line_horizontal: Option<f32>,
+    snap_line_vertical: Option<f32>,
+}
+
+struct PreviewEdits {
+    left_text: String,
+    right_text: String,
 }
 
 impl HomeFlow {
+    pub fn edit_mode_settings(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            // If in edit mode, show button to view save and discard changes
+            if self.edit_mode.enabled {
+                if ui.button("Preview Edits").clicked() {
+                    self.edit_mode.preview_edits = Some(PreviewEdits {
+                        left_text: serde_json::to_string_pretty(&self.layout).unwrap_or_default(),
+                        right_text: serde_json::to_string_pretty(&self.layout).unwrap_or_default(),
+                    });
+                }
+                if ui.button("Save Edits").clicked() {
+                    self.edit_mode.enabled = false;
+                }
+                if ui.button("Discard Edits").clicked() {
+                    self.edit_mode.enabled = false;
+                }
+            }
+            // If not in edit mode, show button to enter edit mode
+            else if ui.button("Edit Mode").clicked() {
+                self.edit_mode.enabled = true;
+            }
+        });
+    }
+
     pub fn run_edit_mode(
         &mut self,
         response: &egui::Response,
@@ -80,7 +109,6 @@ impl HomeFlow {
             if response.dragged() {
                 if self.edit_mode.dragging_room.is_none() {
                     self.edit_mode.dragging_room = Some(DragData {
-                        room_id: room.id,
                         mouse_start_pos: mouse_pos_world,
                         room_start_pos: room.pos,
                     });
