@@ -5,7 +5,10 @@ use super::{
     shape::{Material, Shape, WallType},
     HomeFlow,
 };
-use egui::{Align2, Color32, Context, Painter, Pos2, Shape as EShape, Stroke, Ui, Window};
+use egui::{
+    Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2,
+    Shape as EShape, Stroke, Ui, Window,
+};
 use strum::VariantArray;
 use uuid::Uuid;
 
@@ -392,31 +395,43 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
         .show(ui, |ui| {
             ui.label("Position ");
             ui.horizontal(|ui| {
-                ui.add(
-                    egui::DragValue::new(&mut room.pos.x)
-                        .speed(0.1)
-                        .fixed_decimals(1),
-                );
-                ui.add(
-                    egui::DragValue::new(&mut room.pos.y)
-                        .speed(0.1)
-                        .fixed_decimals(1),
-                );
+                if ui
+                    .add(DragValue::new(&mut room.pos.x).speed(0.1).fixed_decimals(1))
+                    .changed
+                {
+                    invalidate_render = true;
+                }
+                if ui
+                    .add(DragValue::new(&mut room.pos.y).speed(0.1).fixed_decimals(1))
+                    .changed
+                {
+                    invalidate_render = true;
+                }
             });
             ui.end_row();
 
             ui.label("Size ");
             ui.horizontal(|ui| {
-                ui.add(
-                    egui::DragValue::new(&mut room.size.x)
-                        .speed(0.1)
-                        .fixed_decimals(1),
-                );
-                ui.add(
-                    egui::DragValue::new(&mut room.size.y)
-                        .speed(0.1)
-                        .fixed_decimals(1),
-                );
+                if ui
+                    .add(
+                        DragValue::new(&mut room.size.x)
+                            .speed(0.1)
+                            .fixed_decimals(1),
+                    )
+                    .changed
+                {
+                    invalidate_render = true;
+                }
+                if ui
+                    .add(
+                        DragValue::new(&mut room.size.y)
+                            .speed(0.1)
+                            .fixed_decimals(1),
+                    )
+                    .changed
+                {
+                    invalidate_render = true;
+                }
             });
             ui.end_row();
 
@@ -455,7 +470,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
     // List operations with buttons to delete and button to add, and drag to reorder
     ui.horizontal(|ui| {
         ui.label("Operations");
-        if ui.add(egui::Button::new("Add")).clicked() {
+        if ui.add(Button::new("Add")).clicked() {
             room.operations.push(Operation::default());
             invalidate_render = true;
         }
@@ -489,16 +504,16 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
                 invalidate_render = true;
             }
 
-            if ui.add(egui::Button::new("Delete")).clicked() {
+            if ui.add(Button::new("Delete")).clicked() {
                 operations_to_remove.push(index);
                 invalidate_render = true;
             }
 
-            if index > 0 && ui.add(egui::Button::new("^")).clicked() {
+            if index > 0 && ui.add(Button::new("^")).clicked() {
                 operations_to_raise.push(index);
                 invalidate_render = true;
             }
-            if index < num_operations - 1 && ui.add(egui::Button::new("v")).clicked() {
+            if index < num_operations - 1 && ui.add(Button::new("v")).clicked() {
                 operations_to_lower.push(index);
                 invalidate_render = true;
             }
@@ -508,7 +523,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
             ui.label("Pos");
             if ui
                 .add(
-                    egui::DragValue::new(&mut operation.pos.x)
+                    DragValue::new(&mut operation.pos.x)
                         .speed(0.1)
                         .fixed_decimals(2),
                 )
@@ -518,7 +533,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
             }
             if ui
                 .add(
-                    egui::DragValue::new(&mut operation.pos.y)
+                    DragValue::new(&mut operation.pos.y)
                         .speed(0.1)
                         .fixed_decimals(2),
                 )
@@ -529,7 +544,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
             ui.label("Size");
             if ui
                 .add(
-                    egui::DragValue::new(&mut operation.size.x)
+                    DragValue::new(&mut operation.size.x)
                         .speed(0.1)
                         .fixed_decimals(2),
                 )
@@ -539,7 +554,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
             }
             if ui
                 .add(
-                    egui::DragValue::new(&mut operation.size.y)
+                    DragValue::new(&mut operation.size.y)
                         .speed(0.1)
                         .fixed_decimals(2),
                 )
@@ -593,7 +608,7 @@ fn render_options_widgets(
         }
         if ui
             .add(
-                egui::DragValue::new(&mut render_options.scale)
+                DragValue::new(&mut render_options.scale)
                     .speed(0.1)
                     .fixed_decimals(1)
                     .clamp_range(0.1..=100.0),
@@ -605,10 +620,7 @@ fn render_options_widgets(
 
         // Tint boolean and then color picker
         if ui
-            .add(egui::Checkbox::new(
-                &mut render_options.tint.is_some(),
-                "Tint",
-            ))
+            .add(Checkbox::new(&mut render_options.tint.is_some(), "Tint"))
             .changed()
         {
             if render_options.tint.is_some() {
@@ -628,10 +640,7 @@ fn render_options_widgets(
     // Tiles boolean and then pub struct TileOptions { scale: u8, odd_tint: Color32, grout_width: f32, grout_tint: Color32 }
     ui.horizontal(|ui| {
         if ui
-            .add(egui::Checkbox::new(
-                &mut render_options.tiles.is_some(),
-                "Tiles",
-            ))
+            .add(Checkbox::new(&mut render_options.tiles.is_some(), "Tiles"))
             .changed()
         {
             if render_options.tiles.is_some() {
@@ -644,7 +653,7 @@ fn render_options_widgets(
         if let Some(tile_options) = &mut render_options.tiles {
             if ui
                 .add(
-                    egui::DragValue::new(&mut tile_options.scale)
+                    DragValue::new(&mut tile_options.scale)
                         .speed(1)
                         .fixed_decimals(0)
                         .clamp_range(0..=100),
@@ -661,7 +670,7 @@ fn render_options_widgets(
             }
             if ui
                 .add(
-                    egui::DragValue::new(&mut tile_options.grout_width)
+                    DragValue::new(&mut tile_options.grout_width)
                         .speed(0.005)
                         .fixed_decimals(1)
                         .clamp_range(0.0..=1.0),
@@ -696,7 +705,7 @@ fn combo_box_for_enum<T: ToString + PartialEq + Copy>(
         format!("{}: {}", label, selected.to_string())
     };
 
-    egui::ComboBox::from_id_source(id)
+    ComboBox::from_id_source(id)
         .selected_text(display_label)
         .show_ui(ui, |ui| {
             for variant in variants {

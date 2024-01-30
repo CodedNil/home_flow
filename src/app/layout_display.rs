@@ -1,4 +1,4 @@
-use super::layout::{Furniture, Home, Room};
+use super::layout::{Furniture, Home, Room, Vec2};
 
 impl std::fmt::Display for Home {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -54,5 +54,11 @@ impl std::fmt::Display for Furniture {
         }
 
         write!(f, "{string}")
+    }
+}
+
+impl std::fmt::Display for Vec2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}]", self.x, self.y)
     }
 }

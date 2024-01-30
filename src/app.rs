@@ -29,9 +29,10 @@ pub struct HomeFlow {
 
     #[serde(skip)]
     edit_mode: EditDetails,
-
     #[serde(skip)]
     frame_times: History<f32>,
+    #[serde(skip)]
+    host: String,
 }
 
 impl Default for HomeFlow {
@@ -45,6 +46,7 @@ impl Default for HomeFlow {
             layout: layout::Home::load(),
             edit_mode: EditDetails::default(),
             frame_times: History::new(0..max_len, max_age),
+            host: "localhost:3000".to_string(),
         }
     }
 }
@@ -218,6 +220,12 @@ impl eframe::App for HomeFlow {
             .show(ctx, |ui| {
                 ui.label(format!("FPS: {fps:.2}"));
             });
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let web_info = &frame.info().web_info;
+            self.host = web_info.location.host.clone();
+        }
 
         let inner_frame = Frame {
             shadow: Shadow::small_dark(),
