@@ -6,7 +6,7 @@ use crate::common::{
     shape::{Material, Shape, WallType},
 };
 use egui::{
-    Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2,
+    Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2, Rect,
     Shape as EShape, Stroke, Ui, Window,
 };
 use strum::VariantArray;
@@ -16,11 +16,13 @@ use uuid::Uuid;
 pub struct EditDetails {
     pub enabled: bool,
     drag_data: Option<DragData>,
-    room_window_bounds: Option<(Uuid, Pos2, Pos2)>,
+    room_window_bounds: Option<(Uuid, Rect)>,
     preview_edits: bool,
 }
 
+#[derive(Clone)]
 struct DragData {
+    room_id: Uuid,
     id: Uuid,
     mouse_start_pos: Pos2,
     room_start_pos: Vec2,
@@ -114,19 +116,30 @@ impl HomeFlow {
         let mut used_dragged = false;
 
         let mut room_hovered = None;
+        let mut operation_hovered = None;
         for room in &self.layout.rooms {
             if room.contains_full(mouse_pos_world.x, mouse_pos_world.y) {
                 room_hovered = Some(room.id);
             }
+            for operation in &room.operations {
+                if operation.shape.contains(
+                    Vec2::new(mouse_pos_world.x, mouse_pos_world.y),
+                    room.pos + operation.pos,
+                    operation.size,
+                ) {
+                    operation_hovered = Some(operation.id);
+                }
+            }
+        }
+        if let Some(drag_data) = self.edit_mode.drag_data.clone() {
+            room_hovered = Some(drag_data.room_id);
+            if drag_data.id != drag_data.room_id {
+                operation_hovered = Some(drag_data.id);
+            }
         }
         // Check if within bounds of room window and set as hovered if so
         if let Some(room_window_bounds) = self.edit_mode.room_window_bounds {
-            let padding = 60.0;
-            if mouse_pos.x > room_window_bounds.1.x - padding
-                && mouse_pos.x < room_window_bounds.2.x + padding
-                && mouse_pos.y > room_window_bounds.1.y - padding
-                && mouse_pos.y < room_window_bounds.2.y + padding
-            {
+            if room_hovered.is_none() && room_window_bounds.1.contains(mouse_pos) {
                 room_hovered = Some(room_window_bounds.0);
             }
         }
@@ -135,110 +148,35 @@ impl HomeFlow {
         let mut snap_line_horizontal = None;
         let mut snap_line_vertical = None;
         if let Some(room_id) = &room_hovered {
-            let rooms_clone = self.layout.rooms.clone();
-            let room = self
-                .layout
-                .rooms
-                .iter_mut()
-                .find(|r| &r.id == room_id)
-                .unwrap();
-            used_dragged = true;
-            if response.dragged() {
-                if self.edit_mode.drag_data.is_none() {
+            let room = self.layout.rooms.iter().find(|r| &r.id == room_id).unwrap();
+            if response.drag_started() {
+                if let Some(op) = operation_hovered {
+                    for operation in &room.operations {
+                        if operation.id == op {
+                            self.edit_mode.drag_data = Some(DragData {
+                                room_id: room.id,
+                                id: operation.id,
+                                mouse_start_pos: mouse_pos_world,
+                                room_start_pos: room.pos + operation.pos,
+                            });
+                        }
+                    }
+                } else {
                     self.edit_mode.drag_data = Some(DragData {
+                        room_id: room.id,
                         id: room.id,
                         mouse_start_pos: mouse_pos_world,
                         room_start_pos: room.pos,
                     });
                 }
-                let drag_data = self.edit_mode.drag_data.as_ref().unwrap();
+            }
+            if response.dragged() {
+                if let Some(drag_data) = self.edit_mode.drag_data.clone() {
+                    used_dragged = true;
 
-                let delta = mouse_pos_world - drag_data.mouse_start_pos;
-                let mut new_pos = drag_data.room_start_pos + Vec2::new(delta.x, delta.y);
-
-                // Snap to other rooms
-                let (room_min, room_max) = room.self_bounds();
-                let room_min = room_min - room.pos + new_pos;
-                let room_max = room_max - room.pos + new_pos;
-                let mut closest_horizontal_snap_line = None;
-                let mut closest_vertical_snap_line = None;
-                let snap_threshold = 0.1;
-
-                for other_room in &rooms_clone {
-                    if other_room.name != room.name {
-                        let (other_min, other_max) = other_room.self_bounds();
-                        // Horizontal snap
-                        for (index, &room_edge) in [room_min.y, room_max.y].iter().enumerate() {
-                            for &other_edge in &[other_min.y, other_max.y] {
-                                // Check if vertically within range
-                                if !((room_min.x < other_max.x + snap_threshold
-                                    && room_min.x > other_min.x - snap_threshold)
-                                    || (room_max.x < other_max.x + snap_threshold
-                                        && room_max.x > other_min.x - snap_threshold))
-                                {
-                                    continue;
-                                }
-
-                                let distance = (room_edge - other_edge).abs();
-                                if distance < snap_threshold
-                                    && closest_horizontal_snap_line
-                                        .map_or(true, |(_, dist, _)| distance < dist)
-                                {
-                                    closest_horizontal_snap_line =
-                                        Some((other_edge, distance, index));
-                                }
-                            }
-                        }
-                        // Vertical snap
-                        for (index, &room_edge) in [room_min.x, room_max.x].iter().enumerate() {
-                            for &other_edge in &[other_min.x, other_max.x] {
-                                // Check if horizontally within range
-                                if !((room_min.y < other_max.y + snap_threshold
-                                    && room_min.y > other_min.y - snap_threshold)
-                                    || (room_max.y < other_max.y + snap_threshold
-                                        && room_max.y > other_min.y - snap_threshold))
-                                {
-                                    continue;
-                                }
-
-                                let distance = (room_edge - other_edge).abs();
-                                if distance < snap_threshold
-                                    && closest_vertical_snap_line
-                                        .map_or(true, |(_, dist, _)| distance < dist)
-                                {
-                                    closest_vertical_snap_line =
-                                        Some((other_edge, distance, index));
-                                }
-                            }
-                        }
-                    }
+                    (snap_line_horizontal, snap_line_vertical) =
+                        self.handle_room_drag(&drag_data, mouse_pos_world, drag_data.room_id);
                 }
-                new_pos.y = if let Some((snap_line, _, room_edge)) = closest_horizontal_snap_line {
-                    // Snap to other room
-                    snap_line_horizontal = Some(snap_line);
-                    if room_edge == 0 {
-                        snap_line + (room_max.y - room_min.y) / 2.0
-                    } else {
-                        snap_line - (room_max.y - room_min.y) / 2.0
-                    }
-                } else {
-                    // Snap to grid
-                    (new_pos.y * 10.0).round() / 10.0
-                };
-                new_pos.x = if let Some((snap_line, _, room_edge)) = closest_vertical_snap_line {
-                    // Snap to other room
-                    snap_line_vertical = Some(snap_line);
-                    if room_edge == 0 {
-                        snap_line + (room_max.x - room_min.x) / 2.0
-                    } else {
-                        snap_line - (room_max.x - room_min.x) / 2.0
-                    }
-                } else {
-                    // Snap to grid
-                    (new_pos.x * 10.0).round() / 10.0
-                };
-
-                room.pos = new_pos;
             }
             if response.drag_released() {
                 self.edit_mode.drag_data = None;
@@ -251,6 +189,134 @@ impl HomeFlow {
             snap_line_horizontal,
             snap_line_vertical,
         }
+    }
+
+    fn handle_room_drag(
+        &mut self,
+        drag_data: &DragData,
+        mouse_pos_world: Pos2,
+        rooms_id: Uuid,
+    ) -> (Option<f32>, Option<f32>) {
+        let mut snap_line_horizontal = None;
+        let mut snap_line_vertical = None;
+
+        let delta = mouse_pos_world - drag_data.mouse_start_pos;
+        let mut new_pos = drag_data.room_start_pos + Vec2::new(delta.x, delta.y);
+
+        let room = self.layout.rooms.iter().find(|r| r.id == rooms_id).unwrap();
+        let (bounds_min, bounds_max) = if drag_data.id == rooms_id {
+            let (bounds_min, bounds_max) = room.self_bounds();
+            (
+                bounds_min - room.pos + new_pos,
+                bounds_max - room.pos + new_pos,
+            )
+        } else {
+            let (mut bounds_min, mut bounds_max) = (Vec2::new(0.0, 0.0), Vec2::new(0.0, 0.0));
+            for operation in &room.operations {
+                if operation.id == drag_data.id {
+                    (bounds_min, bounds_max) = (
+                        new_pos - operation.size / 2.0,
+                        new_pos + operation.size / 2.0,
+                    );
+                }
+            }
+            (bounds_min, bounds_max)
+        };
+
+        // Snap to other rooms
+        let mut closest_horizontal_snap_line = None;
+        let mut closest_vertical_snap_line = None;
+        let snap_threshold = 0.1;
+
+        for other_room in &self.layout.rooms {
+            if drag_data.id != rooms_id || other_room.id != rooms_id {
+                let (other_min, other_max) = other_room.self_bounds();
+                // Horizontal snap
+                for (index, &room_edge) in [bounds_min.y, bounds_max.y].iter().enumerate() {
+                    for &other_edge in &[other_min.y, other_max.y] {
+                        // Check if vertically within range
+                        if !((bounds_min.x < other_max.x + snap_threshold
+                            && bounds_min.x > other_min.x - snap_threshold)
+                            || (bounds_max.x < other_max.x + snap_threshold
+                                && bounds_max.x > other_min.x - snap_threshold))
+                        {
+                            continue;
+                        }
+
+                        let distance = (room_edge - other_edge).abs();
+                        if distance < snap_threshold
+                            && closest_horizontal_snap_line
+                                .map_or(true, |(_, dist, _)| distance < dist)
+                        {
+                            closest_horizontal_snap_line = Some((other_edge, distance, index));
+                        }
+                    }
+                }
+                // Vertical snap
+                for (index, &room_edge) in [bounds_min.x, bounds_max.x].iter().enumerate() {
+                    for &other_edge in &[other_min.x, other_max.x] {
+                        // Check if horizontally within range
+                        if !((bounds_min.y < other_max.y + snap_threshold
+                            && bounds_min.y > other_min.y - snap_threshold)
+                            || (bounds_max.y < other_max.y + snap_threshold
+                                && bounds_max.y > other_min.y - snap_threshold))
+                        {
+                            continue;
+                        }
+
+                        let distance = (room_edge - other_edge).abs();
+                        if distance < snap_threshold
+                            && closest_vertical_snap_line
+                                .map_or(true, |(_, dist, _)| distance < dist)
+                        {
+                            closest_vertical_snap_line = Some((other_edge, distance, index));
+                        }
+                    }
+                }
+            }
+        }
+        new_pos.y = if let Some((snap_line, _, edge)) = closest_horizontal_snap_line {
+            // Snap to other room
+            snap_line_horizontal = Some(snap_line);
+            if edge == 0 {
+                snap_line + (bounds_max.y - bounds_min.y) / 2.0
+            } else {
+                snap_line - (bounds_max.y - bounds_min.y) / 2.0
+            }
+        } else {
+            // Snap to grid
+            (new_pos.y * 10.0).round() / 10.0
+        };
+        new_pos.x = if let Some((snap_line, _, edge)) = closest_vertical_snap_line {
+            // Snap to other room
+            snap_line_vertical = Some(snap_line);
+            if edge == 0 {
+                snap_line + (bounds_max.x - bounds_min.x) / 2.0
+            } else {
+                snap_line - (bounds_max.x - bounds_min.x) / 2.0
+            }
+        } else {
+            // Snap to grid
+            (new_pos.x * 10.0).round() / 10.0
+        };
+
+        let room = self
+            .layout
+            .rooms
+            .iter_mut()
+            .find(|r| r.id == rooms_id)
+            .unwrap();
+        if drag_data.id == rooms_id {
+            room.pos = new_pos;
+        } else {
+            for operation in &mut room.operations {
+                if operation.id == drag_data.id {
+                    operation.pos = new_pos - room.pos;
+                }
+            }
+        };
+
+        (snap_line_horizontal, snap_line_vertical)
     }
 
     pub fn paint_edit_mode(
@@ -355,17 +421,14 @@ impl HomeFlow {
                 .show(ctx, |ui| {
                     room_edit_widgets(ui, room);
 
-                    let mut window_rect = ui.min_rect();
+                    let mut padding = 60.0;
                     ui.memory(|memory| {
                         if memory.any_popup_open() {
-                            window_rect.min.x -= 50.0;
-                            window_rect.min.y -= 50.0;
-                            window_rect.max.x += 50.0;
-                            window_rect.max.y += 50.0;
+                            padding += 50.0;
                         }
                     });
-                    self.edit_mode.room_window_bounds =
-                        Some((room.id, window_rect.min, window_rect.max));
+                    let window_rect = ui.min_rect().expand(padding);
+                    self.edit_mode.room_window_bounds = Some((room.id, window_rect));
                 });
         } else {
             self.edit_mode.room_window_bounds = None;

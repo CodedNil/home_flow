@@ -4,9 +4,7 @@
     clippy::suboptimal_flops,
     clippy::cast_sign_loss,
     clippy::cast_lossless,
-    clippy::trivially_copy_pass_by_ref,
-    clippy::too_many_lines,
-    clippy::struct_field_names
+    clippy::too_many_lines
 )]
 
 #[cfg(feature = "gui")]

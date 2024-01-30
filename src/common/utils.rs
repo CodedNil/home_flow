@@ -71,25 +71,25 @@ impl Vec2 {
         Self { x, y }
     }
 
-    pub fn min(&self, other: &Self) -> Self {
+    pub fn min(self, other: Self) -> Self {
         Self {
             x: self.x.min(other.x),
             y: self.y.min(other.y),
         }
     }
 
-    pub fn max(&self, other: &Self) -> Self {
+    pub fn max(self, other: Self) -> Self {
         Self {
             x: self.x.max(other.x),
             y: self.y.max(other.y),
         }
     }
 
-    pub fn dot(&self, other: &Self) -> f32 {
+    pub fn dot(self, other: Self) -> f32 {
         self.x * other.x + self.y * other.y
     }
 
-    pub fn normalize(&self) -> Self {
+    pub fn normalize(self) -> Self {
         let length = self.x.hypot(self.y);
         Self {
             x: self.x / length,
@@ -97,7 +97,7 @@ impl Vec2 {
         }
     }
 
-    pub fn length(&self) -> f32 {
+    pub fn length(self) -> f32 {
         self.x.hypot(self.y)
     }
 
@@ -131,17 +131,17 @@ pub fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> 
     }
 
     // Project 'point' onto the line segment, but keep within the segment
-    let n = (point - start).dot(&line_vec);
+    let n = (point - start).dot(line_vec);
     let t = n / line_len.powi(2);
     if (0.0..=1.0).contains(&t) {
         // Projection is within the segment
         let projection = start + line_vec * t;
         (point - projection).length() <= width
     } else if t < 0.0 {
-        let distance_rotated = (point - start).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
+        let distance_rotated = (point - start).dot(Vec2::new(-line_vec.y, line_vec.x).normalize());
         (t * line_len).abs() < width && distance_rotated.abs() <= width
     } else {
-        let distance_rotated = (point - end).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
+        let distance_rotated = (point - end).dot(Vec2::new(-line_vec.y, line_vec.x).normalize());
         ((t - 1.0) * line_len).abs() < width && distance_rotated.abs() <= width
     }
 }

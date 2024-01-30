@@ -28,8 +28,8 @@ impl Home {
 
         for room in &self.rooms {
             let (room_min, room_max) = room.bounds();
-            min = min.min(&room_min);
-            max = max.max(&room_max);
+            min = min.min(room_min);
+            max = max.max(room_max);
         }
 
         (min, max)
@@ -284,8 +284,8 @@ impl Room {
                     self.pos + operation.pos - operation.size / 2.0,
                     self.pos + operation.pos + operation.size / 2.0,
                 );
-                min = min.min(&operation_min);
-                max = max.max(&operation_max);
+                min = min.min(operation_min);
+                max = max.max(operation_max);
             }
         }
 
@@ -298,11 +298,6 @@ impl Room {
         min = min - Vec2::new(wall_width, wall_width);
         max = max + Vec2::new(wall_width, wall_width);
         (min, max)
-    }
-
-    pub fn self_contains(&self, x: f32, y: f32) -> bool {
-        let point = Vec2 { x, y };
-        Shape::Rectangle.contains(point, self.pos, self.size)
     }
 
     // Check if the point is inside the room's shape after operations applied
@@ -529,7 +524,7 @@ pub enum Material {
 }
 
 impl Material {
-    pub const fn get_scale(&self) -> f32 {
+    pub const fn get_scale(self) -> f32 {
         match self {
             Self::Wall
             | Self::Carpet
@@ -565,13 +560,6 @@ static TEXTURES: Lazy<HashMap<Material, RgbaImage>> = Lazy::new(|| {
     m
 });
 
-const fn vec2_to_coord(v: &Vec2) -> geo_types::Coord<f64> {
-    geo_types::Coord {
-        x: v.x as f64,
-        y: v.y as f64,
-    }
-}
-
 fn coord_to_vec2(c: geo_types::Point<f64>) -> Vec2 {
     Vec2 {
         x: c.x() as f32,
@@ -581,7 +569,15 @@ fn coord_to_vec2(c: geo_types::Point<f64>) -> Vec2 {
 
 fn create_polygon(vertices: &[Vec2]) -> geo::Polygon<f64> {
     geo::Polygon::new(
-        geo::LineString::from(vertices.iter().map(vec2_to_coord).collect::<Vec<_>>()),
+        geo::LineString::from(
+            vertices
+                .iter()
+                .map(|v| geo_types::Coord {
+                    x: v.x as f64,
+                    y: v.y as f64,
+                })
+                .collect::<Vec<_>>(),
+        ),
         vec![],
     )
 }
@@ -596,8 +592,8 @@ pub enum Shape {
 }
 
 impl Shape {
-    pub fn contains(&self, point: Vec2, center: Vec2, size: Vec2) -> bool {
-        match *self {
+    pub fn contains(self, point: Vec2, center: Vec2, size: Vec2) -> bool {
+        match self {
             Self::Rectangle => {
                 point.x >= center.x - size.x / 2.0
                     && point.x <= center.x + size.x / 2.0
@@ -615,7 +611,7 @@ impl Shape {
         }
     }
 
-    pub fn vertices(&self, pos: Vec2, size: Vec2) -> Vec<Vec2> {
+    pub fn vertices(self, pos: Vec2, size: Vec2) -> Vec<Vec2> {
         match self {
             Self::Rectangle => {
                 vec![
@@ -683,7 +679,7 @@ pub enum WallType {
 }
 
 impl WallType {
-    pub const fn width(&self) -> f32 {
+    pub const fn width(self) -> f32 {
         match self {
             Self::None => 0.0,
             Self::Interior => 0.05,
