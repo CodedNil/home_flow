@@ -584,7 +584,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                 id: Uuid::new_v4(),
                 action: Action::Add,
                 shape: Shape::Rectangle,
-                render_options: RenderOptions::default(),
+                render_options: None,
                 pos: Vec2::new(0.0, 0.0),
                 size: Vec2::new(1.0, 1.0),
                 rotation: 0.0,
@@ -665,11 +665,23 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
         });
 
         if operation.action == Action::Add {
-            render_options_widgets(
-                ui,
-                &mut operation.render_options,
-                format!("Materials Operation {index}"),
-            );
+            // Add tickbox to use parents material or custom
+            if ui
+                .add(Checkbox::new(
+                    &mut operation.render_options.is_none(),
+                    "Use Parent Material",
+                ))
+                .changed()
+            {
+                if operation.render_options.is_some() {
+                    operation.render_options = None;
+                } else {
+                    operation.render_options = Some(RenderOptions::default());
+                }
+            }
+            if let Some(render_options) = &mut operation.render_options {
+                render_options_widgets(ui, render_options, format!("Materials Operation {index}"));
+            }
         }
 
         ui.separator();

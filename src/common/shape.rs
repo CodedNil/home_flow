@@ -82,9 +82,11 @@ impl Home {
                 .or_insert_with(|| TEXTURES.get(&room.render_options.material).unwrap());
             for operation in &room.operations {
                 if operation.action == Action::Add {
-                    textures
-                        .entry(&operation.render_options.material)
-                        .or_insert_with(|| TEXTURES.get(&room.render_options.material).unwrap());
+                    if let Some(render_options) = &operation.render_options {
+                        textures
+                            .entry(&render_options.material)
+                            .or_insert_with(|| TEXTURES.get(&render_options.material).unwrap());
+                    }
                 }
             }
         }
@@ -153,8 +155,13 @@ impl Home {
                                             operation.size,
                                             operation.rotation,
                                         ) {
+                                            let render_options =
+                                                operation.render_options.as_ref().map_or(
+                                                    &room.render_options,
+                                                    |render_options| render_options,
+                                                );
                                             if let Some(texture) =
-                                                textures.get(&operation.render_options.material)
+                                                textures.get(&render_options.material)
                                             {
                                                 // Calculate the relative position within the room
                                                 let point_within_shape =
@@ -162,7 +169,7 @@ impl Home {
                                                         / room.size;
 
                                                 rooms_pixel_color = Some(apply_render_options(
-                                                    &operation.render_options,
+                                                    render_options,
                                                     texture,
                                                     x as f32,
                                                     y as f32,
@@ -316,7 +323,7 @@ impl Room {
 
     pub fn vertices(&self) -> Vec<Vec2> {
         let mut vertices = Shape::Rectangle.vertices(self.pos, self.size, 0.0);
-        let poly1 = create_polygon(&vertices);
+        let mut poly1 = create_polygon(&vertices);
         for operation in &self.operations {
             let operation_vertices = operation.shape.vertices(
                 self.pos + operation.pos,
@@ -332,8 +339,7 @@ impl Room {
 
             if let Some(polygon) = operated.0.first() {
                 vertices = polygon.exterior().points().map(coord_to_vec2).collect();
-            } else {
-                return Vec::new();
+                poly1 = create_polygon(&vertices);
             }
         }
         vertices
@@ -445,8 +451,8 @@ fn apply_render_options(
     if let Some(tile_options) = &render_options.tiles {
         let tile_scale_x = tile_options.scale as f32;
         let tile_scale_y = (tile_scale_x / aspect_ratio).round();
-        let tile_x = point.x * tile_scale_x;
-        let tile_y = point.y * tile_scale_y;
+        let tile_x = point.x.abs() * tile_scale_x;
+        let tile_y = point.y.abs() * tile_scale_y;
 
         if tile_options.odd_tint.a() > 0 {
             let odd_tile = (tile_x as u32 + tile_y as u32) % 2 == 1;
