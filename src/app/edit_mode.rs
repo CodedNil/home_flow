@@ -119,7 +119,7 @@ impl HomeFlow {
                 let mut new_pos = drag_data.room_start_pos + Vec2::new(delta.x, delta.y);
 
                 // Snap to other rooms
-                let (room_min, room_max) = room.bounds();
+                let (room_min, room_max) = room.self_bounds();
                 let room_min = room_min - room.pos + new_pos;
                 let room_max = room_max - room.pos + new_pos;
                 let mut closest_horizontal_snap_line = None;
@@ -128,7 +128,7 @@ impl HomeFlow {
 
                 for other_room in &rooms_clone {
                     if other_room.name != room.name {
-                        let (other_min, other_max) = other_room.bounds();
+                        let (other_min, other_max) = other_room.self_bounds();
                         // Horizontal snap
                         for (index, &room_edge) in [room_min.y, room_max.y].iter().enumerate() {
                             for &other_edge in &[other_min.y, other_max.y] {
@@ -324,10 +324,10 @@ impl HomeFlow {
                     let mut window_rect = ui.min_rect();
                     ui.memory(|memory| {
                         if memory.any_popup_open() {
-                            window_rect.min.x -= 200.0;
-                            window_rect.min.y -= 200.0;
-                            window_rect.max.x += 200.0;
-                            window_rect.max.y += 200.0;
+                            window_rect.min.x -= 50.0;
+                            window_rect.min.y -= 50.0;
+                            window_rect.max.x += 50.0;
+                            window_rect.max.y += 50.0;
                         }
                     });
                     self.edit_mode.room_window_bounds =
@@ -521,6 +521,8 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
         {
             invalidate_render = true;
         }
+
+        ui.separator();
     }
     if room.operations.is_empty() {
         ui.separator();

@@ -112,6 +112,7 @@ impl Home {
 
                         let mut walls_to_check = Vec::new();
                         for room in &self.rooms {
+                            let mut is_rooms_pixel = false;
                             if Shape::Rectangle.contains(point_in_world, room.pos, room.size) {
                                 if let Some(texture) = textures.get(&room.render_options.material) {
                                     // Calculate the relative position within the room
@@ -127,6 +128,7 @@ impl Home {
                                         room.size.x / room.size.y,
                                     );
                                     chunk_edited = true;
+                                    is_rooms_pixel = true;
                                 }
                             }
                             for operation in &room.operations {
@@ -140,15 +142,21 @@ impl Home {
                                             if let Some(texture) =
                                                 textures.get(&operation.render_options.material)
                                             {
+                                                // Calculate the relative position within the room
+                                                let point_within_shape =
+                                                    (point_in_world - room.pos + room.size / 2.0)
+                                                        / room.size;
+
                                                 pixel_color = apply_render_options(
                                                     &operation.render_options,
                                                     texture,
                                                     x as f32,
                                                     y as f32,
-                                                    point,
-                                                    width / height,
+                                                    point_within_shape,
+                                                    room.size.x / room.size.y,
                                                 );
                                                 chunk_edited = true;
+                                                is_rooms_pixel = true;
                                             }
                                         }
                                     }
@@ -157,7 +165,8 @@ impl Home {
                                             point_in_world,
                                             room.pos + operation.pos,
                                             operation.size,
-                                        ) {
+                                        ) && is_rooms_pixel
+                                        {
                                             pixel_color = Rgba([0, 0, 0, 0]);
                                         }
                                     }
@@ -246,6 +255,10 @@ impl Home {
 }
 
 impl Room {
+    pub fn self_bounds(&self) -> (Vec2, Vec2) {
+        (self.pos - self.size / 2.0, self.pos + self.size / 2.0)
+    }
+
     pub fn bounds(&self) -> (Vec2, Vec2) {
         let mut min = self.pos - self.size / 2.0;
         let mut max = self.pos + self.size / 2.0;
@@ -333,28 +346,34 @@ impl Room {
         let mut bottom_left_index = 0;
         let mut bottom_right_index = 0;
 
+        let top_left_corner = self.pos + Vec2::new(-99999.0, 99999.0);
+        let mut top_left_distance = f32::MAX;
+        let top_right_corner = self.pos + Vec2::new(99999.0, 99999.0);
+        let mut top_right_distance = f32::MAX;
+        let bottom_left_corner = self.pos + Vec2::new(-99999.0, -99999.0);
+        let mut bottom_left_distance = f32::MAX;
+        let bottom_right_corner = self.pos + Vec2::new(99999.0, -99999.0);
+        let mut bottom_right_distance = f32::MAX;
+
         for (i, vertex) in vertices.iter().enumerate() {
-            if vertex.y >= vertices[top_left_index].y
-                && (vertex.y > vertices[top_left_index].y || vertex.x < vertices[top_left_index].x)
-            {
+            let distance_top_left = (*vertex - top_left_corner).length();
+            if distance_top_left < top_left_distance {
+                top_left_distance = distance_top_left;
                 top_left_index = i;
             }
-            if vertex.y >= vertices[top_right_index].y
-                && (vertex.y > vertices[top_right_index].y
-                    || vertex.x > vertices[top_right_index].x)
-            {
+            let distance_top_right = (*vertex - top_right_corner).length();
+            if distance_top_right < top_right_distance {
+                top_right_distance = distance_top_right;
                 top_right_index = i;
             }
-            if vertex.y <= vertices[bottom_left_index].y
-                && (vertex.y < vertices[bottom_left_index].y
-                    || vertex.x < vertices[bottom_left_index].x)
-            {
+            let distance_bottom_left = (*vertex - bottom_left_corner).length();
+            if distance_bottom_left < bottom_left_distance {
+                bottom_left_distance = distance_bottom_left;
                 bottom_left_index = i;
             }
-            if vertex.y <= vertices[bottom_right_index].y
-                && (vertex.y < vertices[bottom_right_index].y
-                    || vertex.x > vertices[bottom_right_index].x)
-            {
+            let distance_bottom_right = (*vertex - bottom_right_corner).length();
+            if distance_bottom_right < bottom_right_distance {
+                bottom_right_distance = distance_bottom_right;
                 bottom_right_index = i;
             }
         }
