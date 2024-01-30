@@ -1,10 +1,9 @@
 use self::edit_mode::EditDetails;
 use crate::common::layout;
 use egui::{
-    epaint::Shadow, util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame,
-    Painter, Pos2, Rect, Sense, Stroke, TextureOptions, Vec2, Window,
+    util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect,
+    Sense, Stroke, TextureOptions, Vec2, Window,
 };
-use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -214,6 +213,62 @@ impl HomeFlow {
             painter.line_segment([line.0, line.1], line.2);
         }
     }
+
+    fn load_layout(&mut self, ctx: &Context) {
+        // Load layout from server if needed
+        if !self.layout.version.is_empty() {
+            return;
+        }
+        // If on github use template instead of loading from server
+        if self.host.contains("github.io") {
+            self.layout = layout::Home::template();
+            self.layout_server = layout::Home::template();
+            return;
+        }
+        let download_store = self.download_data.clone();
+        let mut download_data_guard = download_store.lock().unwrap();
+        match &download_data_guard.layout {
+            DownloadLayout::None => {
+                log::info!("Loading layout from server");
+                download_data_guard.layout = DownloadLayout::InProgress;
+                drop(download_data_guard);
+                ehttp::fetch(
+                    ehttp::Request::get(format!("http://{}/load_layout", self.host)),
+                    move |response| {
+                        download_store.lock().unwrap().layout = DownloadLayout::Done(response);
+                    },
+                );
+            }
+            DownloadLayout::InProgress => {
+                Window::new("Layout Download")
+                    .fixed_pos(Pos2::new(
+                        ctx.available_rect().center().x,
+                        ctx.available_rect().center().y,
+                    ))
+                    .pivot(Align2::CENTER_CENTER)
+                    .title_bar(false)
+                    .resizable(false)
+                    .interactable(false)
+                    .show(ctx, |ui| {
+                        ui.label("Downloading Home Layout");
+                    });
+            }
+            DownloadLayout::Done(ref response) => {
+                let layout = response
+                    .as_ref()
+                    .ok()
+                    .and_then(|res| res.text())
+                    .and_then(|text| serde_json::from_str::<layout::Home>(text).ok());
+                if let Some(layout) = layout {
+                    self.layout_server = layout.clone();
+                    self.layout = layout;
+                } else {
+                    log::error!("Failed to fetch or parse layout from server");
+                }
+                download_data_guard.layout = DownloadLayout::None;
+            }
+        }
+    }
 }
 
 impl eframe::App for HomeFlow {
@@ -248,59 +303,8 @@ impl eframe::App for HomeFlow {
             self.host = web_info.location.host.clone();
         }
 
-        // Load layout from server if needed
-        if self.layout.version.is_empty() {
-            let download_store = self.download_data.clone();
-            let mut download_data_guard = download_store.lock().unwrap();
-            match &download_data_guard.layout {
-                DownloadLayout::None => {
-                    log::info!("Loading layout from server");
-                    download_data_guard.layout = DownloadLayout::InProgress;
-                    drop(download_data_guard);
-                    ehttp::fetch(
-                        ehttp::Request::get(format!("http://{}/load_layout", self.host)),
-                        move |response| {
-                            download_store.lock().unwrap().layout = DownloadLayout::Done(response);
-                        },
-                    );
-                }
-                DownloadLayout::InProgress => {
-                    Window::new("Layout Download")
-                        .fixed_pos(Pos2::new(
-                            ctx.available_rect().center().x,
-                            ctx.available_rect().center().y,
-                        ))
-                        .pivot(Align2::CENTER_CENTER)
-                        .title_bar(false)
-                        .resizable(false)
-                        .interactable(false)
-                        .show(ctx, |ui| {
-                            ui.label("Downloading Home Layout");
-                        });
-                }
-                DownloadLayout::Done(ref response) => {
-                    let layout = response
-                        .as_ref()
-                        .ok()
-                        .and_then(|res| res.text())
-                        .and_then(|text| serde_json::from_str::<layout::Home>(text).ok());
-                    if let Some(layout) = layout {
-                        self.layout_server = layout.clone();
-                        self.layout = layout;
-                    } else {
-                        log::error!("Failed to fetch or parse layout from server");
-                    }
-                    download_data_guard.layout = DownloadLayout::None;
-                }
-            }
-        }
+        self.load_layout(ctx);
 
-        let inner_frame = Frame {
-            shadow: Shadow::small_dark(),
-            stroke: Stroke::new(4.0, Color32::from_rgb(60, 60, 60)),
-            fill: Color32::from_rgb(27, 27, 27),
-            ..Default::default()
-        };
         CentralPanel::default()
             .frame(Frame {
                 fill: Color32::from_rgb(35, 35, 50),
@@ -369,41 +373,6 @@ impl eframe::App for HomeFlow {
                     .show(ctx, |ui| {
                         self.edit_mode_settings(ctx, ui);
                     });
-
-                let plot_location = self.world_to_pixels(canvas_center, 4.0, -3.0);
-                let plot_end_location = self.world_to_pixels(canvas_center, 8.0, -6.0);
-                Window::new("Plot Window")
-                    .fixed_pos(plot_location)
-                    .fixed_size(plot_end_location - plot_location)
-                    .title_bar(false)
-                    .resizable(false)
-                    .constrain(false)
-                    .frame(inner_frame)
-                    .show(ctx, |ui| {
-                        Plot::new("lines_demo")
-                            .legend(Legend::default())
-                            .show_axes(false)
-                            .data_aspect(1.0)
-                            .allow_scroll(false)
-                            .coordinates_formatter(
-                                Corner::LeftBottom,
-                                CoordinatesFormatter::default(),
-                            )
-                            .show(ui, |plot_ui| {
-                                plot_ui.line(sin(self.time));
-                            });
-                    });
             });
     }
-}
-
-fn sin(time: f64) -> Line {
-    Line::new(PlotPoints::from_explicit_callback(
-        move |x| 0.5 * (2.0 * x).sin() * time.sin(),
-        ..,
-        512,
-    ))
-    .color(Color32::from_rgb(200, 100, 100))
-    .style(LineStyle::Solid)
-    .name("wave")
 }
