@@ -42,7 +42,7 @@ impl Home {
                         Material::Marble,
                         2.0,
                         Some("#fff8e8"),
-                        Some(TileOptions::new(7, "#ffffff00", 0.02, "#505050cc")),
+                        Some(TileOptions::new(7, "#ffffff00", 0.015, "#505050cc")),
                     ),
                     vec![
                         WallType::Exterior,
@@ -73,7 +73,7 @@ impl Home {
                         Material::Granite,
                         2.0,
                         Some("#fff8e8"),
-                        Some(TileOptions::new(4, "#ffffff00", 0.025, "#505050cc")),
+                        Some(TileOptions::new(4, "#ffffff00", 0.015, "#505050cc")),
                     ),
                     vec![
                         WallType::Interior,
@@ -86,8 +86,9 @@ impl Home {
                         action: Action::Subtract,
                         shape: Shape::Rectangle,
                         render_options: RenderOptions::default(),
-                        pos: Vec2::new(0.4, 2.7 / 2.0 - 0.5),
-                        size: Vec2::new(0.8, 1.0),
+                        pos: Vec2::new(0.5, 2.7 / 2.0 - 0.3),
+                        size: Vec2::new(1.0, 1.2),
+                        rotation: 0.0,
                     }],
                 ),
             ],
@@ -121,13 +122,14 @@ pub struct Room {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Furniture {
+    pub id: Uuid,
     pub pos: Vec2,
     pub size: Vec2,
     pub rotation: f32,
     pub children: Vec<Furniture>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Hash)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Operation {
     pub id: Uuid,
     pub action: Action,
@@ -135,6 +137,7 @@ pub struct Operation {
     pub render_options: RenderOptions,
     pub pos: Vec2,
     pub size: Vec2,
+    pub rotation: f32,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

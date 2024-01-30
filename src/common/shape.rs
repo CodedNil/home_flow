@@ -3,7 +3,7 @@ use super::{
         Action, Home, HomeRender, Operation, RenderOptions, Room, TileOptions, Vec2, Wall,
         RESOLUTION_FACTOR,
     },
-    utils::{hex_to_rgba, point_within_segment},
+    utils::{hex_to_rgba, point_within_segment, rotate_point},
 };
 use egui::Color32;
 use geo::BooleanOps;
@@ -124,25 +124,24 @@ impl Home {
                         };
                         let point_in_world = bounds_min + point * new_size;
 
-                        let mut walls_to_check = Vec::new();
+                        let mut is_wall = false;
                         for room in &self.rooms {
-                            let mut is_rooms_pixel = false;
-                            if Shape::Rectangle.contains(point_in_world, room.pos, room.size) {
+                            let mut rooms_pixel_color = None;
+                            if Shape::Rectangle.contains(point_in_world, room.pos, room.size, 0.0) {
                                 if let Some(texture) = textures.get(&room.render_options.material) {
                                     // Calculate the relative position within the room
                                     let point_within_shape =
                                         (point_in_world - room.pos + room.size / 2.0) / room.size;
 
-                                    pixel_color = apply_render_options(
+                                    rooms_pixel_color = Some(apply_render_options(
                                         &room.render_options,
                                         texture,
                                         x as f32,
                                         y as f32,
                                         point_within_shape,
                                         room.size.x / room.size.y,
-                                    );
+                                    ));
                                     chunk_edited = true;
-                                    is_rooms_pixel = true;
                                 }
                             }
                             for operation in &room.operations {
@@ -152,6 +151,7 @@ impl Home {
                                             point_in_world,
                                             room.pos + operation.pos,
                                             operation.size,
+                                            operation.rotation,
                                         ) {
                                             if let Some(texture) =
                                                 textures.get(&operation.render_options.material)
@@ -161,16 +161,15 @@ impl Home {
                                                     (point_in_world - room.pos + room.size / 2.0)
                                                         / room.size;
 
-                                                pixel_color = apply_render_options(
+                                                rooms_pixel_color = Some(apply_render_options(
                                                     &operation.render_options,
                                                     texture,
                                                     x as f32,
                                                     y as f32,
                                                     point_within_shape,
                                                     room.size.x / room.size.y,
-                                                );
+                                                ));
                                                 chunk_edited = true;
-                                                is_rooms_pixel = true;
                                             }
                                         }
                                     }
@@ -179,40 +178,39 @@ impl Home {
                                             point_in_world,
                                             room.pos + operation.pos,
                                             operation.size,
-                                        ) && is_rooms_pixel
-                                        {
-                                            pixel_color = Rgba([0, 0, 0, 0]);
+                                            operation.rotation,
+                                        ) {
+                                            rooms_pixel_color = None;
                                         }
                                     }
                                 }
                             }
+                            if let Some(rooms_pixel_color) = rooms_pixel_color {
+                                pixel_color = rooms_pixel_color;
+                                is_wall = false;
+                            }
+
                             // Check if within room bounds with walls
                             let (room_min, room_max) = room.bounds_with_walls();
-                            if point_in_world.x >= room_min.x
+                            if !is_wall
+                                && point_in_world.x >= room_min.x
                                 && point_in_world.x <= room_max.x
                                 && point_in_world.y >= room_min.y
                                 && point_in_world.y <= room_max.y
                             {
-                                walls_to_check.push(room.id);
+                                for wall in walls.get(&room.id).unwrap() {
+                                    if wall.wall_type != WallType::None
+                                        && wall.point_within(point_in_world)
+                                    {
+                                        is_wall = true;
+                                        break;
+                                    }
+                                }
                             }
                         }
 
                         // Walls
-                        let mut in_wall = false;
-                        for room in walls_to_check {
-                            for wall in walls.get(&room).unwrap() {
-                                if wall.wall_type != WallType::None
-                                    && wall.point_within(point_in_world)
-                                {
-                                    in_wall = true;
-                                    break;
-                                }
-                            }
-                            if in_wall {
-                                break;
-                            }
-                        }
-                        if in_wall {
+                        if is_wall {
                             let scale = Material::Wall.get_scale() / RESOLUTION_FACTOR;
                             let mut texture_color = *wall_texture.get_pixel(
                                 (x as f32 * scale) as u32 % wall_texture.width(),
@@ -300,41 +298,16 @@ impl Room {
         (min, max)
     }
 
-    // Check if the point is inside the room's shape after operations applied
-    pub fn contains(&self, x: f32, y: f32) -> bool {
-        let point = Vec2 { x, y };
-        let mut inside = Shape::Rectangle.contains(point, self.pos, self.size);
-        for operation in &self.operations {
-            match operation.action {
-                Action::Add => {
-                    if operation
-                        .shape
-                        .contains(point, self.pos + operation.pos, operation.size)
-                    {
-                        inside = true;
-                    }
-                }
-                Action::Subtract => {
-                    if operation
-                        .shape
-                        .contains(point, self.pos + operation.pos, operation.size)
-                    {
-                        inside = false;
-                    }
-                }
-            }
-        }
-        inside
-    }
-
     pub fn contains_full(&self, x: f32, y: f32) -> bool {
         let point = Vec2 { x, y };
-        let mut inside = Shape::Rectangle.contains(point, self.pos, self.size);
+        let mut inside = Shape::Rectangle.contains(point, self.pos, self.size, 0.0);
         for operation in &self.operations {
-            if operation
-                .shape
-                .contains(point, self.pos + operation.pos, operation.size)
-            {
+            if operation.shape.contains(
+                point,
+                self.pos + operation.pos,
+                operation.size,
+                operation.rotation,
+            ) {
                 inside = true;
             }
         }
@@ -342,12 +315,14 @@ impl Room {
     }
 
     pub fn vertices(&self) -> Vec<Vec2> {
-        let mut vertices = Shape::Rectangle.vertices(self.pos, self.size);
+        let mut vertices = Shape::Rectangle.vertices(self.pos, self.size, 0.0);
         let poly1 = create_polygon(&vertices);
         for operation in &self.operations {
-            let operation_vertices = operation
-                .shape
-                .vertices(self.pos + operation.pos, operation.size);
+            let operation_vertices = operation.shape.vertices(
+                self.pos + operation.pos,
+                operation.size,
+                operation.rotation,
+            );
             let poly2 = create_polygon(&operation_vertices);
 
             let operated: geo_types::MultiPolygon = match operation.action {
@@ -489,12 +464,11 @@ fn apply_render_options(
         if tile_options.grout_width > 0.0 {
             let grout_x = tile_x % 1.0;
             let grout_y = tile_y % 1.0;
-            let grout_width_x = tile_options.grout_width;
-            let grout_width_y = grout_width_x * aspect_ratio;
-            if grout_x >= 1.0 - grout_width_x
-                || grout_x < grout_width_x
-                || grout_y >= 1.0 - grout_width_y
-                || grout_y < grout_width_y
+            let grout_width = tile_options.grout_width;
+            if grout_x >= 1.0 - grout_width
+                || grout_x < grout_width
+                || grout_y >= 1.0 - grout_width
+                || grout_y < grout_width
             {
                 let tile_color = tile_options.grout_tint;
                 texture_color.blend(&Rgba([
@@ -592,7 +566,8 @@ pub enum Shape {
 }
 
 impl Shape {
-    pub fn contains(self, point: Vec2, center: Vec2, size: Vec2) -> bool {
+    pub fn contains(self, point: Vec2, center: Vec2, size: Vec2, rotation: f32) -> bool {
+        let point = rotate_point(point, center, rotation);
         match self {
             Self::Rectangle => {
                 point.x >= center.x - size.x / 2.0
@@ -611,10 +586,10 @@ impl Shape {
         }
     }
 
-    pub fn vertices(self, pos: Vec2, size: Vec2) -> Vec<Vec2> {
+    pub fn vertices(self, pos: Vec2, size: Vec2, rotation: f32) -> Vec<Vec2> {
         match self {
             Self::Rectangle => {
-                vec![
+                let mut vertices = vec![
                     Vec2 {
                         x: pos.x - size.x / 2.0,
                         y: pos.y - size.y / 2.0,
@@ -631,7 +606,11 @@ impl Shape {
                         x: pos.x - size.x / 2.0,
                         y: pos.y + size.y / 2.0,
                     },
-                ]
+                ];
+                for vertex in &mut vertices {
+                    *vertex = rotate_point(*vertex, pos, -rotation);
+                }
+                vertices
             }
             Self::Circle => {
                 let radius_x = size.x / 2.0;
@@ -644,6 +623,9 @@ impl Shape {
                         x: pos.x + angle.cos() * radius_x,
                         y: pos.y + angle.sin() * radius_y,
                     });
+                }
+                for vertex in &mut vertices {
+                    *vertex = rotate_point(*vertex, pos, -rotation);
                 }
                 vertices
             }

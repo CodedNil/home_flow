@@ -123,6 +123,7 @@ impl HomeFlow {
                     Vec2::new(self.mouse_pos_world.x, self.mouse_pos_world.y),
                     room.pos + operation.pos,
                     operation.size,
+                    operation.rotation,
                 ) {
                     operation_hovered = Some(operation.id);
                 }
@@ -372,13 +373,26 @@ impl HomeFlow {
                 self.canvas_center.x,
                 self.canvas_center.y * 2.0 - 10.0,
             ))
-            .fixed_size([200.0, 0.0])
+            .fixed_size([300.0, 0.0])
             .pivot(Align2::CENTER_BOTTOM)
             .title_bar(false)
             .resizable(false)
-            .interactable(false)
             .show(ctx, |ui| {
-                ui.label("Double click to select room");
+                ui.vertical_centered(|ui| {
+                    ui.label("Drag to move room or operation");
+                    ui.label("Double click to select room with options");
+                    if ui.button("Add Room").clicked() {
+                        self.layout.rooms.push(Room {
+                            id: Uuid::new_v4(),
+                            name: "New Room".to_string(),
+                            render_options: RenderOptions::default(),
+                            pos: Vec2::new(0.0, 0.0),
+                            size: Vec2::new(1.0, 1.0),
+                            operations: vec![],
+                            walls: vec![WallType::Interior; 4],
+                        });
+                    }
+                });
             });
 
         let home_render = self.layout.rendered_data.clone().unwrap();
@@ -401,9 +415,11 @@ impl HomeFlow {
 
             // Render operations
             for operation in &room.operations {
-                let vertices = operation
-                    .shape
-                    .vertices(room.pos + operation.pos, operation.size);
+                let vertices = operation.shape.vertices(
+                    room.pos + operation.pos,
+                    operation.size,
+                    operation.rotation,
+                );
                 let points = vertices
                     .iter()
                     .map(|v| self.world_to_pixels(v.x, v.y))
@@ -438,6 +454,7 @@ impl HomeFlow {
                 .iter_mut()
                 .find(|r| &r.id == room_id)
                 .unwrap();
+            let mut alter_room = AlterRoom::None;
             Window::new(format!("Edit {}", room.id))
                 .fixed_pos(room_positions[room_id])
                 .fixed_size([200.0, 0.0])
@@ -445,16 +462,62 @@ impl HomeFlow {
                 .title_bar(false)
                 .resizable(false)
                 .show(ctx, |ui| {
-                    room_edit_widgets(ui, room);
+                    alter_room = room_edit_widgets(ui, room);
                 });
+            match alter_room {
+                AlterRoom::Delete => {
+                    self.layout.rooms.retain(|r| r.id != *room_id);
+                    self.edit_mode.selected_room = None;
+                }
+                AlterRoom::MoveUp => {
+                    let index = self
+                        .layout
+                        .rooms
+                        .iter()
+                        .position(|r| r.id == *room_id)
+                        .unwrap();
+                    if index < self.layout.rooms.len() - 1 {
+                        self.layout.rooms.swap(index, index + 1);
+                    }
+                }
+                AlterRoom::MoveDown => {
+                    let index = self
+                        .layout
+                        .rooms
+                        .iter()
+                        .position(|r| r.id == *room_id)
+                        .unwrap();
+                    if index > 0 {
+                        self.layout.rooms.swap(index, index - 1);
+                    }
+                }
+                AlterRoom::None => {}
+            }
         }
     }
 }
 
-fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
+enum AlterRoom {
+    None,
+    Delete,
+    MoveUp,
+    MoveDown,
+}
+
+fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
+    let mut alter_room = AlterRoom::None;
     ui.horizontal(|ui| {
         ui.label("Room ");
         ui.text_edit_singleline(&mut room.name);
+        if ui.add(Button::new("Delete")).clicked() {
+            alter_room = AlterRoom::Delete;
+        }
+        if ui.add(Button::new("^")).clicked() {
+            alter_room = AlterRoom::MoveUp;
+        }
+        if ui.add(Button::new("v")).clicked() {
+            alter_room = AlterRoom::MoveDown;
+        }
     });
     ui.separator();
 
@@ -524,6 +587,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                 render_options: RenderOptions::default(),
                 pos: Vec2::new(0.0, 0.0),
                 size: Vec2::new(1.0, 1.0),
+                rotation: 0.0,
             });
         }
     });
@@ -587,6 +651,17 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                     .speed(0.1)
                     .fixed_decimals(2),
             );
+            ui.label("Rotation");
+            if ui
+                .add(
+                    DragValue::new(&mut operation.rotation)
+                        .speed(5)
+                        .fixed_decimals(0),
+                )
+                .changed()
+            {
+                operation.rotation = operation.rotation.rem_euclid(360.0);
+            }
         });
 
         if operation.action == Action::Add {
@@ -615,6 +690,8 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
             room.operations.swap(index, index + 1);
         }
     }
+
+    alter_room
 }
 
 fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions, id: String) {
@@ -666,7 +743,7 @@ fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions,
             ui.add(
                 DragValue::new(&mut tile_options.grout_width)
                     .speed(0.005)
-                    .fixed_decimals(1)
+                    .fixed_decimals(3)
                     .clamp_range(0.0..=1.0),
             );
             ui.color_edit_button_srgba(&mut tile_options.grout_tint);

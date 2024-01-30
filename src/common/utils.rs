@@ -1,4 +1,4 @@
-use super::layout::{Furniture, RenderOptions, TileOptions, Vec2};
+use super::layout::{Furniture, Operation, RenderOptions, TileOptions, Vec2};
 use anyhow::{anyhow, bail, Result};
 use std::hash::{Hash, Hasher};
 
@@ -146,6 +146,17 @@ pub fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> 
     }
 }
 
+// Helper function to rotate a point around a pivot
+pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f32) -> Vec2 {
+    let cos_theta = angle.to_radians().cos();
+    let sin_theta = angle.to_radians().sin();
+
+    Vec2 {
+        x: cos_theta * (point.x - pivot.x) - sin_theta * (point.y - pivot.y) + pivot.x,
+        y: sin_theta * (point.x - pivot.x) + cos_theta * (point.y - pivot.y) + pivot.y,
+    }
+}
+
 pub fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
     let hex = hex.trim_start_matches('#');
     if hex.len() != 6 && hex.len() != 8 {
@@ -173,6 +184,17 @@ impl Hash for Furniture {
         for child in &self.children {
             child.hash(state);
         }
+    }
+}
+
+impl Hash for Operation {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pos.hash(state);
+        self.size.hash(state);
+        self.rotation.to_bits().hash(state);
+        self.action.hash(state);
+        self.shape.hash(state);
+        self.render_options.hash(state);
     }
 }
 
