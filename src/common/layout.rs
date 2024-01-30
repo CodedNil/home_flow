@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use strum_macros::{Display, VariantArray};
+use uuid::Uuid;
 
 const LAYOUT_VERSION: &str = "0.1";
 pub const RESOLUTION_FACTOR: f32 = 80.0; // Pixels per meter
@@ -81,6 +82,7 @@ impl Home {
                         WallType::Exterior,
                     ],
                     vec![Operation {
+                        id: Uuid::new_v4(),
                         action: Action::Subtract,
                         shape: Shape::Rectangle,
                         render_options: RenderOptions::default(),
@@ -108,7 +110,7 @@ impl Home {
 
 #[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct Room {
-    pub id: uuid::Uuid,
+    pub id: Uuid,
     pub name: String,
     pub render_options: RenderOptions,
     pub pos: Vec2,
@@ -125,8 +127,9 @@ pub struct Furniture {
     pub children: Vec<Furniture>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default, Hash)]
+#[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct Operation {
+    pub id: Uuid,
     pub action: Action,
     pub shape: Shape,
     pub render_options: RenderOptions,
@@ -186,7 +189,7 @@ pub struct Wall {
     pub wall_type: WallType,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Copy, Clone, PartialEq, Default, Debug)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,

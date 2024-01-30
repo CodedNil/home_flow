@@ -300,6 +300,11 @@ impl Room {
         (min, max)
     }
 
+    pub fn self_contains(&self, x: f32, y: f32) -> bool {
+        let point = Vec2 { x, y };
+        Shape::Rectangle.contains(point, self.pos, self.size)
+    }
+
     // Check if the point is inside the room's shape after operations applied
     pub fn contains(&self, x: f32, y: f32) -> bool {
         let point = Vec2 { x, y };
@@ -320,9 +325,22 @@ impl Room {
                         .contains(point, self.pos + operation.pos, operation.size)
                     {
                         inside = false;
-                        break;
                     }
                 }
+            }
+        }
+        inside
+    }
+
+    pub fn contains_full(&self, x: f32, y: f32) -> bool {
+        let point = Vec2 { x, y };
+        let mut inside = Shape::Rectangle.contains(point, self.pos, self.size);
+        for operation in &self.operations {
+            if operation
+                .shape
+                .contains(point, self.pos + operation.pos, operation.size)
+            {
+                inside = true;
             }
         }
         inside
@@ -578,7 +596,7 @@ pub enum Shape {
 }
 
 impl Shape {
-    fn contains(&self, point: Vec2, center: Vec2, size: Vec2) -> bool {
+    pub fn contains(&self, point: Vec2, center: Vec2, size: Vec2) -> bool {
         match *self {
             Self::Rectangle => {
                 point.x >= center.x - size.x / 2.0

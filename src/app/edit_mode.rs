@@ -15,12 +15,13 @@ use uuid::Uuid;
 #[derive(Default)]
 pub struct EditDetails {
     pub enabled: bool,
-    dragging_room: Option<DragData>,
+    drag_data: Option<DragData>,
     room_window_bounds: Option<(Uuid, Pos2, Pos2)>,
-    preview_edits: (bool, Vec<diff::Result<String>>),
+    preview_edits: bool,
 }
 
 struct DragData {
+    id: Uuid,
     mouse_start_pos: Pos2,
     room_start_pos: Vec2,
 }
@@ -37,25 +38,7 @@ impl HomeFlow {
         // If in edit mode, show button to view save and discard changes
         if self.edit_mode.enabled {
             if ui.button("Preview Edits").clicked() {
-                if self.edit_mode.preview_edits.0 {
-                    self.edit_mode.preview_edits = (false, Vec::new());
-                } else {
-                    let current_layout = self.layout.to_string();
-                    let initial_layout = self.layout_server.to_string();
-                    let diffs: Vec<diff::Result<String>> =
-                        diff::lines(&initial_layout, &current_layout)
-                            .into_iter()
-                            .map(|d| match d {
-                                diff::Result::Left(line) => diff::Result::Left(line.to_string()),
-                                diff::Result::Both(line1, line2) => {
-                                    diff::Result::Both(line1.to_string(), line2.to_string())
-                                }
-                                diff::Result::Right(line) => diff::Result::Right(line.to_string()),
-                            })
-                            .collect();
-
-                    self.edit_mode.preview_edits = (true, diffs);
-                }
+                self.edit_mode.preview_edits = !self.edit_mode.preview_edits;
             }
             if ui.button("Save Edits").clicked() {
                 log::info!("Saving layout");
@@ -78,33 +61,34 @@ impl HomeFlow {
             }
 
             // Show preview edits
-            if self.edit_mode.preview_edits.0 {
-                Window::new("Preview Edits")
-                    .default_size([500.0, 500.0])
-                    .pivot(Align2::CENTER_CENTER)
-                    .resizable(true)
-                    .max_height(500.0)
-                    .open(&mut self.edit_mode.preview_edits.0)
-                    .show(ctx, |ui| {
-                        egui::ScrollArea::vertical()
-                            .auto_shrink(true)
-                            .show(ui, |ui| {
-                                for diff in &self.edit_mode.preview_edits.1 {
-                                    match diff {
-                                        diff::Result::Left(l) => {
-                                            ui.colored_label(Color32::RED, l);
-                                        }
-                                        diff::Result::Right(r) => {
-                                            ui.colored_label(Color32::GREEN, r);
-                                        }
-                                        diff::Result::Both(l, _) => {
-                                            ui.label(l);
-                                        }
+            Window::new("Preview Edits")
+                .default_size([500.0, 500.0])
+                .pivot(Align2::CENTER_CENTER)
+                .resizable(true)
+                .max_height(500.0)
+                .open(&mut self.edit_mode.preview_edits)
+                .show(ctx, |ui| {
+                    let current_layout = self.layout.to_string();
+                    let initial_layout = self.layout_server.to_string();
+                    let diffs = diff::lines(&initial_layout, &current_layout);
+                    egui::ScrollArea::vertical()
+                        .auto_shrink(true)
+                        .show(ui, |ui| {
+                            for diff in diffs {
+                                match diff {
+                                    diff::Result::Left(l) => {
+                                        ui.colored_label(Color32::RED, l);
+                                    }
+                                    diff::Result::Right(r) => {
+                                        ui.colored_label(Color32::GREEN, r);
+                                    }
+                                    diff::Result::Both(l, _) => {
+                                        ui.label(l);
                                     }
                                 }
-                            });
-                    });
-            }
+                            }
+                        });
+                });
         }
         // If not in edit mode, show button to enter edit mode
         else if ui.button("Edit Mode").clicked() {
@@ -131,7 +115,7 @@ impl HomeFlow {
 
         let mut room_hovered = None;
         for room in &self.layout.rooms {
-            if room.contains(mouse_pos_world.x, mouse_pos_world.y) {
+            if room.contains_full(mouse_pos_world.x, mouse_pos_world.y) {
                 room_hovered = Some(room.id);
             }
         }
@@ -160,13 +144,14 @@ impl HomeFlow {
                 .unwrap();
             used_dragged = true;
             if response.dragged() {
-                if self.edit_mode.dragging_room.is_none() {
-                    self.edit_mode.dragging_room = Some(DragData {
+                if self.edit_mode.drag_data.is_none() {
+                    self.edit_mode.drag_data = Some(DragData {
+                        id: room.id,
                         mouse_start_pos: mouse_pos_world,
                         room_start_pos: room.pos,
                     });
                 }
-                let drag_data = self.edit_mode.dragging_room.as_ref().unwrap();
+                let drag_data = self.edit_mode.drag_data.as_ref().unwrap();
 
                 let delta = mouse_pos_world - drag_data.mouse_start_pos;
                 let mut new_pos = drag_data.room_start_pos + Vec2::new(delta.x, delta.y);
@@ -256,7 +241,7 @@ impl HomeFlow {
                 room.pos = new_pos;
             }
             if response.drag_released() {
-                self.edit_mode.dragging_room = None;
+                self.edit_mode.drag_data = None;
             }
         }
 
@@ -454,7 +439,14 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
     ui.horizontal(|ui| {
         ui.label("Operations");
         if ui.add(Button::new("Add")).clicked() {
-            room.operations.push(Operation::default());
+            room.operations.push(Operation {
+                id: Uuid::new_v4(),
+                action: Action::Add,
+                shape: Shape::Rectangle,
+                render_options: RenderOptions::default(),
+                pos: Vec2::new(0.0, 0.0),
+                size: Vec2::new(1.0, 1.0),
+            });
         }
     });
     if !room.operations.is_empty() {
