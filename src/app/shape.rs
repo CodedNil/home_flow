@@ -1,8 +1,10 @@
-use super::layout::{
-    Action, Home, HomeRender, Operation, RenderOptions, Room, TileOptions, Vec2, Wall,
-    RESOLUTION_FACTOR,
+use super::{
+    layout::{
+        Action, Home, HomeRender, Operation, RenderOptions, Room, TileOptions, Vec2, Wall,
+        RESOLUTION_FACTOR,
+    },
+    utils::{hex_to_rgba, point_within_segment},
 };
-use anyhow::{anyhow, bail, Result};
 use egui::Color32;
 use geo::BooleanOps;
 use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
@@ -483,7 +485,7 @@ fn apply_render_options(
 }
 
 #[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, Display, PartialEq, Eq, Hash, VariantArray, Default,
+    Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, VariantArray, Default,
 )]
 pub enum Material {
     Wall,
@@ -553,9 +555,7 @@ fn create_polygon(vertices: &[Vec2]) -> geo::Polygon<f64> {
     )
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Display, VariantArray, Default,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default)]
 pub enum Shape {
     #[default]
     Rectangle,
@@ -622,143 +622,6 @@ impl Shape {
     }
 }
 
-impl std::ops::Add for Vec2 {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
-impl std::ops::Sub for Vec2 {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
-    }
-}
-
-impl std::ops::Div<f32> for Vec2 {
-    type Output = Self;
-
-    fn div(self, rhs: f32) -> Self::Output {
-        Self {
-            x: self.x / rhs,
-            y: self.y / rhs,
-        }
-    }
-}
-impl std::ops::Div<Self> for Vec2 {
-    type Output = Self;
-
-    fn div(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x / rhs.x,
-            y: self.y / rhs.y,
-        }
-    }
-}
-
-impl std::ops::Mul<f32> for Vec2 {
-    type Output = Self;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self {
-            x: self.x * rhs,
-            y: self.y * rhs,
-        }
-    }
-}
-impl std::ops::Mul<Self> for Vec2 {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x * rhs.x,
-            y: self.y * rhs.y,
-        }
-    }
-}
-
-impl Vec2 {
-    pub const fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
-
-    pub fn min(&self, other: &Self) -> Self {
-        Self {
-            x: self.x.min(other.x),
-            y: self.y.min(other.y),
-        }
-    }
-
-    pub fn max(&self, other: &Self) -> Self {
-        Self {
-            x: self.x.max(other.x),
-            y: self.y.max(other.y),
-        }
-    }
-
-    pub fn dot(&self, other: &Self) -> f32 {
-        self.x * other.x + self.y * other.y
-    }
-
-    pub fn normalize(&self) -> Self {
-        let length = self.x.hypot(self.y);
-        Self {
-            x: self.x / length,
-            y: self.y / length,
-        }
-    }
-
-    pub fn length(&self) -> f32 {
-        self.x.hypot(self.y)
-    }
-
-    const MIN: Self = Self {
-        x: std::f32::MIN,
-        y: std::f32::MIN,
-    };
-    const MAX: Self = Self {
-        x: std::f32::MAX,
-        y: std::f32::MAX,
-    };
-}
-
-fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
-    let line_vec = end - start;
-    let line_len = line_vec.length();
-
-    if line_len == 0.0 {
-        // Line segment is a point
-        return point.x < start.x + width
-            && point.x > start.x - width
-            && point.y < start.y + width
-            && point.y > start.y - width;
-    }
-
-    // Project 'point' onto the line segment, but keep within the segment
-    let n = (point - start).dot(&line_vec);
-    let t = n / line_len.powi(2);
-    if (0.0..=1.0).contains(&t) {
-        // Projection is within the segment
-        let projection = start + line_vec * t;
-        (point - projection).length() <= width
-    } else if t < 0.0 {
-        let distance_rotated = (point - start).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
-        (t * line_len).abs() < width && distance_rotated.abs() <= width
-    } else {
-        let distance_rotated = (point - end).dot(&Vec2::new(-line_vec.y, line_vec.x).normalize());
-        ((t - 1.0) * line_len).abs() < width && distance_rotated.abs() <= width
-    }
-}
-
 impl Wall {
     pub fn point_within(&self, point: Vec2) -> bool {
         let width = self.wall_type.width();
@@ -779,9 +642,7 @@ impl Wall {
     }
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Display, Hash, VariantArray,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, Hash, VariantArray)]
 pub enum WallType {
     None,
     Interior,
@@ -796,25 +657,6 @@ impl WallType {
             Self::Exterior => 0.1,
         }
     }
-}
-
-fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
-    let hex = hex.trim_start_matches('#');
-    if hex.len() != 6 && hex.len() != 8 {
-        bail!("Invalid hex color");
-    }
-
-    let parse_color = |i: usize| -> Result<u8> {
-        u8::from_str_radix(&hex[i..i + 2], 16)
-            .map_err(|_| anyhow!("Invalid value for color component"))
-    };
-
-    let r = parse_color(0)?;
-    let g = parse_color(2)?;
-    let b = parse_color(4)?;
-    let a = if hex.len() == 8 { parse_color(6)? } else { 255 };
-
-    Ok([r, g, b, a])
 }
 
 impl RenderOptions {

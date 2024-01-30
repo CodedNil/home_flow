@@ -9,7 +9,9 @@ use std::collections::HashSet;
 
 mod edit_mode;
 mod layout;
+mod layout_display;
 mod shape;
+mod utils;
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
@@ -305,9 +307,7 @@ impl eframe::App for HomeFlow {
                     .resizable(false)
                     .constrain(false)
                     .show(ctx, |ui| {
-                        ui.vertical(|ui| {
-                            self.edit_mode_settings(ui);
-                        });
+                        self.edit_mode_settings(ctx, ui);
                     });
 
                 let plot_location = self.world_to_pixels(canvas_center, 4.0, -3.0);

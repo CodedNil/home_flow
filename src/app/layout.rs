@@ -14,7 +14,7 @@ const LAYOUT_VERSION: &str = "0.1";
 const LAYOUT_PATH: &str = "home_layout.json";
 pub const RESOLUTION_FACTOR: f32 = 80.0; // Pixels per meter
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Home {
     version: String,
     pub rooms: Vec<Room>,
@@ -92,7 +92,7 @@ impl Default for Home {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Room {
     pub id: uuid::Uuid,
     pub name: String,
@@ -103,7 +103,15 @@ pub struct Room {
     pub walls: Vec<WallType>, // Left, Top, Right, Bottom
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Furniture {
+    pub pos: Vec2,
+    pub size: Vec2,
+    pub rotation: f32,
+    pub children: Vec<Furniture>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Operation {
     pub action: Action,
     pub shape: Shape,
@@ -112,7 +120,7 @@ pub struct Operation {
     pub size: Vec2,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct RenderOptions {
     pub material: Material,
     pub scale: f32,
@@ -131,7 +139,7 @@ impl Default for RenderOptions {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct TileOptions {
     pub scale: u8,
     pub odd_tint: Color32,
@@ -139,7 +147,7 @@ pub struct TileOptions {
     pub grout_tint: Color32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct HomeRender {
     pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
     pub center: Vec2,
@@ -148,33 +156,29 @@ pub struct HomeRender {
     pub walls: HashMap<uuid::Uuid, Vec<Wall>>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Furniture {
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub rotation: f32,
-    pub children: Vec<Furniture>,
-}
-
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Display, VariantArray, Default,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default)]
 pub enum Action {
     #[default]
     Add,
     Subtract,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Wall {
     pub points: Vec<Vec2>,
     pub wall_type: WallType,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Copy, Clone, PartialEq, Default)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
+}
+
+impl std::fmt::Display for Vec2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}]", self.x, self.y)
+    }
 }
 
 static LAYOUT: Lazy<Arc<Mutex<Option<Home>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));

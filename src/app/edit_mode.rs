@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    layout::{Action, Operation, RenderOptions, Room, TileOptions, Vec2},
+    layout::{self, Action, Operation, RenderOptions, Room, TileOptions, Vec2},
     shape::{Material, Shape, WallType},
     HomeFlow,
 };
@@ -14,7 +14,7 @@ pub struct EditDetails {
     pub enabled: bool,
     dragging_room: Option<DragData>,
     room_window_bounds: Option<(Uuid, Pos2, Pos2)>,
-    preview_edits: Option<PreviewEdits>,
+    preview_edits: (bool, Vec<diff::Result<String>>),
 }
 
 struct DragData {
@@ -29,34 +29,71 @@ pub struct EditResponse {
     snap_line_vertical: Option<f32>,
 }
 
-struct PreviewEdits {
-    left_text: String,
-    right_text: String,
-}
-
 impl HomeFlow {
-    pub fn edit_mode_settings(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            // If in edit mode, show button to view save and discard changes
-            if self.edit_mode.enabled {
-                if ui.button("Preview Edits").clicked() {
-                    self.edit_mode.preview_edits = Some(PreviewEdits {
-                        left_text: serde_json::to_string_pretty(&self.layout).unwrap_or_default(),
-                        right_text: serde_json::to_string_pretty(&self.layout).unwrap_or_default(),
+    pub fn edit_mode_settings(&mut self, ctx: &Context, ui: &mut Ui) {
+        // If in edit mode, show button to view save and discard changes
+        if self.edit_mode.enabled {
+            if ui.button("Preview Edits").clicked() {
+                if self.edit_mode.preview_edits.0 {
+                    self.edit_mode.preview_edits = (false, Vec::new());
+                } else {
+                    let current_layout = self.layout.to_string();
+                    let initial_layout = layout::Home::load().to_string();
+                    let diffs: Vec<diff::Result<String>> =
+                        diff::lines(&initial_layout, &current_layout)
+                            .into_iter()
+                            .map(|d| match d {
+                                diff::Result::Left(line) => diff::Result::Left(line.to_string()),
+                                diff::Result::Both(line1, line2) => {
+                                    diff::Result::Both(line1.to_string(), line2.to_string())
+                                }
+                                diff::Result::Right(line) => diff::Result::Right(line.to_string()),
+                            })
+                            .collect();
+
+                    self.edit_mode.preview_edits = (true, diffs);
+                }
+            }
+            if ui.button("Save Edits").clicked() {
+                self.edit_mode.enabled = false;
+            }
+            if ui.button("Discard Edits").clicked() {
+                self.edit_mode.enabled = false;
+            }
+
+            // Show preview edits
+            if self.edit_mode.preview_edits.0 {
+                Window::new("Preview Edits")
+                    .default_size([500.0, 500.0])
+                    .pivot(Align2::CENTER_CENTER)
+                    .resizable(true)
+                    .max_height(500.0)
+                    .open(&mut self.edit_mode.preview_edits.0)
+                    .show(ctx, |ui| {
+                        egui::ScrollArea::vertical()
+                            .auto_shrink(true)
+                            .show(ui, |ui| {
+                                for diff in &self.edit_mode.preview_edits.1 {
+                                    match diff {
+                                        diff::Result::Left(l) => {
+                                            ui.colored_label(Color32::RED, l);
+                                        }
+                                        diff::Result::Right(r) => {
+                                            ui.colored_label(Color32::GREEN, r);
+                                        }
+                                        diff::Result::Both(l, _) => {
+                                            ui.label(l);
+                                        }
+                                    }
+                                }
+                            });
                     });
-                }
-                if ui.button("Save Edits").clicked() {
-                    self.edit_mode.enabled = false;
-                }
-                if ui.button("Discard Edits").clicked() {
-                    self.edit_mode.enabled = false;
-                }
             }
-            // If not in edit mode, show button to enter edit mode
-            else if ui.button("Edit Mode").clicked() {
-                self.edit_mode.enabled = true;
-            }
-        });
+        }
+        // If not in edit mode, show button to enter edit mode
+        else if ui.button("Edit Mode").clicked() {
+            self.edit_mode.enabled = true;
+        }
     }
 
     pub fn run_edit_mode(
