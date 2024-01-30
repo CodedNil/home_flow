@@ -39,7 +39,6 @@ impl Home {
     }
 
     pub fn render(&self) -> HomeRender {
-        let start = std::time::Instant::now();
         // Calculate the center and size of the home
         let (bounds_min, bounds_max) = self.bounds_with_walls();
         let new_center = (bounds_min + bounds_max) / 2.0;
@@ -56,7 +55,6 @@ impl Home {
             vertices.insert(room.id, room.vertices());
             walls.insert(room.id, room.walls(&vertices[&room.id]));
         }
-        println!("Vertices calculated after {:?}", start.elapsed());
 
         // Create an image buffer with the calculated size, filled with transparent pixels
         let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
@@ -76,7 +74,6 @@ impl Home {
                 }
             }
         }
-        println!("Textures loaded after {:?}", start.elapsed());
 
         let (image_width, image_height) = (image_buffer.width(), image_buffer.height());
         let num_chunks_x = (image_width + CHUNK_SIZE - 1) / CHUNK_SIZE;
@@ -113,16 +110,21 @@ impl Home {
                         };
                         let point_in_world = bounds_min + point * new_size;
 
+                        let mut walls_to_check = Vec::new();
                         for room in &self.rooms {
                             if Shape::Rectangle.contains(point_in_world, room.pos, room.size) {
                                 if let Some(texture) = textures.get(&room.render_options.material) {
+                                    // Calculate the relative position within the room
+                                    let point_within_shape =
+                                        (point_in_world - room.pos + room.size / 2.0) / room.size;
+
                                     pixel_color = apply_render_options(
                                         &room.render_options,
                                         texture,
                                         x as f32,
                                         y as f32,
-                                        point,
-                                        width / height,
+                                        point_within_shape,
+                                        room.size.x / room.size.y,
                                     );
                                     chunk_edited = true;
                                 }
@@ -161,17 +163,30 @@ impl Home {
                                     }
                                 }
                             }
+                            // Check if within room bounds with walls
+                            let (room_min, room_max) = room.bounds_with_walls();
+                            if point_in_world.x >= room_min.x
+                                && point_in_world.x <= room_max.x
+                                && point_in_world.y >= room_min.y
+                                && point_in_world.y <= room_max.y
+                            {
+                                walls_to_check.push(room.id);
+                            }
                         }
 
                         // Walls
                         let mut in_wall = false;
-                        for room_walls in walls.values() {
-                            for wall in room_walls {
+                        for room in walls_to_check {
+                            for wall in walls.get(&room).unwrap() {
                                 if wall.wall_type != WallType::None
                                     && wall.point_within(point_in_world)
                                 {
                                     in_wall = true;
+                                    break;
                                 }
+                            }
+                            if in_wall {
+                                break;
                             }
                         }
                         if in_wall {
@@ -204,7 +219,6 @@ impl Home {
                 )
             })
             .collect();
-        println!("Chunks processed after {:?}", start.elapsed());
 
         // Combine the chunks back into the main image buffer
         for (start_x, start_y, chunk_width, chunk_height, chunk, chunk_edited) in chunks {
@@ -220,7 +234,6 @@ impl Home {
                 }
             }
         }
-        println!("Chunks combined after {:?}", start.elapsed());
 
         HomeRender {
             texture: image_buffer,
@@ -248,6 +261,14 @@ impl Room {
             }
         }
 
+        (min, max)
+    }
+
+    pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
+        let (mut min, mut max) = self.bounds();
+        let wall_width = WallType::Exterior.width();
+        min = min - Vec2::new(wall_width, wall_width);
+        max = max + Vec2::new(wall_width, wall_width);
         (min, max)
     }
 
@@ -386,8 +407,8 @@ fn apply_render_options(
     // Get texture
     let scale = render_options.material.get_scale() * render_options.scale / RESOLUTION_FACTOR;
     let mut texture_color = *texture.get_pixel(
-        (x * scale) as u32 % texture.width(),
-        (y * scale) as u32 % texture.height(),
+        (x * scale).abs() as u32 % texture.width(),
+        (y * scale).abs() as u32 % texture.height(),
     );
     // Tint the texture if a tint color is specified
     if let Some(tint) = render_options.tint {

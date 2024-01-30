@@ -256,20 +256,10 @@ impl HomeFlow {
             let room = self.layout.rooms.iter().find(|r| &r.id == room_id).unwrap();
 
             // Render outline
-            let (bounds_min, bounds_max) = room.bounds();
-            let room_center = (bounds_min + bounds_max) / 2.0;
-            let render_offset = room_center - home_render.center;
-
             let vertices = home_render.vertices.get(room_id).unwrap();
             let points = vertices
                 .iter()
-                .map(|v| {
-                    self.world_to_pixels(
-                        canvas_center,
-                        v.x + render_offset.x,
-                        v.y + render_offset.y,
-                    )
-                })
+                .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
                 .collect::<Vec<_>>();
             closed_dashed_line_with_offset(
                 painter,
@@ -307,7 +297,9 @@ impl HomeFlow {
         }
         let mut room_positions = HashMap::new();
         for room in &self.layout.rooms {
-            let room_pos = self.world_to_pixels(canvas_center, room.pos.x, room.pos.y);
+            let room_pos =
+                self.world_to_pixels(canvas_center, room.pos.x, room.pos.y + room.size.y / 2.0)
+                    + egui::Vec2::new(0.0, -20.0);
             room_positions.insert(room.id, room_pos);
         }
         if let Some(room_id) = &edit_response.room_hovered {
@@ -320,7 +312,7 @@ impl HomeFlow {
             Window::new(format!("Edit {}", room.id))
                 .fixed_pos(room_positions[room_id])
                 .fixed_size([200.0, 0.0])
-                .pivot(Align2::CENTER_CENTER)
+                .pivot(Align2::CENTER_BOTTOM)
                 .title_bar(false)
                 .resizable(false)
                 .show(ctx, |ui| {
