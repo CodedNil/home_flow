@@ -16,6 +16,9 @@ pub struct HomeFlow {
 
     translation: Vec2,
     zoom: f32, // Zoom is meter to pixels
+    canvas_center: Pos2,
+    mouse_pos: Pos2,
+    mouse_pos_world: Pos2,
 
     layout_server: layout::Home,
     layout: layout::Home,
@@ -43,8 +46,13 @@ impl Default for HomeFlow {
             time: 0.0,
             translation: Vec2::ZERO,
             zoom: 100.0,
+            canvas_center: Pos2::ZERO,
+            mouse_pos: Pos2::ZERO,
+            mouse_pos_world: Pos2::ZERO,
+
             layout_server: layout::Home::empty(),
             layout: layout::Home::empty(),
+
             edit_mode: EditDetails::default(),
             frame_times: History::new(0..max_len, max_age),
             host: "localhost:3000".to_string(),
@@ -79,17 +87,17 @@ impl HomeFlow {
         }
     }
 
-    fn pixels_to_world(&self, canvas_center: Pos2, x: f32, y: f32) -> Pos2 {
-        Pos2::new(x - canvas_center.x, canvas_center.y - y) / self.zoom
+    fn pixels_to_world(&self, x: f32, y: f32) -> Pos2 {
+        Pos2::new(x - self.canvas_center.x, self.canvas_center.y - y) / self.zoom
             - Vec2::new(self.translation.x, -self.translation.y)
     }
 
-    fn world_to_pixels(&self, canvas_center: Pos2, x: f32, y: f32) -> Pos2 {
+    fn world_to_pixels(&self, x: f32, y: f32) -> Pos2 {
         Pos2::new(x + self.translation.x, self.translation.y - y) * self.zoom
-            + Vec2::new(canvas_center.x, canvas_center.y)
+            + Vec2::new(self.canvas_center.x, self.canvas_center.y)
     }
 
-    fn handle_pan_zoom(&mut self, response: &egui::Response, canvas_center: Pos2, ui: &egui::Ui) {
+    fn handle_pan_zoom(&mut self, response: &egui::Response, ui: &egui::Ui) {
         // Drag
         if response.dragged() {
             self.translation += response.drag_delta() * 0.01 / (self.zoom / 100.0);
@@ -100,11 +108,9 @@ impl HomeFlow {
         if scroll_delta != Vec2::ZERO {
             let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
             if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
-                let mouse_world_before_zoom =
-                    self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
+                let mouse_world_before_zoom = self.pixels_to_world(mouse_pos.x, mouse_pos.y);
                 self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
-                let mouse_world_after_zoom =
-                    self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
+                let mouse_world_after_zoom = self.pixels_to_world(mouse_pos.x, mouse_pos.y);
                 let difference = mouse_world_after_zoom - mouse_world_before_zoom;
                 self.translation += Vec2::new(difference.x, -difference.y);
             } else {
@@ -141,7 +147,7 @@ impl HomeFlow {
         }
     }
 
-    fn render_grid(&self, painter: &Painter, visible_rect: &Rect, canvas_center: Pos2) {
+    fn render_grid(&self, painter: &Painter, visible_rect: &Rect) {
         let grid_interval = 2.0_f32.powf((160.0 / self.zoom).abs().log2().round());
         let grid_intervals = [
             (
@@ -155,16 +161,12 @@ impl HomeFlow {
         ];
 
         let (bottom_edge_world, top_edge_world) = (
-            self.pixels_to_world(canvas_center, 0.0, visible_rect.bottom())
-                .y,
-            self.pixels_to_world(canvas_center, 0.0, visible_rect.top())
-                .y,
+            self.pixels_to_world(0.0, visible_rect.bottom()).y,
+            self.pixels_to_world(0.0, visible_rect.top()).y,
         );
         let (left_edge_world, right_edge_world) = (
-            self.pixels_to_world(canvas_center, visible_rect.left(), 0.0)
-                .x,
-            self.pixels_to_world(canvas_center, visible_rect.right(), 0.0)
-                .x,
+            self.pixels_to_world(visible_rect.left(), 0.0).x,
+            self.pixels_to_world(visible_rect.right(), 0.0).x,
         );
 
         let mut rendered_vertical = HashSet::new();
@@ -175,9 +177,7 @@ impl HomeFlow {
             for x in ((left_edge_world / grid_interval).ceil() as i32)
                 ..=((right_edge_world / grid_interval).floor() as i32)
             {
-                let grid_line_pixel = self
-                    .world_to_pixels(canvas_center, x as f32 * grid_interval, 0.0)
-                    .x;
+                let grid_line_pixel = self.world_to_pixels(x as f32 * grid_interval, 0.0).x;
                 let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
                 if rendered_vertical.contains(&grid_line_pixel_int) {
                     continue;
@@ -194,9 +194,7 @@ impl HomeFlow {
             for y in ((bottom_edge_world / grid_interval).ceil() as i32)
                 ..=((top_edge_world / grid_interval).floor() as i32)
             {
-                let grid_line_pixel = self
-                    .world_to_pixels(canvas_center, 0.0, y as f32 * grid_interval)
-                    .y;
+                let grid_line_pixel = self.world_to_pixels(0.0, y as f32 * grid_interval).y;
                 let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
                 if rendered_horizontal.contains(&grid_line_pixel_int) {
                     continue;
@@ -316,18 +314,20 @@ impl eframe::App for HomeFlow {
                 let (response, painter) =
                     ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
                 let canvas_center = response.rect.center();
+                self.canvas_center = canvas_center;
 
                 let mouse_pos = ui
-                    .input(|i| i.pointer.latest_pos())
-                    .map_or(Pos2::ZERO, |mouse_pos| mouse_pos);
-                let mouse_pos_world = self.pixels_to_world(canvas_center, mouse_pos.x, mouse_pos.y);
+                    .input(|i| i.pointer.interact_pos())
+                    .map_or(self.mouse_pos, |mouse_pos| mouse_pos);
+                self.mouse_pos = mouse_pos;
+                self.mouse_pos_world = self.pixels_to_world(mouse_pos.x, mouse_pos.y);
 
-                let edit_mode_response = self.run_edit_mode(&response, mouse_pos, mouse_pos_world);
+                let edit_mode_response = self.run_edit_mode(&response, ctx);
                 if !edit_mode_response.used_dragged {
-                    self.handle_pan_zoom(&response, canvas_center, ui);
+                    self.handle_pan_zoom(&response, ui);
                 }
 
-                self.render_grid(&painter, &response.rect, canvas_center);
+                self.render_grid(&painter, &response.rect);
 
                 self.layout.render();
                 let rendered_data = self.layout.rendered_data.as_ref().unwrap();
@@ -346,7 +346,7 @@ impl eframe::App for HomeFlow {
                 let home_size = bounds_max - bounds_min;
 
                 let rect = Rect::from_center_size(
-                    self.world_to_pixels(canvas_center, home_center.x, home_center.y),
+                    self.world_to_pixels(home_center.x, home_center.y),
                     Vec2::new(home_size.x * self.zoom, home_size.y * self.zoom),
                 );
                 painter.image(
@@ -357,7 +357,7 @@ impl eframe::App for HomeFlow {
                 );
 
                 if self.edit_mode.enabled {
-                    self.paint_edit_mode(&painter, canvas_center, &edit_mode_response, ctx);
+                    self.paint_edit_mode(&painter, &edit_mode_response, ctx);
                 }
 
                 Window::new("Bottom Right")

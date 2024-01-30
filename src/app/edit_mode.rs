@@ -6,7 +6,7 @@ use crate::common::{
     shape::{Material, Shape, WallType},
 };
 use egui::{
-    Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2, Rect,
+    Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2,
     Shape as EShape, Stroke, Ui, Window,
 };
 use strum::VariantArray;
@@ -16,7 +16,7 @@ use uuid::Uuid;
 pub struct EditDetails {
     pub enabled: bool,
     drag_data: Option<DragData>,
-    room_window_bounds: Option<(Uuid, Rect)>,
+    selected_room: Option<Uuid>,
     preview_edits: bool,
 }
 
@@ -31,6 +31,7 @@ struct DragData {
 pub struct EditResponse {
     pub used_dragged: bool,
     room_hovered: Option<Uuid>,
+    room_selected: Option<Uuid>,
     snap_line_horizontal: Option<f32>,
     snap_line_vertical: Option<f32>,
 }
@@ -98,16 +99,12 @@ impl HomeFlow {
         }
     }
 
-    pub fn run_edit_mode(
-        &mut self,
-        response: &egui::Response,
-        mouse_pos: Pos2,
-        mouse_pos_world: Pos2,
-    ) -> EditResponse {
+    pub fn run_edit_mode(&mut self, response: &egui::Response, ctx: &Context) -> EditResponse {
         if !self.edit_mode.enabled {
             return EditResponse {
                 used_dragged: false,
                 room_hovered: None,
+                room_selected: None,
                 snap_line_horizontal: None,
                 snap_line_vertical: None,
             };
@@ -118,12 +115,12 @@ impl HomeFlow {
         let mut room_hovered = None;
         let mut operation_hovered = None;
         for room in &self.layout.rooms {
-            if room.contains_full(mouse_pos_world.x, mouse_pos_world.y) {
+            if room.contains_full(self.mouse_pos_world.x, self.mouse_pos_world.y) {
                 room_hovered = Some(room.id);
             }
             for operation in &room.operations {
                 if operation.shape.contains(
-                    Vec2::new(mouse_pos_world.x, mouse_pos_world.y),
+                    Vec2::new(self.mouse_pos_world.x, self.mouse_pos_world.y),
                     room.pos + operation.pos,
                     operation.size,
                 ) {
@@ -137,11 +134,8 @@ impl HomeFlow {
                 operation_hovered = Some(drag_data.id);
             }
         }
-        // Check if within bounds of room window and set as hovered if so
-        if let Some(room_window_bounds) = self.edit_mode.room_window_bounds {
-            if room_hovered.is_none() && room_window_bounds.1.contains(mouse_pos) {
-                room_hovered = Some(room_window_bounds.0);
-            }
+        if response.double_clicked() {
+            self.edit_mode.selected_room = room_hovered;
         }
 
         // Apply edit changes
@@ -156,7 +150,7 @@ impl HomeFlow {
                             self.edit_mode.drag_data = Some(DragData {
                                 room_id: room.id,
                                 id: operation.id,
-                                mouse_start_pos: mouse_pos_world,
+                                mouse_start_pos: self.mouse_pos_world,
                                 room_start_pos: room.pos + operation.pos,
                             });
                         }
@@ -165,7 +159,7 @@ impl HomeFlow {
                     self.edit_mode.drag_data = Some(DragData {
                         room_id: room.id,
                         id: room.id,
-                        mouse_start_pos: mouse_pos_world,
+                        mouse_start_pos: self.mouse_pos_world,
                         room_start_pos: room.pos,
                     });
                 }
@@ -175,7 +169,7 @@ impl HomeFlow {
                     used_dragged = true;
 
                     (snap_line_horizontal, snap_line_vertical) =
-                        self.handle_room_drag(&drag_data, mouse_pos_world, drag_data.room_id);
+                        self.handle_room_drag(&drag_data, drag_data.room_id, ctx);
                 }
             }
             if response.drag_released() {
@@ -183,9 +177,16 @@ impl HomeFlow {
             }
         }
 
+        if room_hovered.is_none() {
+            if let Some(room_id) = &self.edit_mode.selected_room {
+                room_hovered = Some(*room_id);
+            }
+        }
+
         EditResponse {
             used_dragged,
             room_hovered,
+            room_selected: self.edit_mode.selected_room,
             snap_line_horizontal,
             snap_line_vertical,
         }
@@ -194,13 +195,13 @@ impl HomeFlow {
     fn handle_room_drag(
         &mut self,
         drag_data: &DragData,
-        mouse_pos_world: Pos2,
         rooms_id: Uuid,
+        ctx: &Context,
     ) -> (Option<f32>, Option<f32>) {
         let mut snap_line_horizontal = None;
         let mut snap_line_vertical = None;
 
-        let delta = mouse_pos_world - drag_data.mouse_start_pos;
+        let delta = self.mouse_pos_world - drag_data.mouse_start_pos;
         let mut new_pos = drag_data.room_start_pos + Vec2::new(delta.x, delta.y);
 
         let room = self.layout.rooms.iter().find(|r| r.id == rooms_id).unwrap();
@@ -300,6 +301,22 @@ impl HomeFlow {
             (new_pos.x * 10.0).round() / 10.0
         };
 
+        Window::new(format!("Drag {rooms_id}"))
+            .fixed_pos(self.world_to_pixels(new_pos.x, new_pos.y))
+            .fixed_size([200.0, 0.0])
+            .pivot(Align2::CENTER_CENTER)
+            .title_bar(false)
+            .resizable(false)
+            .interactable(false)
+            .show(ctx, |ui| {
+                ui.label(format!("Pos: ({:.1}, {:.1})", new_pos.x, new_pos.y));
+                ui.label(format!(
+                    "Size: ({:.1}, {:.1})",
+                    bounds_max.x - bounds_min.x,
+                    bounds_max.y - bounds_min.y
+                ));
+            });
+
         let room = self
             .layout
             .rooms
@@ -322,18 +339,15 @@ impl HomeFlow {
     pub fn paint_edit_mode(
         &mut self,
         painter: &Painter,
-        canvas_center: Pos2,
         edit_response: &EditResponse,
         ctx: &Context,
     ) {
         if let Some(snap_line_horizontal) = edit_response.snap_line_horizontal {
-            let y_level = self
-                .world_to_pixels(canvas_center, -1000.0, snap_line_horizontal)
-                .y;
+            let y_level = self.world_to_pixels(-1000.0, snap_line_horizontal).y;
             painter.add(EShape::dashed_line(
                 &[
                     Pos2::new(0.0, y_level),
-                    Pos2::new(canvas_center.x * 2.0, y_level),
+                    Pos2::new(self.canvas_center.x * 2.0, y_level),
                 ],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
                 40.0,
@@ -341,19 +355,32 @@ impl HomeFlow {
             ));
         }
         if let Some(snap_line_vertical) = edit_response.snap_line_vertical {
-            let x_level = self
-                .world_to_pixels(canvas_center, snap_line_vertical, -1000.0)
-                .x;
+            let x_level = self.world_to_pixels(snap_line_vertical, -1000.0).x;
             painter.add(EShape::dashed_line(
                 &[
                     Pos2::new(x_level, 0.0),
-                    Pos2::new(x_level, canvas_center.y * 2.0),
+                    Pos2::new(x_level, self.canvas_center.y * 2.0),
                 ],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
                 40.0,
                 20.0,
             ));
         }
+
+        Window::new("Edit mode instructions".to_string())
+            .fixed_pos(Pos2::new(
+                self.canvas_center.x,
+                self.canvas_center.y * 2.0 - 10.0,
+            ))
+            .fixed_size([200.0, 0.0])
+            .pivot(Align2::CENTER_BOTTOM)
+            .title_bar(false)
+            .resizable(false)
+            .interactable(false)
+            .show(ctx, |ui| {
+                ui.label("Double click to select room");
+            });
+
         let home_render = self.layout.rendered_data.clone().unwrap();
         if let Some(room_id) = &edit_response.room_hovered {
             let room = self.layout.rooms.iter().find(|r| &r.id == room_id).unwrap();
@@ -362,7 +389,7 @@ impl HomeFlow {
             let vertices = home_render.vertices.get(room_id).unwrap();
             let points = vertices
                 .iter()
-                .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
+                .map(|v| self.world_to_pixels(v.x, v.y))
                 .collect::<Vec<_>>();
             closed_dashed_line_with_offset(
                 painter,
@@ -379,7 +406,7 @@ impl HomeFlow {
                     .vertices(room.pos + operation.pos, operation.size);
                 let points = vertices
                     .iter()
-                    .map(|v| self.world_to_pixels(canvas_center, v.x, v.y))
+                    .map(|v| self.world_to_pixels(v.x, v.y))
                     .collect::<Vec<_>>();
                 let stroke = Stroke::new(
                     3.0,
@@ -400,12 +427,11 @@ impl HomeFlow {
         }
         let mut room_positions = HashMap::new();
         for room in &self.layout.rooms {
-            let room_pos =
-                self.world_to_pixels(canvas_center, room.pos.x, room.pos.y + room.size.y / 2.0)
-                    + egui::Vec2::new(0.0, -20.0);
+            let room_pos = self.world_to_pixels(room.pos.x, room.pos.y + room.size.y / 2.0)
+                + egui::Vec2::new(0.0, -20.0);
             room_positions.insert(room.id, room_pos);
         }
-        if let Some(room_id) = &edit_response.room_hovered {
+        if let Some(room_id) = &edit_response.room_selected {
             let room = self
                 .layout
                 .rooms
@@ -420,18 +446,7 @@ impl HomeFlow {
                 .resizable(false)
                 .show(ctx, |ui| {
                     room_edit_widgets(ui, room);
-
-                    let mut padding = 60.0;
-                    ui.memory(|memory| {
-                        if memory.any_popup_open() {
-                            padding += 50.0;
-                        }
-                    });
-                    let window_rect = ui.min_rect().expand(padding);
-                    self.edit_mode.room_window_bounds = Some((room.id, window_rect));
                 });
-        } else {
-            self.edit_mode.room_window_bounds = None;
         }
     }
 }
