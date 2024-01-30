@@ -4,6 +4,7 @@ use egui::Color32;
 use image::{ImageBuffer, Rgba};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
@@ -19,6 +20,8 @@ pub struct Home {
     pub rooms: Vec<Room>,
     pub furniture: Vec<Furniture>,
     pub walls: Vec<Wall>,
+    #[serde(skip)]
+    pub rendered_data: Option<HomeRender>,
 }
 
 impl Default for Home {
@@ -84,6 +87,7 @@ impl Default for Home {
             ],
             furniture: vec![],
             walls: vec![],
+            rendered_data: None,
         }
     }
 }
@@ -93,8 +97,6 @@ pub struct Room {
     pub id: uuid::Uuid,
     pub name: String,
     pub render_options: RenderOptions,
-    #[serde(skip)]
-    pub render: Option<RoomRender>,
     pub pos: Vec2,
     pub size: Vec2,
     pub operations: Vec<Operation>,
@@ -138,12 +140,12 @@ pub struct TileOptions {
 }
 
 #[derive(Clone, Debug)]
-pub struct RoomRender {
+pub struct HomeRender {
     pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
     pub center: Vec2,
     pub size: Vec2,
-    pub vertices: Vec<Vec2>,
-    pub walls: Vec<Wall>,
+    pub vertices: HashMap<uuid::Uuid, Vec<Vec2>>,
+    pub walls: HashMap<uuid::Uuid, Vec<Wall>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

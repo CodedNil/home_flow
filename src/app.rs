@@ -5,7 +5,7 @@ use egui::{
 };
 use egui_plot::{CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 mod edit_mode;
 mod layout;
@@ -207,7 +207,6 @@ impl eframe::App for HomeFlow {
         self.frame_times
             .add(ctx.input(|i| i.time), previous_frame_time); // projected
         let fps = 1.0 / self.frame_times.mean_time_interval().unwrap_or_default();
-        let mean_frame_time = self.frame_times.average().unwrap_or_default();
         Window::new("Performance")
             .fixed_pos(Pos2::new(20.0, 20.0))
             .pivot(Align2::LEFT_TOP)
@@ -216,7 +215,6 @@ impl eframe::App for HomeFlow {
             .interactable(false)
             .show(ctx, |ui| {
                 ui.label(format!("FPS: {fps:.2}"));
-                ui.label(format!("Frame time: {mean_frame_time:.2}"));
             });
 
         let inner_frame = Frame {
@@ -250,50 +248,46 @@ impl eframe::App for HomeFlow {
 
                 self.render_grid(&painter, &response.rect, canvas_center);
 
-                let mut update_rooms_render = HashMap::new();
-                for room in &self.layout.rooms {
-                    // Retrieve render from cache or render fresh and store in cache
-                    let room_render = room.render.as_ref().map_or_else(
-                        || {
-                            let render = room.render();
-                            update_rooms_render.insert(room.name.clone(), render);
-                            update_rooms_render.get(&room.name).unwrap()
-                        },
-                        |render| render,
-                    );
+                // Retrieve render from cache or render fresh and store in cache
+                let mut update_render = None;
+                let rendered_data = self.layout.rendered_data.as_ref().map_or_else(
+                    || {
+                        let render = self.layout.render();
+                        update_render = Some(render);
+                        update_render.as_ref().unwrap()
+                    },
+                    |render| render,
+                );
 
-                    let canvas_size = room_render.texture.dimensions();
-                    let egui_image = ColorImage::from_rgba_unmultiplied(
-                        [canvas_size.0 as usize, canvas_size.1 as usize],
-                        &room_render.texture,
-                    );
-                    let canvas_texture_id = ctx
-                        .load_texture("room_texture", egui_image, TextureOptions::NEAREST)
-                        .id();
+                let canvas_size = rendered_data.texture.dimensions();
+                let egui_image = ColorImage::from_rgba_unmultiplied(
+                    [canvas_size.0 as usize, canvas_size.1 as usize],
+                    &rendered_data.texture,
+                );
+                let canvas_texture_id = ctx
+                    .load_texture("home_texture", egui_image, TextureOptions::NEAREST)
+                    .id();
 
-                    let (bounds_min, bounds_max) = room.bounds_with_walls();
-                    let room_center = (bounds_min + bounds_max) / 2.0;
-                    let room_size = bounds_max - bounds_min;
+                let (bounds_min, bounds_max) = self.layout.bounds_with_walls();
+                let home_center = (bounds_min + bounds_max) / 2.0;
+                let home_size = bounds_max - bounds_min;
 
-                    let rect = Rect::from_center_size(
-                        self.world_to_pixels(canvas_center, room_center.x, room_center.y),
-                        Vec2::new(room_size.x * self.zoom, room_size.y * self.zoom),
-                    );
-                    painter.image(
-                        canvas_texture_id,
-                        rect,
-                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
-                        Color32::WHITE,
-                    );
-                }
+                let rect = Rect::from_center_size(
+                    self.world_to_pixels(canvas_center, home_center.x, home_center.y),
+                    Vec2::new(home_size.x * self.zoom, home_size.y * self.zoom),
+                );
+                painter.image(
+                    canvas_texture_id,
+                    rect,
+                    Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+
                 // Update cache if needed
-                if !update_rooms_render.is_empty() {
-                    for room in &mut self.layout.rooms {
-                        if let Some(render) = update_rooms_render.get(&room.name) {
-                            room.render = Some(render.clone());
-                        }
+                if update_render.is_some() {
+                    if let Some(render) = update_render {
+                        self.layout.rendered_data = Some(render);
                     }
-                    self.layout.save_memory();
                 }
 
                 if self.edit_mode.enabled {

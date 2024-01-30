@@ -201,7 +201,7 @@ impl HomeFlow {
                 };
 
                 room.pos = new_pos;
-                // room.render = None;
+                self.layout.rendered_data = None;
             }
             if response.drag_released() {
                 self.edit_mode.dragging_room = None;
@@ -251,17 +251,17 @@ impl HomeFlow {
                 20.0,
             ));
         }
+        let home_render = self.layout.rendered_data.clone().unwrap();
         if let Some(room_id) = &edit_response.room_hovered {
             let room = self.layout.rooms.iter().find(|r| &r.id == room_id).unwrap();
-            let room_render = room.render.as_ref().unwrap();
 
             // Render outline
             let (bounds_min, bounds_max) = room.bounds();
             let room_center = (bounds_min + bounds_max) / 2.0;
-            let render_offset = room_center - room_render.center;
+            let render_offset = room_center - home_render.center;
 
-            let points = room_render
-                .vertices
+            let vertices = home_render.vertices.get(room_id).unwrap();
+            let points = vertices
                 .iter()
                 .map(|v| {
                     self.world_to_pixels(
@@ -324,7 +324,10 @@ impl HomeFlow {
                 .title_bar(false)
                 .resizable(false)
                 .show(ctx, |ui| {
-                    room_edit_widgets(ui, room);
+                    let invalidate_render = room_edit_widgets(ui, room);
+                    if invalidate_render {
+                        self.layout.rendered_data = None;
+                    }
 
                     let mut window_rect = ui.min_rect();
                     ui.memory(|memory| {
@@ -344,7 +347,9 @@ impl HomeFlow {
     }
 }
 
-fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
+fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> bool {
+    let mut invalidate_render = false;
+
     ui.horizontal(|ui| {
         ui.label("Room ");
         ui.text_edit_singleline(&mut room.name);
@@ -401,7 +406,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                     WallType::VARIANTS,
                     &format!("{room_side} Wall"),
                 ) {
-                    room.render = None;
+                    invalidate_render = true;
                 }
                 if wall_side == 1 {
                     ui.end_row();
@@ -414,7 +419,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
         &mut room.render_options,
         format!("Materials {}", room.id),
     ) {
-        room.render = None;
+        invalidate_render = true;
     }
     ui.separator();
 
@@ -423,7 +428,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
         ui.label("Operations");
         if ui.add(egui::Button::new("Add")).clicked() {
             room.operations.push(Operation::default());
-            room.render = None;
+            invalidate_render = true;
         }
     });
     if !room.operations.is_empty() {
@@ -443,7 +448,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                 Action::VARIANTS,
                 "",
             ) {
-                room.render = None;
+                invalidate_render = true;
             }
             if combo_box_for_enum(
                 ui,
@@ -452,21 +457,21 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                 Shape::VARIANTS,
                 "",
             ) {
-                room.render = None;
+                invalidate_render = true;
             }
 
             if ui.add(egui::Button::new("Delete")).clicked() {
                 operations_to_remove.push(index);
-                room.render = None;
+                invalidate_render = true;
             }
 
             if index > 0 && ui.add(egui::Button::new("^")).clicked() {
                 operations_to_raise.push(index);
-                room.render = None;
+                invalidate_render = true;
             }
             if index < num_operations - 1 && ui.add(egui::Button::new("v")).clicked() {
                 operations_to_lower.push(index);
-                room.render = None;
+                invalidate_render = true;
             }
         });
 
@@ -480,7 +485,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                 )
                 .changed()
             {
-                room.render = None;
+                invalidate_render = true;
             }
             if ui
                 .add(
@@ -490,7 +495,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                 )
                 .changed()
             {
-                room.render = None;
+                invalidate_render = true;
             }
             ui.label("Size");
             if ui
@@ -501,7 +506,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                 )
                 .changed()
             {
-                room.render = None;
+                invalidate_render = true;
             }
             if ui
                 .add(
@@ -511,7 +516,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                 )
                 .changed()
             {
-                room.render = None;
+                invalidate_render = true;
             }
         });
 
@@ -522,7 +527,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
                 format!("Materials Operation {index}"),
             )
         {
-            room.render = None;
+            invalidate_render = true;
         }
     }
     if room.operations.is_empty() {
@@ -541,6 +546,8 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) {
             room.operations.swap(index, index + 1);
         }
     }
+
+    invalidate_render
 }
 
 fn render_options_widgets(
