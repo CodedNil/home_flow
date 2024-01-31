@@ -237,21 +237,12 @@ impl std::fmt::Display for Room {
 
         // Walls
         string.push_str("    Walls: ");
-        for (index, wall_type) in [
-            self.walls.left,
-            self.walls.top,
-            self.walls.right,
-            self.walls.bottom,
-        ]
-        .iter()
-        .enumerate()
-        {
-            let wall_side = match index {
-                0 => "Left",
-                1 => "Top",
-                2 => "Right",
-                3 => "Bottom",
-                _ => "Unknown",
+        for index in 0..4 {
+            let (wall_type, wall_side) = match index {
+                0 => (self.walls.left, "Left"),
+                1 => (self.walls.top, "Top"),
+                2 => (self.walls.right, "Right"),
+                _ => (self.walls.bottom, "Bottom"),
             };
             string.push_str(format!("[{wall_side}: {wall_type}] ").as_str());
         }

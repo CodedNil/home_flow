@@ -355,7 +355,25 @@ impl Room {
                 poly1 = create_polygon(&vertices);
             }
         }
-        vertices
+
+        // Merge vertices that are very close together
+        let merge_distance = 0.1;
+        let mut merged_vertices = Vec::new();
+        for vertex in vertices {
+            let mut merged = false;
+            for merged_vertex in &mut merged_vertices {
+                if (vertex - *merged_vertex).length() < merge_distance {
+                    *merged_vertex = (*merged_vertex + vertex) / 2.0;
+                    merged = true;
+                    break;
+                }
+            }
+            if !merged {
+                merged_vertices.push(vertex);
+            }
+        }
+
+        merged_vertices
     }
 
     pub fn walls(&self, vertices: &Vec<Vec2>) -> Vec<Wall> {

@@ -178,10 +178,11 @@ impl HomeFlow {
             }
             if response.dragged() {
                 if let Some(drag_data) = self.edit_mode.drag_data.clone() {
-                    used_dragged = true;
-
-                    (snap_line_horizontal, snap_line_vertical) =
-                        self.handle_room_drag(&drag_data, drag_data.room_id, ctx);
+                    if Some(drag_data.room_id) == self.edit_mode.selected_room {
+                        used_dragged = true;
+                        (snap_line_horizontal, snap_line_vertical) =
+                            self.handle_room_drag(&drag_data, drag_data.room_id, ctx);
+                    }
                 }
             }
             if response.drag_released() {
@@ -560,20 +561,12 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
             ui.end_row();
 
             // Wall selection
-            for (index, wall_type) in [
-                room.walls.left,
-                room.walls.top,
-                room.walls.right,
-                room.walls.bottom,
-            ]
-            .iter_mut()
-            .enumerate()
-            {
-                let wall_side = match index {
-                    0 => "Left",
-                    1 => "Top",
-                    2 => "Right",
-                    _ => "Bottom",
+            for index in 0..4 {
+                let (wall_type, wall_side) = match index {
+                    0 => (&mut room.walls.left, "Left"),
+                    1 => (&mut room.walls.top, "Top"),
+                    2 => (&mut room.walls.right, "Right"),
+                    _ => (&mut room.walls.bottom, "Bottom"),
                 };
                 combo_box_for_enum(
                     ui,
