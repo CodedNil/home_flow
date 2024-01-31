@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::HomeFlow;
 use crate::common::{
     layout::{Action, Operation, RenderOptions, Room, TileOptions, Vec2},
@@ -9,6 +7,7 @@ use egui::{
     Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2,
     Shape as EShape, Stroke, Ui, Window,
 };
+use std::collections::HashMap;
 use strum::VariantArray;
 use uuid::Uuid;
 
