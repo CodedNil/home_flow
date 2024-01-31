@@ -34,6 +34,14 @@ impl Home {
             version: LAYOUT_VERSION.to_string(),
             rooms: vec![
                 Room::new(
+                    "Hall",
+                    Vec2::new(2.9, -0.1),
+                    Vec2::new(2.2, 4.8),
+                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    Walls::NONE,
+                    vec![],
+                ),
+                Room::new(
                     "Balcony",
                     Vec2::new(-0.2, -4.0),
                     Vec2::new(4.0, 1.8),
@@ -127,25 +135,83 @@ impl Home {
                     vec![],
                 ),
                 Room::new(
+                    "Office",
+                    Vec2::new(4.2, 2.7),
+                    Vec2::new(4.0, 3.0),
+                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    Walls::INTERIOR
+                        .top(WallType::Exterior)
+                        .right(WallType::Exterior)
+                        .bottom(WallType::Interior),
+                    vec![Operation::new(
+                        Action::Subtract,
+                        Shape::Rectangle,
+                        Vec2::new(-1.8, -1.4),
+                        Vec2::new(1.5, 1.0),
+                        45.0,
+                    )],
+                ),
+                Room::new(
+                    "Bedroom",
+                    Vec2::new(3.8, -4.5),
+                    Vec2::new(4.0, 4.0),
+                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    Walls::EXTERIOR
+                        .left(WallType::Exterior)
+                        .top(WallType::Interior)
+                        .bottom(WallType::Exterior),
+                    vec![],
+                ),
+                Room::new(
+                    "Storage2",
+                    Vec2::new(2.4, -0.1),
+                    Vec2::new(1.2, 1.6),
+                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    Walls::INTERIOR,
+                    vec![Operation::new(
+                        Action::Subtract,
+                        Shape::Rectangle,
+                        Vec2::new(0.4, 0.5),
+                        Vec2::new(1.8, 0.8),
+                        45.0,
+                    )],
+                ),
+                Room::new(
+                    "Storage3",
+                    Vec2::new(2.4, -1.7),
+                    Vec2::new(1.2, 1.6),
+                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    Walls::INTERIOR,
+                    vec![],
+                ),
+                Room::new(
+                    "Closet",
+                    Vec2::new(4.9, -1.9),
+                    Vec2::new(1.8, 1.2),
+                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    Walls::INTERIOR.right(WallType::Exterior),
+                    vec![],
+                ),
+                Room::new(
                     "Bathroom",
-                    Vec2::new(3.85, 0.0),
-                    Vec2::new(1.6, 2.7),
+                    Vec2::new(4.9, -0.05),
+                    Vec2::new(1.8, 2.5),
                     RenderOptions::new(
                         Material::Granite,
                         2.0,
                         Some("#fff8e8"),
                         Some(TileOptions::new(4, "#ffffff00", 0.015, "#505050cc")),
                     ),
-                    Walls::INTERIOR.bottom(WallType::Exterior),
-                    vec![Operation {
-                        id: Uuid::new_v4(),
-                        action: Action::Subtract,
-                        shape: Shape::Rectangle,
-                        render_options: None,
-                        pos: Vec2::new(0.5, 2.7 / 2.0 - 0.3),
-                        size: Vec2::new(1.0, 1.2),
-                        rotation: 0.0,
-                    }],
+                    Walls::INTERIOR.right(WallType::Exterior),
+                    vec![],
+                ),
+                Room::new(
+                    "Storage4",
+                    Vec2::new(3.9, 0.8),
+                    Vec2::new(0.8, 0.8),
+                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    Walls::INTERIOR,
+                    vec![],
                 ),
             ],
             furniture: vec![],

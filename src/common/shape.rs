@@ -16,8 +16,7 @@ impl Room {
     }
 
     pub fn bounds(&self) -> (Vec2, Vec2) {
-        let mut min = self.pos - self.size / 2.0;
-        let mut max = self.pos + self.size / 2.0;
+        let (mut min, mut max) = self.self_bounds();
 
         for operation in &self.operations {
             if operation.action == Action::Add {
@@ -96,24 +95,7 @@ impl Room {
             }
         }
 
-        // Merge vertices that are very close together
-        let merge_distance = 0.1;
-        let mut merged_vertices = Vec::new();
-        for vertex in vertices {
-            let mut merged = false;
-            for merged_vertex in &mut merged_vertices {
-                if (vertex - *merged_vertex).length() < merge_distance {
-                    *merged_vertex = (*merged_vertex + vertex) / 2.0;
-                    merged = true;
-                    break;
-                }
-            }
-            if !merged {
-                merged_vertices.push(vertex);
-            }
-        }
-
-        merged_vertices
+        vertices
     }
 
     pub fn walls(&self, vertices: &Vec<Vec2>) -> Vec<Wall> {

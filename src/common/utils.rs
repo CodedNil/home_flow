@@ -130,12 +130,8 @@ pub fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> 
     let line_vec = end - start;
     let line_len = line_vec.length();
 
-    if line_len == 0.0 {
-        // Line segment is a point
-        return point.x < start.x + width
-            && point.x > start.x - width
-            && point.y < start.y + width
-            && point.y > start.y - width;
+    if line_len < 0.025 {
+        return false;
     }
 
     // Project 'point' onto the line segment, but keep within the segment
@@ -231,6 +227,7 @@ impl Hash for Room {
         self.size.hash(state);
         self.walls.hash(state);
         self.operations.hash(state);
+        self.render_options.hash(state);
     }
 }
 impl std::fmt::Display for Room {

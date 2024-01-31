@@ -7,7 +7,7 @@ use egui::{
     Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2,
     Shape as EShape, Stroke, Ui, Window,
 };
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 use strum::VariantArray;
 use uuid::Uuid;
 
@@ -452,12 +452,6 @@ impl HomeFlow {
                 );
             }
         }
-        let mut room_positions = HashMap::new();
-        for room in &self.layout.rooms {
-            let room_pos = self.world_to_pixels(room.pos.x, room.pos.y + room.size.y / 2.0)
-                + egui::Vec2::new(0.0, -20.0);
-            room_positions.insert(room.id, room_pos);
-        }
         if let Some(room_id) = &edit_response.room_selected {
             let room = self
                 .layout
@@ -467,9 +461,9 @@ impl HomeFlow {
                 .unwrap();
             let mut alter_room = AlterRoom::None;
             Window::new(format!("Edit {}", room.id))
-                .fixed_pos(room_positions[room_id])
+                .fixed_pos(Pos2::new(self.canvas_center.x, 20.0))
                 .fixed_size([200.0, 0.0])
-                .pivot(Align2::CENTER_BOTTOM)
+                .pivot(Align2::CENTER_TOP)
                 .title_bar(false)
                 .resizable(false)
                 .show(ctx, |ui| {
@@ -587,132 +581,138 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
     );
     ui.separator();
 
-    // List operations with buttons to delete and button to add, and drag to reorder
-    ui.horizontal(|ui| {
-        ui.label("Operations");
-        if ui.add(Button::new("Add")).clicked() {
-            room.operations.push(Operation {
-                id: Uuid::new_v4(),
-                action: Action::Add,
-                shape: Shape::Rectangle,
-                render_options: None,
-                pos: Vec2::new(0.0, 0.0),
-                size: Vec2::new(1.0, 1.0),
-                rotation: 0.0,
-            });
+    ui.collapsing("Operations", |ui| {
+        // List operations with buttons to delete and button to add, and drag to reorder
+        ui.horizontal(|ui| {
+            ui.label("Operations");
+            if ui.add(Button::new("Add")).clicked() {
+                room.operations.push(Operation {
+                    id: Uuid::new_v4(),
+                    action: Action::Add,
+                    shape: Shape::Rectangle,
+                    render_options: None,
+                    pos: Vec2::new(0.0, 0.0),
+                    size: Vec2::new(1.0, 1.0),
+                    rotation: 0.0,
+                });
+            }
+        });
+        if !room.operations.is_empty() {
+            ui.separator();
         }
-    });
-    if !room.operations.is_empty() {
-        ui.separator();
-    }
-    let mut operations_to_remove = vec![];
-    let mut operations_to_raise = vec![];
-    let mut operations_to_lower = vec![];
-    let num_operations = room.operations.len();
-    for (index, operation) in room.operations.iter_mut().enumerate() {
-        ui.horizontal(|ui| {
-            ui.label(format!("{index}"));
-            combo_box_for_enum(
-                ui,
-                format!("Operation {index}"),
-                &mut operation.action,
-                Action::VARIANTS,
-                "",
-            );
-            combo_box_for_enum(
-                ui,
-                format!("Shape {index}"),
-                &mut operation.shape,
-                Shape::VARIANTS,
-                "",
-            );
+        let mut operations_to_remove = vec![];
+        let mut operations_to_raise = vec![];
+        let mut operations_to_lower = vec![];
+        let num_operations = room.operations.len();
+        for (index, operation) in room.operations.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(format!("{index}"));
+                combo_box_for_enum(
+                    ui,
+                    format!("Operation {index}"),
+                    &mut operation.action,
+                    Action::VARIANTS,
+                    "",
+                );
+                combo_box_for_enum(
+                    ui,
+                    format!("Shape {index}"),
+                    &mut operation.shape,
+                    Shape::VARIANTS,
+                    "",
+                );
 
-            if ui.add(Button::new("Delete")).clicked() {
-                operations_to_remove.push(index);
-            }
+                if ui.add(Button::new("Delete")).clicked() {
+                    operations_to_remove.push(index);
+                }
 
-            if index > 0 && ui.add(Button::new("^")).clicked() {
-                operations_to_raise.push(index);
-            }
-            if index < num_operations - 1 && ui.add(Button::new("v")).clicked() {
-                operations_to_lower.push(index);
-            }
-        });
+                if index > 0 && ui.add(Button::new("^")).clicked() {
+                    operations_to_raise.push(index);
+                }
+                if index < num_operations - 1 && ui.add(Button::new("v")).clicked() {
+                    operations_to_lower.push(index);
+                }
+            });
 
-        ui.horizontal(|ui| {
-            ui.label("Pos");
-            ui.add(
-                DragValue::new(&mut operation.pos.x)
-                    .speed(0.1)
-                    .fixed_decimals(2),
-            );
-            ui.add(
-                DragValue::new(&mut operation.pos.y)
-                    .speed(0.1)
-                    .fixed_decimals(2),
-            );
-            ui.label("Size");
-            ui.add(
-                DragValue::new(&mut operation.size.x)
-                    .speed(0.1)
-                    .fixed_decimals(2),
-            );
-            ui.add(
-                DragValue::new(&mut operation.size.y)
-                    .speed(0.1)
-                    .fixed_decimals(2),
-            );
-            ui.label("Rotation");
-            if ui
-                .add(
-                    DragValue::new(&mut operation.rotation)
-                        .speed(5)
-                        .fixed_decimals(0),
-                )
-                .changed()
-            {
-                operation.rotation = operation.rotation.rem_euclid(360.0);
-            }
-        });
+            ui.horizontal(|ui| {
+                ui.label("Pos");
+                ui.add(
+                    DragValue::new(&mut operation.pos.x)
+                        .speed(0.1)
+                        .fixed_decimals(2),
+                );
+                ui.add(
+                    DragValue::new(&mut operation.pos.y)
+                        .speed(0.1)
+                        .fixed_decimals(2),
+                );
+                ui.label("Size");
+                ui.add(
+                    DragValue::new(&mut operation.size.x)
+                        .speed(0.1)
+                        .fixed_decimals(2),
+                );
+                ui.add(
+                    DragValue::new(&mut operation.size.y)
+                        .speed(0.1)
+                        .fixed_decimals(2),
+                );
+                ui.label("Rotation");
+                if ui
+                    .add(
+                        DragValue::new(&mut operation.rotation)
+                            .speed(5)
+                            .fixed_decimals(0),
+                    )
+                    .changed()
+                {
+                    operation.rotation = operation.rotation.rem_euclid(360.0);
+                }
+            });
 
-        if operation.action == Action::Add {
-            // Add tickbox to use parents material or custom
-            if ui
-                .add(Checkbox::new(
-                    &mut operation.render_options.is_none(),
-                    "Use Parent Material",
-                ))
-                .changed()
-            {
-                if operation.render_options.is_some() {
-                    operation.render_options = None;
-                } else {
-                    operation.render_options = Some(RenderOptions::default());
+            if operation.action == Action::Add {
+                // Add tickbox to use parents material or custom
+                if ui
+                    .add(Checkbox::new(
+                        &mut operation.render_options.is_none(),
+                        "Use Parent Material",
+                    ))
+                    .changed()
+                {
+                    if operation.render_options.is_some() {
+                        operation.render_options = None;
+                    } else {
+                        operation.render_options = Some(RenderOptions::default());
+                    }
+                }
+                if let Some(render_options) = &mut operation.render_options {
+                    render_options_widgets(
+                        ui,
+                        render_options,
+                        format!("Materials Operation {index}"),
+                    );
                 }
             }
-            if let Some(render_options) = &mut operation.render_options {
-                render_options_widgets(ui, render_options, format!("Materials Operation {index}"));
+
+            ui.separator();
+        }
+        if room.operations.is_empty() {
+            ui.separator();
+        }
+        for index in operations_to_remove {
+            room.operations.remove(index);
+        }
+        for index in operations_to_raise {
+            if index > 0 {
+                room.operations.swap(index, index - 1);
             }
         }
-
-        ui.separator();
-    }
-    if room.operations.is_empty() {
-        ui.separator();
-    }
-    for index in operations_to_remove {
-        room.operations.remove(index);
-    }
-    for index in operations_to_raise {
-        if index > 0 {
-            room.operations.swap(index, index - 1);
+        for index in operations_to_lower {
+            if index < room.operations.len() - 1 {
+                room.operations.swap(index, index + 1);
+            }
         }
-    }
-    for index in operations_to_lower {
-        if index < room.operations.len() - 1 {
-            room.operations.swap(index, index + 1);
-        }
-    }
+    });
 
     alter_room
 }
