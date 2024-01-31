@@ -406,13 +406,13 @@ impl HomeFlow {
                 });
             });
 
-        let home_render = self.layout.rendered_data.clone().unwrap();
         if let Some(room_id) = &edit_response.room_hovered {
             let room = self.layout.rooms.iter().find(|r| &r.id == room_id).unwrap();
+            let rendered_data = room.rendered_data.as_ref().unwrap();
 
             // Render outline
-            let vertices = home_render.vertices.get(room_id).unwrap();
-            let points = vertices
+            let points = rendered_data
+                .vertices
                 .iter()
                 .map(|v| self.world_to_pixels(v.x, v.y))
                 .collect::<Vec<_>>();

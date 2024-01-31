@@ -2,7 +2,6 @@ use super::shape::{Material, Shape, WallType};
 use egui::Color32;
 use image::{ImageBuffer, Rgba};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use strum_macros::{Display, VariantArray};
 use uuid::Uuid;
@@ -250,8 +249,6 @@ pub struct HomeRender {
     pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
     pub center: Vec2,
     pub size: Vec2,
-    pub vertices: HashMap<uuid::Uuid, Vec<Vec2>>,
-    pub walls: HashMap<uuid::Uuid, Vec<Wall>>,
 }
 
 #[derive(Clone)]

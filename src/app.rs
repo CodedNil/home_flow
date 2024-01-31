@@ -332,32 +332,36 @@ impl eframe::App for HomeFlow {
 
                 self.render_grid(&painter, &response.rect);
 
-                self.layout.render();
-                let rendered_data = self.layout.rendered_data.as_ref().unwrap();
+                for room in &mut self.layout.rooms {
+                    room.render();
+                }
+                for room in &self.layout.rooms {
+                    let rendered_data = room.rendered_data.as_ref().unwrap();
 
-                let canvas_size = rendered_data.texture.dimensions();
-                let egui_image = ColorImage::from_rgba_unmultiplied(
-                    [canvas_size.0 as usize, canvas_size.1 as usize],
-                    &rendered_data.texture,
-                );
-                let canvas_texture_id = ctx
-                    .load_texture("home_texture", egui_image, TextureOptions::NEAREST)
-                    .id();
+                    let canvas_size = rendered_data.texture.dimensions();
+                    let egui_image = ColorImage::from_rgba_unmultiplied(
+                        [canvas_size.0 as usize, canvas_size.1 as usize],
+                        &rendered_data.texture,
+                    );
+                    let canvas_texture_id = ctx
+                        .load_texture("home_texture", egui_image, TextureOptions::NEAREST)
+                        .id();
 
-                let (bounds_min, bounds_max) = self.layout.bounds_with_walls();
-                let home_center = (bounds_min + bounds_max) / 2.0;
-                let home_size = bounds_max - bounds_min;
+                    let (bounds_min, bounds_max) = room.bounds_with_walls();
+                    let home_center = (bounds_min + bounds_max) / 2.0;
+                    let home_size = bounds_max - bounds_min;
 
-                let rect = Rect::from_center_size(
-                    self.world_to_pixels(home_center.x, home_center.y),
-                    Vec2::new(home_size.x * self.zoom, home_size.y * self.zoom),
-                );
-                painter.image(
-                    canvas_texture_id,
-                    rect,
-                    Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
-                    Color32::WHITE,
-                );
+                    let rect = Rect::from_center_size(
+                        self.world_to_pixels(home_center.x, home_center.y),
+                        Vec2::new(home_size.x * self.zoom, home_size.y * self.zoom),
+                    );
+                    painter.image(
+                        canvas_texture_id,
+                        rect,
+                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                }
 
                 if self.edit_mode.enabled {
                     self.paint_edit_mode(&painter, &edit_mode_response, ctx);

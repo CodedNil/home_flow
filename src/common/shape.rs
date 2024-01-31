@@ -1,5 +1,5 @@
 use super::{
-    layout::{Action, Home, Room, Vec2, Wall, Walls},
+    layout::{Action, Room, Vec2, Wall, Walls},
     utils::{point_within_segment, rotate_point},
 };
 use geo::BooleanOps;
@@ -9,29 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, hash::Hash};
 use strum::VariantArray;
 use strum_macros::{Display, VariantArray};
-
-impl Home {
-    pub fn bounds(&self) -> (Vec2, Vec2) {
-        let mut min = Vec2::MAX;
-        let mut max = Vec2::MIN;
-
-        for room in &self.rooms {
-            let (room_min, room_max) = room.bounds();
-            min = min.min(room_min);
-            max = max.max(room_max);
-        }
-
-        (min, max)
-    }
-
-    pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
-        let (mut min, mut max) = self.bounds();
-        let wall_width = WallType::Exterior.width();
-        min = min - Vec2::new(wall_width, wall_width);
-        max = max + Vec2::new(wall_width, wall_width);
-        (min, max)
-    }
-}
 
 impl Room {
     pub fn self_bounds(&self) -> (Vec2, Vec2) {

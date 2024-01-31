@@ -1,16 +1,16 @@
-use crate::common::layout::{Action, Home, HomeRender, RenderOptions, Vec2, RESOLUTION_FACTOR};
+use crate::common::layout::{Action, RenderOptions, Room, RoomRender, Vec2, RESOLUTION_FACTOR};
 use crate::common::shape::{Material, Shape, WallType, TEXTURES};
 use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use rayon::prelude::*;
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap},
+    collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
 };
 
 const WALL_COLOR: Rgba<u8> = Rgba([130, 80, 20, 255]);
-const CHUNK_SIZE: u32 = 32;
+const CHUNK_SIZE: u32 = 64;
 
-impl Home {
+impl Room {
     pub fn render(&mut self) {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
@@ -20,8 +20,6 @@ impl Home {
                 return;
             }
         }
-
-        let start = std::time::Instant::now();
 
         // Calculate the center and size of the home
         let (bounds_min, bounds_max) = self.bounds_with_walls();
@@ -33,39 +31,14 @@ impl Home {
         let height = new_size.y * RESOLUTION_FACTOR;
 
         // Calculate the vertices and walls of the room
-        let mut vertices = HashMap::new();
-        let mut walls = HashMap::new();
-        for room in &self.rooms {
-            vertices.insert(room.id, room.vertices());
-            walls.insert(room.id, room.walls(&vertices[&room.id]));
-        }
-        let mut room_bounds = HashMap::new();
-        for room in &self.rooms {
-            room_bounds.insert(room.id, room.bounds_with_walls());
-        }
+        let vertices = self.vertices();
+        let walls = self.walls(&vertices);
 
         // Create an image buffer with the calculated size, filled with transparent pixels
         let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
 
         // Load required textures
         let wall_texture = TEXTURES.get(&Material::Wall).unwrap();
-        let mut textures = HashMap::new();
-        for room in &self.rooms {
-            textures
-                .entry(&room.render_options.material)
-                .or_insert_with(|| TEXTURES.get(&room.render_options.material).unwrap());
-            for operation in &room.operations {
-                if operation.action == Action::Add {
-                    if let Some(render_options) = &operation.render_options {
-                        textures
-                            .entry(&render_options.material)
-                            .or_insert_with(|| TEXTURES.get(&render_options.material).unwrap());
-                    }
-                }
-            }
-        }
-
-        println!("Prepared in {:?}", start.elapsed());
 
         let (image_width, image_height) = (image_buffer.width(), image_buffer.height());
         let num_chunks_x = (image_width + CHUNK_SIZE - 1) / CHUNK_SIZE;
@@ -103,94 +76,83 @@ impl Home {
                         let point_in_world = bounds_min + point * new_size;
 
                         let mut is_wall = false;
-                        for room in &self.rooms {
-                            // Check if within rooms bounds using room_bounds HashMap with min and max
-                            let (room_min, room_max) = room_bounds[&room.id];
-                            if point_in_world.x < room_min.x
-                                || point_in_world.x > room_max.x
-                                || point_in_world.y < room_min.y
-                                || point_in_world.y > room_max.y
+
+                        let mut rooms_pixel_color = None;
+                        if Shape::Rectangle.contains(point_in_world, self.pos, self.size, 0.0) {
+                            if let Some(texture) = TEXTURES.get(&self.render_options.material) {
+                                // Calculate the relative position within the room
+                                let point_within_shape =
+                                    (point_in_world - self.pos + self.size / 2.0) / self.size;
+
+                                rooms_pixel_color = Some(apply_render_options(
+                                    &self.render_options,
+                                    texture,
+                                    x as f32,
+                                    y as f32,
+                                    point_within_shape,
+                                    self.size.x / self.size.y,
+                                ));
+                                chunk_edited = true;
+                            }
+                        }
+                        for operation in &self.operations {
+                            match operation.action {
+                                Action::Add => {
+                                    if operation.shape.contains(
+                                        point_in_world,
+                                        self.pos + operation.pos,
+                                        operation.size,
+                                        operation.rotation,
+                                    ) {
+                                        let render_options = operation
+                                            .render_options
+                                            .as_ref()
+                                            .map_or(&self.render_options, |render_options| {
+                                                render_options
+                                            });
+                                        if let Some(texture) =
+                                            TEXTURES.get(&render_options.material)
+                                        {
+                                            // Calculate the relative position within the room
+                                            let point_within_shape = (point_in_world - self.pos
+                                                + self.size / 2.0)
+                                                / self.size;
+
+                                            rooms_pixel_color = Some(apply_render_options(
+                                                render_options,
+                                                texture,
+                                                x as f32,
+                                                y as f32,
+                                                point_within_shape,
+                                                self.size.x / self.size.y,
+                                            ));
+                                            chunk_edited = true;
+                                        }
+                                    }
+                                }
+                                Action::Subtract => {
+                                    if operation.shape.contains(
+                                        point_in_world,
+                                        self.pos + operation.pos,
+                                        operation.size,
+                                        operation.rotation,
+                                    ) {
+                                        rooms_pixel_color = None;
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(rooms_pixel_color) = rooms_pixel_color {
+                            pixel_color = rooms_pixel_color;
+                            is_wall = false;
+                        }
+
+                        // Check if within room bounds with walls
+                        for wall in &walls {
+                            if wall.wall_type != WallType::None && wall.point_within(point_in_world)
                             {
-                                continue;
-                            }
-
-                            let mut rooms_pixel_color = None;
-                            if Shape::Rectangle.contains(point_in_world, room.pos, room.size, 0.0) {
-                                if let Some(texture) = textures.get(&room.render_options.material) {
-                                    // Calculate the relative position within the room
-                                    let point_within_shape =
-                                        (point_in_world - room.pos + room.size / 2.0) / room.size;
-
-                                    rooms_pixel_color = Some(apply_render_options(
-                                        &room.render_options,
-                                        texture,
-                                        x as f32,
-                                        y as f32,
-                                        point_within_shape,
-                                        room.size.x / room.size.y,
-                                    ));
-                                    chunk_edited = true;
-                                }
-                            }
-                            for operation in &room.operations {
-                                match operation.action {
-                                    Action::Add => {
-                                        if operation.shape.contains(
-                                            point_in_world,
-                                            room.pos + operation.pos,
-                                            operation.size,
-                                            operation.rotation,
-                                        ) {
-                                            let render_options =
-                                                operation.render_options.as_ref().map_or(
-                                                    &room.render_options,
-                                                    |render_options| render_options,
-                                                );
-                                            if let Some(texture) =
-                                                textures.get(&render_options.material)
-                                            {
-                                                // Calculate the relative position within the room
-                                                let point_within_shape =
-                                                    (point_in_world - room.pos + room.size / 2.0)
-                                                        / room.size;
-
-                                                rooms_pixel_color = Some(apply_render_options(
-                                                    render_options,
-                                                    texture,
-                                                    x as f32,
-                                                    y as f32,
-                                                    point_within_shape,
-                                                    room.size.x / room.size.y,
-                                                ));
-                                                chunk_edited = true;
-                                            }
-                                        }
-                                    }
-                                    Action::Subtract => {
-                                        if operation.shape.contains(
-                                            point_in_world,
-                                            room.pos + operation.pos,
-                                            operation.size,
-                                            operation.rotation,
-                                        ) {
-                                            rooms_pixel_color = None;
-                                        }
-                                    }
-                                }
-                            }
-                            if let Some(rooms_pixel_color) = rooms_pixel_color {
-                                pixel_color = rooms_pixel_color;
-                                is_wall = false;
-                            }
-
-                            // Check if within room bounds with walls
-                            for wall in walls.get(&room.id).unwrap() {
-                                if wall.wall_type != WallType::None
-                                    && wall.point_within(point_in_world)
-                                {
-                                    is_wall = true;
-                                    break;
-                                }
+                                is_wall = true;
+                                break;
                             }
                         }
 
@@ -226,8 +188,6 @@ impl Home {
             })
             .collect();
 
-        println!("Processed in {:?}", start.elapsed());
-
         // Combine the chunks back into the main image buffer
         for (start_x, start_y, chunk_width, chunk_height, chunk, chunk_edited) in chunks {
             if !chunk_edited {
@@ -243,9 +203,7 @@ impl Home {
             }
         }
 
-        println!("Rendered in {:?}", start.elapsed());
-
-        self.rendered_data = Some(HomeRender {
+        self.rendered_data = Some(RoomRender {
             hash,
             texture: image_buffer,
             center: new_center,
