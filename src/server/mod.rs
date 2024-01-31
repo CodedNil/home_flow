@@ -6,8 +6,9 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use chrono::Local;
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{Read, Write},
 };
 
@@ -35,13 +36,27 @@ pub async fn load_layout() -> impl IntoResponse {
         IntoResponse::into_response,
     )
 }
+
 pub async fn save_layout(home: String) -> impl IntoResponse {
     log::info!("Saving layout");
     let result = || -> Result<()> {
+        // Create the main file
         let mut file = File::create(LAYOUT_PATH)?;
         let home: Home = serde_json::from_str(&home)?;
         let contents = serde_json::to_string_pretty(&home)?;
         file.write_all(contents.as_bytes())?;
+
+        // Create a timestamp for the backup filename
+        let timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+        let backup_filename = format!("backups/home_layout_{timestamp}.json");
+
+        // Create backups directory if it doesn't exist
+        fs::create_dir_all("backups").ok();
+
+        // Create and write to the backup file
+        let mut backup_file = File::create(backup_filename)?;
+        backup_file.write_all(contents.as_bytes())?;
+
         Ok(())
     }();
 

@@ -45,6 +45,7 @@ tower-http = { version = "0.5.1", features = [
     "compression-deflate",
     "compression-gzip",
 ] }
+chrono = "0.4.33"
 
 [features]
 default = ["gui"]

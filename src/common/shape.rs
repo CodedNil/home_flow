@@ -1,11 +1,7 @@
 use super::{
-    layout::{
-        Action, Home, HomeRender, Operation, RenderOptions, Room, TileOptions, Vec2, Wall,
-        RESOLUTION_FACTOR,
-    },
-    utils::{hex_to_rgba, point_within_segment, rotate_point},
+    layout::{Action, Home, HomeRender, RenderOptions, Room, Vec2, Wall, Walls, RESOLUTION_FACTOR},
+    utils::{point_within_segment, rotate_point},
 };
-use egui::Color32;
 use geo::BooleanOps;
 use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use once_cell::sync::Lazy;
@@ -285,12 +281,29 @@ impl Room {
 
         for operation in &self.operations {
             if operation.action == Action::Add {
-                let (operation_min, operation_max) = (
-                    self.pos + operation.pos - operation.size / 2.0,
-                    self.pos + operation.pos + operation.size / 2.0,
-                );
-                min = min.min(operation_min);
-                max = max.max(operation_max);
+                let center = self.pos + operation.pos;
+                let corners = [
+                    center - operation.size / 2.0,
+                    Vec2 {
+                        x: center.x + operation.size.x / 2.0,
+                        y: center.y - operation.size.y / 2.0,
+                    },
+                    center + operation.size / 2.0,
+                    Vec2 {
+                        x: center.x - operation.size.x / 2.0,
+                        y: center.y + operation.size.y / 2.0,
+                    },
+                ];
+
+                let rotated_corners: Vec<_> = corners
+                    .iter()
+                    .map(|&corner| rotate_point(corner, center, -operation.rotation))
+                    .collect();
+
+                for &corner in &rotated_corners {
+                    min = min.min(corner);
+                    max = max.max(corner);
+                }
             }
         }
 
@@ -400,25 +413,21 @@ impl Room {
         };
 
         vec![
-            // Left
             Wall {
                 points: get_wall_vertices(top_left_index, bottom_left_index),
-                wall_type: self.walls[0],
+                wall_type: self.walls.left,
             },
-            // Top
             Wall {
                 points: get_wall_vertices(top_right_index, top_left_index),
-                wall_type: self.walls[1],
+                wall_type: self.walls.top,
             },
-            // Right
             Wall {
                 points: get_wall_vertices(bottom_right_index, top_right_index),
-                wall_type: self.walls[2],
+                wall_type: self.walls.right,
             },
-            // Bottom
             Wall {
                 points: get_wall_vertices(bottom_left_index, bottom_right_index),
-                wall_type: self.walls[3],
+                wall_type: self.walls.bottom,
             },
         ]
     }
@@ -676,66 +685,61 @@ impl WallType {
     }
 }
 
-impl RenderOptions {
-    pub fn new(
-        material: Material,
-        scale: f32,
-        tint: Option<&str>,
-        tiles: Option<TileOptions>,
-    ) -> Self {
-        let tint = tint.map(|tint| {
-            let color = hex_to_rgba(tint).unwrap_or([255, 255, 255, 255]);
-            Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3])
-        });
+impl Walls {
+    pub const NONE: Self = Self {
+        left: WallType::None,
+        top: WallType::None,
+        right: WallType::None,
+        bottom: WallType::None,
+    };
+
+    pub const INTERIOR: Self = Self {
+        left: WallType::Interior,
+        top: WallType::Interior,
+        right: WallType::Interior,
+        bottom: WallType::Interior,
+    };
+
+    pub const EXTERIOR: Self = Self {
+        left: WallType::Exterior,
+        top: WallType::Exterior,
+        right: WallType::Exterior,
+        bottom: WallType::Exterior,
+    };
+
+    pub const fn left(self, wall_type: WallType) -> Self {
         Self {
-            material,
-            scale,
-            tint,
-            tiles,
+            left: wall_type,
+            top: self.top,
+            right: self.right,
+            bottom: self.bottom,
         }
     }
-}
 
-impl TileOptions {
-    pub fn new(scale: u8, odd_tint: &str, grout_width: f32, grout_tint: &str) -> Self {
-        let odd_tint = hex_to_rgba(odd_tint).unwrap_or([255, 255, 255, 255]);
-        let grout_tint = hex_to_rgba(grout_tint).unwrap_or([255, 255, 255, 255]);
+    pub const fn top(self, wall_type: WallType) -> Self {
         Self {
-            scale,
-            odd_tint: Color32::from_rgba_premultiplied(
-                odd_tint[0],
-                odd_tint[1],
-                odd_tint[2],
-                odd_tint[3],
-            ),
-            grout_width,
-            grout_tint: Color32::from_rgba_premultiplied(
-                grout_tint[0],
-                grout_tint[1],
-                grout_tint[2],
-                grout_tint[3],
-            ),
+            left: self.left,
+            top: wall_type,
+            right: self.right,
+            bottom: self.bottom,
         }
     }
-}
 
-impl Room {
-    pub fn new(
-        name: &str,
-        pos: Vec2,
-        size: Vec2,
-        render_options: RenderOptions,
-        walls: Vec<WallType>,
-        operations: Vec<Operation>,
-    ) -> Self {
+    pub const fn right(self, wall_type: WallType) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
-            name: name.to_owned(),
-            render_options,
-            pos,
-            size,
-            walls,
-            operations,
+            left: self.left,
+            top: self.top,
+            right: wall_type,
+            bottom: self.bottom,
+        }
+    }
+
+    pub const fn bottom(self, wall_type: WallType) -> Self {
+        Self {
+            left: self.left,
+            top: self.top,
+            right: self.right,
+            bottom: wall_type,
         }
     }
 }

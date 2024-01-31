@@ -1,5 +1,9 @@
-use super::layout::{Furniture, Operation, RenderOptions, TileOptions, Vec2};
+use super::{
+    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, TileOptions, Vec2, Walls},
+    shape::{Material, Shape},
+};
 use anyhow::{anyhow, bail, Result};
+use egui::Color32;
 use std::hash::{Hash, Hasher};
 
 impl std::ops::Add for Vec2 {
@@ -110,7 +114,11 @@ impl Vec2 {
         y: std::f32::MAX,
     };
 }
-
+impl std::fmt::Display for Vec2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}]", self.x, self.y)
+    }
+}
 impl Hash for Vec2 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.x.to_bits().hash(state);
@@ -176,6 +184,101 @@ pub fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
     Ok([r, g, b, a])
 }
 
+fn color_to_string(color: Color32) -> String {
+    format!(
+        "#{:02x}{:02x}{:02x}{:02x}",
+        color.r(),
+        color.g(),
+        color.b(),
+        color.a()
+    )
+}
+
+impl std::fmt::Display for Home {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = String::new();
+        for room in &self.rooms {
+            string.push_str(format!("{room}\n").as_str());
+        }
+        write!(f, "{string}")
+    }
+}
+
+impl Room {
+    pub fn new(
+        name: &str,
+        pos: Vec2,
+        size: Vec2,
+        render_options: RenderOptions,
+        walls: Walls,
+        operations: Vec<Operation>,
+    ) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            name: name.to_owned(),
+            render_options,
+            pos,
+            size,
+            walls,
+            operations,
+        }
+    }
+}
+impl std::fmt::Display for Room {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = format!(
+            "Room: {} - {}x{}m @ {}x{}m\n",
+            self.name, self.size.x, self.size.y, self.pos.x, self.pos.y
+        );
+        for operation in &self.operations {
+            let op_string = operation.to_string().replace('\n', "\n        ");
+            string.push_str(format!("    Operation: {op_string}\n").as_str());
+        }
+
+        // Walls
+        string.push_str("    Walls: ");
+        for (index, wall_type) in [
+            self.walls.left,
+            self.walls.top,
+            self.walls.right,
+            self.walls.bottom,
+        ]
+        .iter()
+        .enumerate()
+        {
+            let wall_side = match index {
+                0 => "Left",
+                1 => "Top",
+                2 => "Right",
+                3 => "Bottom",
+                _ => "Unknown",
+            };
+            string.push_str(format!("[{wall_side}: {wall_type}] ").as_str());
+        }
+        string.push('\n');
+
+        write!(f, "{string}")
+    }
+}
+
+impl std::fmt::Display for Furniture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = format!(
+            "Furniture: {}x{}m @ {}x{}m",
+            self.size.x, self.size.y, self.pos.x, self.pos.y
+        );
+        if self.rotation != 0.0 {
+            string.push_str(format!(" - {}°", self.rotation).as_str());
+        }
+        string.push('\n');
+
+        for child in &self.children {
+            string.push_str(format!("    Child: {child}\n").as_str());
+        }
+
+        write!(f, "{string}")
+    }
+}
 impl Hash for Furniture {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.pos.hash(state);
@@ -187,6 +290,35 @@ impl Hash for Furniture {
     }
 }
 
+impl Operation {
+    pub fn new(action: Action, shape: Shape, pos: Vec2, size: Vec2, rotation: f32) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            action,
+            shape,
+            render_options: None,
+            pos,
+            size,
+            rotation,
+        }
+    }
+}
+impl std::fmt::Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = format!(
+            "Operation: {} {} - {}x{}m @ {}x{}m",
+            self.action, self.shape, self.size.x, self.size.y, self.pos.x, self.pos.y
+        );
+        if self.rotation != 0.0 {
+            string.push_str(format!(" - {}°", self.rotation).as_str());
+        }
+        if let Some(render_options) = &self.render_options {
+            string.push_str(format!("\nRender options: {render_options}").as_str());
+        }
+
+        write!(f, "{string}")
+    }
+}
 impl Hash for Operation {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.pos.hash(state);
@@ -198,6 +330,50 @@ impl Hash for Operation {
     }
 }
 
+impl RenderOptions {
+    pub fn new(
+        material: Material,
+        scale: f32,
+        tint: Option<&str>,
+        tiles: Option<TileOptions>,
+    ) -> Self {
+        let tint = tint.map(|tint| {
+            let color = hex_to_rgba(tint).unwrap_or([255, 255, 255, 255]);
+            Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3])
+        });
+        Self {
+            material,
+            scale,
+            tint,
+            tiles,
+        }
+    }
+}
+impl Default for RenderOptions {
+    fn default() -> Self {
+        Self {
+            material: Material::default(),
+            scale: 1.0,
+            tint: None,
+            tiles: None,
+        }
+    }
+}
+impl std::fmt::Display for RenderOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = format!("Material: {}", self.material);
+        if (self.scale - 1.0).abs() > f32::EPSILON {
+            string.push_str(format!(" - Scale: {}", self.scale).as_str());
+        }
+        if let Some(tint) = self.tint {
+            string.push_str(format!(" - Tint: {}", color_to_string(tint)).as_str());
+        }
+        if let Some(tiles) = &self.tiles {
+            string.push_str(format!(" - Tiles: {tiles}").as_str());
+        }
+        write!(f, "{string}")
+    }
+}
 impl Hash for RenderOptions {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.material.hash(state);
@@ -207,6 +383,42 @@ impl Hash for RenderOptions {
     }
 }
 
+impl TileOptions {
+    pub fn new(scale: u8, odd_tint: &str, grout_width: f32, grout_tint: &str) -> Self {
+        let odd_tint = hex_to_rgba(odd_tint).unwrap_or([255, 255, 255, 255]);
+        let grout_tint = hex_to_rgba(grout_tint).unwrap_or([255, 255, 255, 255]);
+        Self {
+            scale,
+            odd_tint: Color32::from_rgba_premultiplied(
+                odd_tint[0],
+                odd_tint[1],
+                odd_tint[2],
+                odd_tint[3],
+            ),
+            grout_width,
+            grout_tint: Color32::from_rgba_premultiplied(
+                grout_tint[0],
+                grout_tint[1],
+                grout_tint[2],
+                grout_tint[3],
+            ),
+        }
+    }
+}
+impl std::fmt::Display for TileOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = format!("Num: {}", self.scale);
+        if self.odd_tint.a() != 0 {
+            string.push_str(format!(" - Odd tint: {}", color_to_string(self.odd_tint)).as_str());
+        }
+        string.push_str(format!(" - Grout width: {}", self.grout_width).as_str());
+        if self.grout_tint.a() != 0 {
+            string
+                .push_str(format!(" - Grout tint: {}", color_to_string(self.grout_tint)).as_str());
+        }
+        write!(f, "{string}")
+    }
+}
 impl Hash for TileOptions {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.scale.hash(state);

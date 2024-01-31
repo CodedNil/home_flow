@@ -1,6 +1,6 @@
 use super::HomeFlow;
 use crate::common::{
-    layout::{Action, Operation, RenderOptions, Room, TileOptions, Vec2},
+    layout::{Action, Operation, RenderOptions, Room, TileOptions, Vec2, Walls},
     shape::{Material, Shape, WallType},
 };
 use egui::{
@@ -116,6 +116,7 @@ impl HomeFlow {
         for room in &self.layout.rooms {
             if room.contains_full(self.mouse_pos_world.x, self.mouse_pos_world.y) {
                 room_hovered = Some(room.id);
+                operation_hovered = None;
             }
             for operation in &room.operations {
                 if operation.shape.contains(
@@ -388,7 +389,7 @@ impl HomeFlow {
                             pos: Vec2::new(0.0, 0.0),
                             size: Vec2::new(1.0, 1.0),
                             operations: vec![],
-                            walls: vec![WallType::Interior; 4],
+                            walls: Walls::INTERIOR,
                         });
                     }
                 });
@@ -520,15 +521,15 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
     });
     ui.separator();
 
-    egui::Grid::new("my_grid")
+    egui::Grid::new("Room Edit Grid")
         .num_columns(2)
         .spacing([40.0, 4.0])
         .striped(true)
         .show(ui, |ui| {
             ui.label("Position ");
             ui.horizontal(|ui| {
-                ui.add(DragValue::new(&mut room.pos.x).speed(0.1).fixed_decimals(1));
-                ui.add(DragValue::new(&mut room.pos.y).speed(0.1).fixed_decimals(1));
+                ui.add(DragValue::new(&mut room.pos.x).speed(0.1).fixed_decimals(2));
+                ui.add(DragValue::new(&mut room.pos.y).speed(0.1).fixed_decimals(2));
             });
             ui.end_row();
 
@@ -537,19 +538,27 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                 ui.add(
                     DragValue::new(&mut room.size.x)
                         .speed(0.1)
-                        .fixed_decimals(1),
+                        .fixed_decimals(2),
                 );
                 ui.add(
                     DragValue::new(&mut room.size.y)
                         .speed(0.1)
-                        .fixed_decimals(1),
+                        .fixed_decimals(2),
                 );
             });
             ui.end_row();
 
             // Wall selection
-            for (wall_side, wall_type) in room.walls.iter_mut().enumerate() {
-                let room_side = match wall_side {
+            for (index, wall_type) in [
+                room.walls.left,
+                room.walls.top,
+                room.walls.right,
+                room.walls.bottom,
+            ]
+            .iter_mut()
+            .enumerate()
+            {
+                let wall_side = match index {
                     0 => "Left",
                     1 => "Top",
                     2 => "Right",
@@ -557,12 +566,12 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                 };
                 combo_box_for_enum(
                     ui,
-                    format!("{room_side} Wall"),
+                    format!("{wall_side} Wall"),
                     wall_type,
                     WallType::VARIANTS,
-                    &format!("{room_side} Wall"),
+                    &format!("{wall_side} Wall"),
                 );
-                if wall_side == 1 {
+                if index == 1 {
                     ui.end_row();
                 }
             }
