@@ -7,7 +7,7 @@ use egui::{
     Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2,
     Shape as EShape, Stroke, Ui, Window,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 use strum::VariantArray;
 use uuid::Uuid;
 
@@ -43,7 +43,12 @@ impl HomeFlow {
                 self.edit_mode.preview_edits = !self.edit_mode.preview_edits;
             }
             if ui.button("Save Edits").clicked() {
-                log::info!("Saving layout");
+                let toasts_store = self.toasts.clone();
+                toasts_store
+                    .lock()
+                    .unwrap()
+                    .info("Saving Layout")
+                    .set_duration(Some(Duration::from_secs(2)));
                 ehttp::fetch(
                     ehttp::Request::post(
                         format!("http://{}/save_layout", self.host),
@@ -52,7 +57,13 @@ impl HomeFlow {
                             .as_bytes()
                             .to_vec(),
                     ),
-                    move |_| {},
+                    move |_| {
+                        toasts_store
+                            .lock()
+                            .unwrap()
+                            .success("Layout Saved")
+                            .set_duration(Some(Duration::from_secs(2)));
+                    },
                 );
                 self.layout_server = self.layout.clone();
                 self.edit_mode.enabled = false;

@@ -4,6 +4,7 @@ use egui::{
     util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect,
     Sense, Stroke, TextureOptions, Vec2, Window,
 };
+use egui_notify::Toasts;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -23,6 +24,7 @@ pub struct HomeFlow {
     layout_server: layout::Home,
     layout: layout::Home,
 
+    toasts: Arc<Mutex<Toasts>>,
     edit_mode: EditDetails,
     frame_times: History<f32>,
     host: String,
@@ -53,6 +55,7 @@ impl Default for HomeFlow {
             layout_server: layout::Home::empty(),
             layout: layout::Home::empty(),
 
+            toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
             frame_times: History::new(0..max_len, max_age),
             host: "localhost:3000".to_string(),
@@ -373,6 +376,8 @@ impl eframe::App for HomeFlow {
                     .show(ctx, |ui| {
                         self.edit_mode_settings(ctx, ui);
                     });
+
+                self.toasts.lock().unwrap().show(ctx);
             });
     }
 }
