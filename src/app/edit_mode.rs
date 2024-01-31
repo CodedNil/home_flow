@@ -394,15 +394,14 @@ impl HomeFlow {
                     ui.label("Drag to move room or operation");
                     ui.label("Double click to select room with options");
                     if ui.button("Add Room").clicked() {
-                        self.layout.rooms.push(Room {
-                            id: Uuid::new_v4(),
-                            name: "New Room".to_string(),
-                            render_options: RenderOptions::default(),
-                            pos: Vec2::new(0.0, 0.0),
-                            size: Vec2::new(1.0, 1.0),
-                            operations: vec![],
-                            walls: Walls::INTERIOR,
-                        });
+                        self.layout.rooms.push(Room::new(
+                            "New Room",
+                            Vec2::new(0.0, 0.0),
+                            Vec2::new(1.0, 1.0),
+                            RenderOptions::default(),
+                            Walls::INTERIOR,
+                            vec![],
+                        ));
                     }
                 });
             });

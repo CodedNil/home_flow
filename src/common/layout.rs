@@ -166,7 +166,7 @@ impl Home {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Hash)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Room {
     pub id: Uuid,
     pub name: String,
@@ -175,6 +175,8 @@ pub struct Room {
     pub size: Vec2,
     pub operations: Vec<Operation>,
     pub walls: Walls,
+    #[serde(skip)]
+    pub rendered_data: Option<RoomRender>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Hash)]
@@ -221,16 +223,6 @@ pub struct TileOptions {
     pub grout_tint: Color32,
 }
 
-#[derive(Clone)]
-pub struct HomeRender {
-    pub hash: u64,
-    pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
-    pub center: Vec2,
-    pub size: Vec2,
-    pub vertices: HashMap<uuid::Uuid, Vec<Vec2>>,
-    pub walls: HashMap<uuid::Uuid, Vec<Wall>>,
-}
-
 #[derive(
     Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default, Hash,
 )]
@@ -250,4 +242,24 @@ pub struct Wall {
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
+}
+
+#[derive(Clone)]
+pub struct HomeRender {
+    pub hash: u64,
+    pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    pub center: Vec2,
+    pub size: Vec2,
+    pub vertices: HashMap<uuid::Uuid, Vec<Vec2>>,
+    pub walls: HashMap<uuid::Uuid, Vec<Wall>>,
+}
+
+#[derive(Clone)]
+pub struct RoomRender {
+    pub hash: u64,
+    pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    pub center: Vec2,
+    pub size: Vec2,
+    pub vertices: Vec<Vec2>,
+    pub walls: Vec<Wall>,
 }

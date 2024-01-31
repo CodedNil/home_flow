@@ -221,7 +221,16 @@ impl Room {
             size,
             walls,
             operations,
+            rendered_data: None,
         }
+    }
+}
+impl Hash for Room {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pos.hash(state);
+        self.size.hash(state);
+        self.walls.hash(state);
+        self.operations.hash(state);
     }
 }
 impl std::fmt::Display for Room {
