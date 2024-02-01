@@ -4,8 +4,8 @@ use crate::common::{
     utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui_pos},
 };
 use egui::{
-    util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Rect, Sense,
-    Stroke, TextureOptions, Window,
+    epaint::PathShape, util::History, Align2, CentralPanel, Color32, ColorImage, Context, FontId,
+    Frame, Painter, Rect, Sense, Shape as EShape, Stroke, TextureOptions, Window,
 };
 use egui_notify::Toasts;
 use glam::{vec2, Vec2};
@@ -363,6 +363,26 @@ impl eframe::App for HomeFlow {
                         Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                         Color32::WHITE,
                     );
+                }
+
+                for room in &self.layout.rooms {
+                    for wall in &room.rendered_data.as_ref().unwrap().walls {
+                        // Draw circle at each vertice in the wall
+                        for vertice in &wall.points {
+                            let pos = vec2_to_egui_pos(self.world_to_pixels(vertice.x, vertice.y));
+                            painter.circle_filled(pos, 4.0, Color32::GREEN);
+                        }
+                        painter.add(EShape::Path(PathShape {
+                            points: wall
+                                .polygon
+                                .iter()
+                                .map(|p| vec2_to_egui_pos(self.world_to_pixels(p.x, p.y)))
+                                .collect(),
+                            closed: false,
+                            fill: Color32::TRANSPARENT,
+                            stroke: Stroke::new(4.0, Color32::RED),
+                        }));
+                    }
                 }
 
                 if self.edit_mode.enabled {

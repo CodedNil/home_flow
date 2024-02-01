@@ -181,15 +181,18 @@ impl Room {
             .into_iter()
             .filter(|wall| wall.0.len() >= 2 && wall.1 != WallType::None)
             .map(|(points, _)| {
+                let points = points.iter().fold(Vec::new(), |mut acc, &p| {
+                    if !acc.iter().any(|mp| p.distance(*mp) < f32::EPSILON) {
+                        acc.push(p);
+                    }
+                    acc
+                });
                 let mut wall = Wall {
                     points,
                     polygon: vec![],
-                    closed: false,
+                    closed: (merge1 && merge2 && merge3 && merge4),
                 };
                 wall.polygon = wall.to_polygon();
-                if merge1 && merge2 && merge3 && merge4 {
-                    wall.closed = true;
-                }
                 wall
             })
             .collect()
@@ -197,16 +200,8 @@ impl Room {
 }
 
 // Helper function to merge two walls if they have the same WallType and are not None
-fn merge_walls_if_same_type(
-    walls: &mut Vec<(Vec<Vec2>, WallType)>,
-    idx1: usize,
-    idx2: usize,
-) -> bool {
-    if idx1 < walls.len()
-        && idx2 < walls.len()
-        && walls[idx1].1 != WallType::None
-        && walls[idx1].1 == walls[idx2].1
-    {
+fn merge_walls_if_same_type(walls: &mut [(Vec<Vec2>, WallType)], idx1: usize, idx2: usize) -> bool {
+    if walls[idx1].1 != WallType::None && walls[idx1].1 == walls[idx2].1 {
         let points_to_extend = walls[idx2].0[1..].to_vec();
 
         // Extend the points of the first wall with the points of the second wall, skipping the first point to avoid duplication
@@ -371,19 +366,20 @@ impl Wall {
     }
 
     pub fn to_polygon(&self) -> Vec<Vec2> {
-        let points = &self.points;
-        if points.len() < 2 {
+        let mut points = self.points.clone();
+        let points_len = points.len();
+        if points_len < 2 {
             return vec![]; // Return empty if not enough points to form a line
         }
 
         let width_half = WallType::Wall.width() / 2.0;
 
         // Handle the simple case of exactly two points
-        if points.len() == 2 {
+        if points_len == 2 {
             let start = points[0];
             let end = points[1];
             let direction = (end - start).normalize();
-            let perp = Vec2::new(-direction.y, direction.x) * width_half;
+            let perp = direction.perp() * width_half;
             let extend_dir = direction * width_half; // Directly compute the extension direction for square caps
 
             return vec![
@@ -394,49 +390,26 @@ impl Wall {
             ];
         }
 
+        // Extend first and last segment by half the wall width for square caps
+        let first_direction = (points[1] - points[0]).normalize();
+        let last_direction = (points[points_len - 1] - points[points_len - 2]).normalize();
+        let first_perp = first_direction.perp() * width_half;
+        let last_perp = last_direction.perp() * width_half;
+        points[0] += first_perp;
+        points[points_len - 1] -= last_perp;
+
         let mut polygon = Vec::new();
 
-        // Helper function to calculate a perpendicular vector
-        fn perpendicular(v: Vec2) -> Vec2 {
-            Vec2::new(-v.y, v.x)
-        }
-
         // Add vertices for the left side
-        for i in 0..points.len() - 1 {
+        for i in 0..points_len - 1 {
             let start = points[i];
             let end = points[i + 1];
             let segment_direction = (end - start).normalize();
-            let perp = perpendicular(segment_direction) * width_half;
-
-            // Extend start and end points for square caps
-            if i == 0 {
-                polygon.push(start + perp); // Add extended first point
-            }
+            let perp = segment_direction.perp() * -width_half;
 
             polygon.push(start + perp);
             polygon.push(end + perp);
         }
-
-        // Handle the last point for the left side (for square cap)
-        let last_segment_direction =
-            (*points.last().unwrap() - points[points.len() - 2]).normalize();
-        let last_perp = perpendicular(last_segment_direction) * width_half;
-        polygon.push(*points.last().unwrap() + last_perp);
-
-        // Add vertices for the right side in reverse order
-        for i in (1..points.len()).rev() {
-            let start = points[i - 1];
-            let end = points[i];
-            let segment_direction = (end - start).normalize();
-            let perp = perpendicular(segment_direction) * -width_half;
-
-            polygon.push(end + perp);
-            if i == 1 {
-                polygon.push(start + perp); // Add extended first point for the right side
-            }
-        }
-
-        // No need to handle the very first point for the right side, it's already added
 
         polygon
     }

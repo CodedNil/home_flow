@@ -94,8 +94,6 @@ impl Room {
                         let point = vec2(x as f32 / width, 1.0 - (y as f32 / height));
                         let point_in_world = bounds_min + point * new_size;
 
-                        let mut is_wall = false;
-
                         let mut rooms_pixel_color = None;
                         if Shape::Rectangle.contains(point_in_world, self.pos, self.size, 0.0) {
                             if let Some(texture) = TEXTURES.get(&self.render_options.material) {
@@ -163,34 +161,34 @@ impl Room {
                         }
                         if let Some(rooms_pixel_color) = rooms_pixel_color {
                             pixel_color = rooms_pixel_color;
-                            is_wall = false;
                         }
 
                         // Check if within room bounds with walls
-                        for wall in &walls {
-                            if wall.point_within(point_in_world) {
-                                is_wall = true;
-                                break;
-                            }
-                        }
+                        // let mut is_wall = false;
+                        // for wall in &walls {
+                        //     if wall.point_within(point_in_world) {
+                        //         is_wall = true;
+                        //         break;
+                        //     }
+                        // }
 
-                        // Walls
-                        if is_wall {
-                            let scale = Material::Wall.get_scale() / RESOLUTION_FACTOR;
-                            let mut texture_color = *wall_texture.get_pixel(
-                                (x as f32 * scale) as u32 % wall_texture.width(),
-                                (y as f32 * scale) as u32 % wall_texture.height(),
-                            );
-                            texture_color.blend(&Rgba([
-                                WALL_COLOR[0],
-                                WALL_COLOR[1],
-                                WALL_COLOR[2],
-                                200,
-                            ]));
+                        // // Walls
+                        // if is_wall {
+                        //     let scale = Material::Wall.get_scale() / RESOLUTION_FACTOR;
+                        //     let mut texture_color = *wall_texture.get_pixel(
+                        //         (x as f32 * scale) as u32 % wall_texture.width(),
+                        //         (y as f32 * scale) as u32 % wall_texture.height(),
+                        //     );
+                        //     texture_color.blend(&Rgba([
+                        //         WALL_COLOR[0],
+                        //         WALL_COLOR[1],
+                        //         WALL_COLOR[2],
+                        //         200,
+                        //     ]));
 
-                            pixel_color = texture_color;
-                            chunk_edited = true;
-                        }
+                        //     pixel_color = texture_color;
+                        //     chunk_edited = true;
+                        // }
 
                         chunk_buffer[(chunk_y * chunk_width + chunk_x) as usize] = pixel_color;
                     }
