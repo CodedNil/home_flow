@@ -332,9 +332,7 @@ impl eframe::App for HomeFlow {
 
                 self.render_grid(&painter, &response.rect);
 
-                for room in &mut self.layout.rooms {
-                    room.render();
-                }
+                self.layout.render();
                 for room in &self.layout.rooms {
                     let rendered_data = room.rendered_data.as_ref().unwrap();
 

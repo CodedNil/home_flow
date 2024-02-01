@@ -1,8 +1,9 @@
 use super::{
-    layout::{Action, Room, Vec2, Wall, Walls},
+    layout::{Action, Room, Wall, Walls},
     utils::{point_within_segment, rotate_point},
 };
 use geo::BooleanOps;
+use glam::{vec2, Vec2};
 use image::RgbaImage;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -23,15 +24,15 @@ impl Room {
                 let center = self.pos + operation.pos;
                 let corners = [
                     center - operation.size / 2.0,
-                    Vec2 {
-                        x: center.x + operation.size.x / 2.0,
-                        y: center.y - operation.size.y / 2.0,
-                    },
+                    vec2(
+                        center.x + operation.size.x / 2.0,
+                        center.y - operation.size.y / 2.0,
+                    ),
                     center + operation.size / 2.0,
-                    Vec2 {
-                        x: center.x - operation.size.x / 2.0,
-                        y: center.y + operation.size.y / 2.0,
-                    },
+                    vec2(
+                        center.x - operation.size.x / 2.0,
+                        center.y + operation.size.y / 2.0,
+                    ),
                 ];
 
                 let rotated_corners: Vec<_> = corners
@@ -52,13 +53,13 @@ impl Room {
     pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
         let (mut min, mut max) = self.bounds();
         let wall_width = WallType::Exterior.width();
-        min = min - Vec2::new(wall_width, wall_width);
-        max = max + Vec2::new(wall_width, wall_width);
+        min -= vec2(wall_width, wall_width);
+        max += vec2(wall_width, wall_width);
         (min, max)
     }
 
     pub fn contains_full(&self, x: f32, y: f32) -> bool {
-        let point = Vec2 { x, y };
+        let point = vec2(x, y);
         let mut inside = Shape::Rectangle.contains(point, self.pos, self.size, 0.0);
         for operation in &self.operations {
             if operation.shape.contains(
@@ -98,7 +99,7 @@ impl Room {
         vertices
     }
 
-    pub fn walls(&self, vertices: &Vec<Vec2>) -> Vec<Wall> {
+    pub fn walls(&self, vertices: &[Vec2]) -> Vec<Wall> {
         if vertices.is_empty() {
             return Vec::new();
         }
@@ -108,13 +109,13 @@ impl Room {
         let mut bottom_left_index = 0;
         let mut bottom_right_index = 0;
 
-        let top_left_corner = self.pos + Vec2::new(-99999.0, 99999.0);
+        let top_left_corner = self.pos + vec2(-99999.0, 99999.0);
         let mut top_left_distance = f32::MAX;
-        let top_right_corner = self.pos + Vec2::new(99999.0, 99999.0);
+        let top_right_corner = self.pos + vec2(99999.0, 99999.0);
         let mut top_right_distance = f32::MAX;
-        let bottom_left_corner = self.pos + Vec2::new(-99999.0, -99999.0);
+        let bottom_left_corner = self.pos + vec2(-99999.0, -99999.0);
         let mut bottom_left_distance = f32::MAX;
-        let bottom_right_corner = self.pos + Vec2::new(99999.0, -99999.0);
+        let bottom_right_corner = self.pos + vec2(99999.0, -99999.0);
         let mut bottom_right_distance = f32::MAX;
 
         for (i, vertex) in vertices.iter().enumerate() {
@@ -224,10 +225,7 @@ pub static TEXTURES: Lazy<HashMap<Material, RgbaImage>> = Lazy::new(|| {
 });
 
 fn coord_to_vec2(c: geo_types::Point<f64>) -> Vec2 {
-    Vec2 {
-        x: c.x() as f32,
-        y: c.y() as f32,
-    }
+    vec2(c.x() as f32, c.y() as f32)
 }
 
 fn create_polygon(vertices: &[Vec2]) -> geo::Polygon<f64> {
@@ -279,22 +277,10 @@ impl Shape {
         match self {
             Self::Rectangle => {
                 let mut vertices = vec![
-                    Vec2 {
-                        x: pos.x - size.x / 2.0,
-                        y: pos.y - size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: pos.x + size.x / 2.0,
-                        y: pos.y - size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: pos.x + size.x / 2.0,
-                        y: pos.y + size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: pos.x - size.x / 2.0,
-                        y: pos.y + size.y / 2.0,
-                    },
+                    vec2(pos.x - size.x / 2.0, pos.y - size.y / 2.0),
+                    vec2(pos.x + size.x / 2.0, pos.y - size.y / 2.0),
+                    vec2(pos.x + size.x / 2.0, pos.y + size.y / 2.0),
+                    vec2(pos.x - size.x / 2.0, pos.y + size.y / 2.0),
                 ];
                 for vertex in &mut vertices {
                     *vertex = rotate_point(*vertex, pos, -rotation);
@@ -308,10 +294,10 @@ impl Shape {
                 let mut vertices = Vec::with_capacity(quality);
                 for i in 0..quality {
                     let angle = (i as f32 / quality as f32) * std::f32::consts::PI * 2.0;
-                    vertices.push(Vec2 {
-                        x: pos.x + angle.cos() * radius_x,
-                        y: pos.y + angle.sin() * radius_y,
-                    });
+                    vertices.push(vec2(
+                        pos.x + angle.cos() * radius_x,
+                        pos.y + angle.sin() * radius_y,
+                    ));
                 }
                 for vertex in &mut vertices {
                     *vertex = rotate_point(*vertex, pos, -rotation);
@@ -329,8 +315,8 @@ impl Wall {
         let mut min = Vec2::MAX;
         let mut max = Vec2::MIN;
         for point in &self.points {
-            min = Vec2::new(min.x.min(point.x - width), min.y.min(point.y - width));
-            max = Vec2::new(max.x.max(point.x + width), max.y.max(point.y + width));
+            min = vec2(min.x.min(point.x - width), min.y.min(point.y - width));
+            max = vec2(max.x.max(point.x + width), max.y.max(point.y + width));
         }
         if point.x < min.x || point.x > max.x || point.y < min.y || point.y > max.y {
             return false;

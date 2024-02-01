@@ -1,12 +1,13 @@
 use super::HomeFlow;
 use crate::common::{
-    layout::{Action, Operation, RenderOptions, Room, TileOptions, Vec2, Walls},
+    layout::{Action, Operation, RenderOptions, Room, TileOptions, Walls},
     shape::{Material, Shape, WallType},
 };
 use egui::{
     Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2,
     Shape as EShape, Stroke, Ui, Window,
 };
+use glam::{vec2, Vec2};
 use std::time::Duration;
 use strum::VariantArray;
 use uuid::Uuid;
@@ -131,7 +132,7 @@ impl HomeFlow {
             }
             for operation in &room.operations {
                 if operation.shape.contains(
-                    Vec2::new(self.mouse_pos_world.x, self.mouse_pos_world.y),
+                    vec2(self.mouse_pos_world.x, self.mouse_pos_world.y),
                     room.pos + operation.pos,
                     operation.size,
                     operation.rotation,
@@ -215,7 +216,7 @@ impl HomeFlow {
         let mut snap_line_vertical = None;
 
         let delta = self.mouse_pos_world - drag_data.mouse_start_pos;
-        let mut new_pos = drag_data.room_start_pos + Vec2::new(delta.x, delta.y);
+        let mut new_pos = drag_data.room_start_pos + vec2(delta.x, delta.y);
 
         let room = self.layout.rooms.iter().find(|r| r.id == rooms_id).unwrap();
         let (bounds_min, bounds_max) = if drag_data.id == rooms_id {
@@ -225,7 +226,7 @@ impl HomeFlow {
                 bounds_max - room.pos + new_pos,
             )
         } else {
-            let (mut bounds_min, mut bounds_max) = (Vec2::new(0.0, 0.0), Vec2::new(0.0, 0.0));
+            let (mut bounds_min, mut bounds_max) = (vec2(0.0, 0.0), vec2(0.0, 0.0));
             for operation in &room.operations {
                 if operation.id == drag_data.id {
                     (bounds_min, bounds_max) = (
@@ -396,8 +397,8 @@ impl HomeFlow {
                     if ui.button("Add Room").clicked() {
                         self.layout.rooms.push(Room::new(
                             "New Room",
-                            Vec2::new(0.0, 0.0),
-                            Vec2::new(1.0, 1.0),
+                            vec2(0.0, 0.0),
+                            vec2(1.0, 1.0),
                             RenderOptions::default(),
                             Walls::INTERIOR,
                             vec![],
@@ -591,8 +592,8 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                     action: Action::Add,
                     shape: Shape::Rectangle,
                     render_options: None,
-                    pos: Vec2::new(0.0, 0.0),
-                    size: Vec2::new(1.0, 1.0),
+                    pos: vec2(0.0, 0.0),
+                    size: vec2(1.0, 1.0),
                     rotation: 0.0,
                 });
             }

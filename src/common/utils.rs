@@ -1,129 +1,15 @@
 use super::{
-    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, TileOptions, Vec2, Walls},
+    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, TileOptions, Wall, Walls},
     shape::{Material, Shape},
 };
 use anyhow::{anyhow, bail, Result};
 use egui::Color32;
+use glam::{vec2, Vec2};
 use std::hash::{Hash, Hasher};
 
-impl std::ops::Add for Vec2 {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
-impl std::ops::Sub for Vec2 {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
-    }
-}
-
-impl std::ops::Div<f32> for Vec2 {
-    type Output = Self;
-
-    fn div(self, rhs: f32) -> Self::Output {
-        Self {
-            x: self.x / rhs,
-            y: self.y / rhs,
-        }
-    }
-}
-impl std::ops::Div<Self> for Vec2 {
-    type Output = Self;
-
-    fn div(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x / rhs.x,
-            y: self.y / rhs.y,
-        }
-    }
-}
-
-impl std::ops::Mul<f32> for Vec2 {
-    type Output = Self;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self {
-            x: self.x * rhs,
-            y: self.y * rhs,
-        }
-    }
-}
-impl std::ops::Mul<Self> for Vec2 {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x * rhs.x,
-            y: self.y * rhs.y,
-        }
-    }
-}
-
-impl Vec2 {
-    pub const fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
-
-    pub fn min(self, other: Self) -> Self {
-        Self {
-            x: self.x.min(other.x),
-            y: self.y.min(other.y),
-        }
-    }
-
-    pub fn max(self, other: Self) -> Self {
-        Self {
-            x: self.x.max(other.x),
-            y: self.y.max(other.y),
-        }
-    }
-
-    pub fn dot(self, other: Self) -> f32 {
-        self.x * other.x + self.y * other.y
-    }
-
-    pub fn normalize(self) -> Self {
-        let length = self.x.hypot(self.y);
-        Self {
-            x: self.x / length,
-            y: self.y / length,
-        }
-    }
-
-    pub fn length(self) -> f32 {
-        self.x.hypot(self.y)
-    }
-
-    pub const MIN: Self = Self {
-        x: std::f32::MIN,
-        y: std::f32::MIN,
-    };
-    pub const MAX: Self = Self {
-        x: std::f32::MAX,
-        y: std::f32::MAX,
-    };
-}
-impl std::fmt::Display for Vec2 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}, {}]", self.x, self.y)
-    }
-}
-impl Hash for Vec2 {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.x.to_bits().hash(state);
-        self.y.to_bits().hash(state);
-    }
+pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
+    vec.x.to_bits().hash(state);
+    vec.y.to_bits().hash(state);
 }
 
 pub fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
@@ -142,10 +28,10 @@ pub fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> 
         let projection = start + line_vec * t;
         (point - projection).length() <= width
     } else if t < 0.0 {
-        let distance_rotated = (point - start).dot(Vec2::new(-line_vec.y, line_vec.x).normalize());
+        let distance_rotated = (point - start).dot(vec2(-line_vec.y, line_vec.x).normalize());
         (t * line_len).abs() < width && distance_rotated.abs() <= width
     } else {
-        let distance_rotated = (point - end).dot(Vec2::new(-line_vec.y, line_vec.x).normalize());
+        let distance_rotated = (point - end).dot(vec2(-line_vec.y, line_vec.x).normalize());
         ((t - 1.0) * line_len).abs() < width && distance_rotated.abs() <= width
     }
 }
@@ -155,10 +41,10 @@ pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f32) -> Vec2 {
     let cos_theta = angle.to_radians().cos();
     let sin_theta = angle.to_radians().sin();
 
-    Vec2 {
-        x: cos_theta * (point.x - pivot.x) - sin_theta * (point.y - pivot.y) + pivot.x,
-        y: sin_theta * (point.x - pivot.x) + cos_theta * (point.y - pivot.y) + pivot.y,
-    }
+    vec2(
+        cos_theta * (point.x - pivot.x) - sin_theta * (point.y - pivot.y) + pivot.x,
+        sin_theta * (point.x - pivot.x) + cos_theta * (point.y - pivot.y) + pivot.y,
+    )
 }
 
 pub fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
@@ -223,8 +109,8 @@ impl Room {
 }
 impl Hash for Room {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pos.hash(state);
-        self.size.hash(state);
+        hash_vec2(self.pos, state);
+        hash_vec2(self.size, state);
         self.walls.hash(state);
         self.operations.hash(state);
         self.render_options.hash(state);
@@ -278,8 +164,8 @@ impl std::fmt::Display for Furniture {
 }
 impl Hash for Furniture {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pos.hash(state);
-        self.size.hash(state);
+        hash_vec2(self.pos, state);
+        hash_vec2(self.size, state);
         self.rotation.to_bits().hash(state);
         for child in &self.children {
             child.hash(state);
@@ -318,12 +204,21 @@ impl std::fmt::Display for Operation {
 }
 impl Hash for Operation {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pos.hash(state);
-        self.size.hash(state);
+        hash_vec2(self.pos, state);
+        hash_vec2(self.size, state);
         self.rotation.to_bits().hash(state);
         self.action.hash(state);
         self.shape.hash(state);
         self.render_options.hash(state);
+    }
+}
+
+impl Hash for Wall {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for point in &self.points {
+            hash_vec2(*point, state);
+        }
+        self.wall_type.hash(state);
     }
 }
 

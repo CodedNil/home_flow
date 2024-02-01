@@ -1,5 +1,6 @@
 use super::shape::{Material, Shape, WallType};
 use egui::Color32;
+use glam::{vec2, Vec2};
 use image::{ImageBuffer, Rgba};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
@@ -35,47 +36,47 @@ impl Home {
             rooms: vec![
                 Room::new(
                     "Hall",
-                    Vec2::new(2.9, -0.1),
-                    Vec2::new(2.2, 4.8),
+                    vec2(2.9, -0.1),
+                    vec2(2.2, 4.8),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::NONE,
                     vec![],
                 ),
                 Room::new(
                     "Balcony",
-                    Vec2::new(-0.2, -4.0),
-                    Vec2::new(4.0, 1.8),
+                    vec2(-0.2, -4.0),
+                    vec2(4.0, 1.8),
                     RenderOptions::new(Material::Marble, 1.5, Some("#979797ff"), None),
                     Walls::NONE,
                     vec![],
                 ),
                 Room::new(
                     "Lounge",
-                    Vec2::new(-0.2, 0.55),
-                    Vec2::new(4.0, 7.3),
+                    vec2(-0.2, 0.55),
+                    vec2(4.0, 7.3),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::EXTERIOR.right(WallType::None),
                     vec![
                         Operation::new(
                             Action::Add,
                             Shape::Rectangle,
-                            Vec2::new(-2.3, -0.35),
-                            Vec2::new(1.0, 2.2),
+                            vec2(-2.3, -0.35),
+                            vec2(1.0, 2.2),
                             0.0,
                         ),
                         Operation::new(
                             Action::Add,
                             Shape::Rectangle,
-                            Vec2::new(2.2, 2.4),
-                            Vec2::new(0.4, 2.5),
+                            vec2(2.2, 2.4),
+                            vec2(0.4, 2.5),
                             0.0,
                         ),
                     ],
                 ),
                 Room::new(
                     "Kitchen",
-                    Vec2::new(-1.5, 2.95),
-                    Vec2::new(3.0, 2.5),
+                    vec2(-1.5, 2.95),
+                    vec2(3.0, 2.5),
                     RenderOptions::new(
                         Material::Marble,
                         2.0,
@@ -86,15 +87,15 @@ impl Home {
                     vec![Operation::new(
                         Action::Subtract,
                         Shape::Rectangle,
-                        Vec2::new(1.7, -0.55),
-                        Vec2::new(1.0, 2.0),
+                        vec2(1.7, -0.55),
+                        vec2(1.0, 2.0),
                         20.0,
                     )],
                 ),
                 Room::new(
                     "Pantry",
-                    Vec2::new(-1.6, 1.3),
-                    Vec2::new(0.8, 0.8),
+                    vec2(-1.6, 1.3),
+                    vec2(0.8, 0.8),
                     RenderOptions::new(
                         Material::Marble,
                         2.0,
@@ -106,38 +107,38 @@ impl Home {
                         Operation::new(
                             Action::Add,
                             Shape::Rectangle,
-                            Vec2::new(0.4, 0.1),
-                            Vec2::new(1.0, 0.4),
+                            vec2(0.4, 0.1),
+                            vec2(1.0, 0.4),
                             45.0,
                         ),
                         Operation::new(
                             Action::Subtract,
                             Shape::Rectangle,
-                            Vec2::new(0.1, 0.9),
-                            Vec2::new(1.0, 1.0),
+                            vec2(0.1, 0.9),
+                            vec2(1.0, 1.0),
                             0.0,
                         ),
                         Operation::new(
                             Action::Add,
                             Shape::Rectangle,
-                            Vec2::new(0.4, -0.2),
-                            Vec2::new(0.4, 0.4),
+                            vec2(0.4, -0.2),
+                            vec2(0.4, 0.4),
                             0.0,
                         ),
                     ],
                 ),
                 Room::new(
                     "Storage1",
-                    Vec2::new(-2.5, 1.3),
-                    Vec2::new(1.0, 0.8),
+                    vec2(-2.5, 1.3),
+                    vec2(1.0, 0.8),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::INTERIOR.left(WallType::Exterior),
                     vec![],
                 ),
                 Room::new(
                     "Office",
-                    Vec2::new(4.2, 2.7),
-                    Vec2::new(4.0, 3.0),
+                    vec2(4.2, 2.7),
+                    vec2(4.0, 3.0),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::INTERIOR
                         .top(WallType::Exterior)
@@ -146,15 +147,15 @@ impl Home {
                     vec![Operation::new(
                         Action::Subtract,
                         Shape::Rectangle,
-                        Vec2::new(-1.8, -1.4),
-                        Vec2::new(1.5, 1.0),
+                        vec2(-1.8, -1.4),
+                        vec2(1.5, 1.0),
                         45.0,
                     )],
                 ),
                 Room::new(
                     "Bedroom",
-                    Vec2::new(3.8, -4.5),
-                    Vec2::new(4.0, 4.0),
+                    vec2(3.8, -4.5),
+                    vec2(4.0, 4.0),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::EXTERIOR
                         .left(WallType::Exterior)
@@ -164,38 +165,38 @@ impl Home {
                 ),
                 Room::new(
                     "Storage2",
-                    Vec2::new(2.4, -0.1),
-                    Vec2::new(1.2, 1.6),
+                    vec2(2.4, -0.1),
+                    vec2(1.2, 1.6),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::INTERIOR,
                     vec![Operation::new(
                         Action::Subtract,
                         Shape::Rectangle,
-                        Vec2::new(0.4, 0.5),
-                        Vec2::new(1.8, 0.8),
+                        vec2(0.4, 0.5),
+                        vec2(1.8, 0.8),
                         45.0,
                     )],
                 ),
                 Room::new(
                     "Storage3",
-                    Vec2::new(2.4, -1.7),
-                    Vec2::new(1.2, 1.6),
+                    vec2(2.4, -1.7),
+                    vec2(1.2, 1.6),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::INTERIOR,
                     vec![],
                 ),
                 Room::new(
                     "Closet",
-                    Vec2::new(4.9, -1.9),
-                    Vec2::new(1.8, 1.2),
+                    vec2(4.9, -1.9),
+                    vec2(1.8, 1.2),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::INTERIOR.right(WallType::Exterior),
                     vec![],
                 ),
                 Room::new(
                     "Bathroom",
-                    Vec2::new(4.9, -0.05),
-                    Vec2::new(1.8, 2.5),
+                    vec2(4.9, -0.05),
+                    vec2(1.8, 2.5),
                     RenderOptions::new(
                         Material::Granite,
                         2.0,
@@ -207,8 +208,8 @@ impl Home {
                 ),
                 Room::new(
                     "Storage4",
-                    Vec2::new(3.9, 0.8),
-                    Vec2::new(0.8, 0.8),
+                    vec2(3.9, 0.8),
+                    vec2(0.8, 0.8),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
                     Walls::INTERIOR,
                     vec![],
@@ -297,16 +298,10 @@ pub enum Action {
     Subtract,
 }
 
-#[derive(Serialize, Deserialize, Clone, Hash)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Wall {
     pub points: Vec<Vec2>,
     pub wall_type: WallType,
-}
-
-#[derive(Serialize, Deserialize, Copy, Clone, PartialEq, Default, Debug)]
-pub struct Vec2 {
-    pub x: f32,
-    pub y: f32,
 }
 
 #[derive(Clone)]

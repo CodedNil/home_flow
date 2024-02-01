@@ -1,5 +1,6 @@
-use crate::common::layout::{Action, RenderOptions, Room, RoomRender, Vec2, RESOLUTION_FACTOR};
+use crate::common::layout::{Action, RenderOptions, Room, RoomRender, RESOLUTION_FACTOR};
 use crate::common::shape::{Material, Shape, WallType, TEXTURES};
+use glam::{vec2, Vec2};
 use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use rayon::prelude::*;
 use std::{
@@ -7,20 +8,41 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use super::layout::Home;
+
 const WALL_COLOR: Rgba<u8> = Rgba([130, 80, 20, 255]);
 const CHUNK_SIZE: u32 = 64;
 
-impl Room {
+impl Home {
     pub fn render(&mut self) {
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        let hash = hasher.finish();
-        if let Some(rendered_data) = &self.rendered_data {
-            if rendered_data.hash == hash {
-                return;
-            }
-        }
+        // Render out all rooms in parallel if their hashes have changed
+        let rooms_to_update: Vec<(usize, u64)> = self
+            .rooms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, room)| {
+                let mut hasher = DefaultHasher::new();
+                room.hash(&mut hasher);
+                let hash = hasher.finish();
+                match &room.rendered_data {
+                    Some(rendered_data) if rendered_data.hash == hash => None,
+                    _ => Some((index, hash)),
+                }
+            })
+            .collect();
 
+        let new_data: Vec<(usize, u64, RoomRender)> = rooms_to_update
+            .into_par_iter()
+            .map(|(index, hash)| (index, hash, self.rooms[index].render()))
+            .collect();
+        for (index, hash, data) in new_data {
+            self.rooms[index].rendered_data = Some(RoomRender { hash, ..data });
+        }
+    }
+}
+
+impl Room {
+    pub fn render(&self) -> RoomRender {
         // Calculate the center and size of the home
         let (bounds_min, bounds_max) = self.bounds_with_walls();
         let new_center = (bounds_min + bounds_max) / 2.0;
@@ -69,10 +91,7 @@ impl Room {
 
                         let mut pixel_color = Rgba([0, 0, 0, 0]);
 
-                        let point = Vec2 {
-                            x: x as f32 / width,
-                            y: 1.0 - (y as f32 / height),
-                        };
+                        let point = vec2(x as f32 / width, 1.0 - (y as f32 / height));
                         let point_in_world = bounds_min + point * new_size;
 
                         let mut is_wall = false;
@@ -203,14 +222,14 @@ impl Room {
             }
         }
 
-        self.rendered_data = Some(RoomRender {
-            hash,
+        RoomRender {
+            hash: 0,
             texture: image_buffer,
             center: new_center,
             size: new_size,
             vertices,
             walls,
-        });
+        }
     }
 }
 
