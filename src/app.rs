@@ -1,10 +1,14 @@
 use self::edit_mode::EditDetails;
-use crate::common::layout;
+use crate::common::{
+    layout,
+    utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui_pos},
+};
 use egui::{
-    util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Pos2, Rect,
-    Sense, Stroke, TextureOptions, Vec2, Window,
+    util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Painter, Rect, Sense,
+    Stroke, TextureOptions, Window,
 };
 use egui_notify::Toasts;
+use glam::{vec2, Vec2};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -12,14 +16,15 @@ use std::{
 };
 
 mod edit_mode;
+
 pub struct HomeFlow {
     time: f64,
 
     translation: Vec2,
     zoom: f32, // Zoom is meter to pixels
-    canvas_center: Pos2,
-    mouse_pos: Pos2,
-    mouse_pos_world: Pos2,
+    canvas_center: Vec2,
+    mouse_pos: Vec2,
+    mouse_pos_world: Vec2,
 
     layout_server: layout::Home,
     layout: layout::Home,
@@ -48,9 +53,9 @@ impl Default for HomeFlow {
             time: 0.0,
             translation: Vec2::ZERO,
             zoom: 100.0,
-            canvas_center: Pos2::ZERO,
-            mouse_pos: Pos2::ZERO,
-            mouse_pos_world: Pos2::ZERO,
+            canvas_center: Vec2::ZERO,
+            mouse_pos: Vec2::ZERO,
+            mouse_pos_world: Vec2::ZERO,
 
             layout_server: layout::Home::empty(),
             layout: layout::Home::empty(),
@@ -90,24 +95,24 @@ impl HomeFlow {
         }
     }
 
-    fn pixels_to_world(&self, x: f32, y: f32) -> Pos2 {
-        Pos2::new(x - self.canvas_center.x, self.canvas_center.y - y) / self.zoom
-            - Vec2::new(self.translation.x, -self.translation.y)
+    fn pixels_to_world(&self, x: f32, y: f32) -> Vec2 {
+        vec2(x - self.canvas_center.x, self.canvas_center.y - y) / self.zoom
+            - vec2(self.translation.x, -self.translation.y)
     }
 
-    fn world_to_pixels(&self, x: f32, y: f32) -> Pos2 {
-        Pos2::new(x + self.translation.x, self.translation.y - y) * self.zoom
-            + Vec2::new(self.canvas_center.x, self.canvas_center.y)
+    fn world_to_pixels(&self, x: f32, y: f32) -> Vec2 {
+        vec2(x + self.translation.x, self.translation.y - y) * self.zoom
+            + vec2(self.canvas_center.x, self.canvas_center.y)
     }
 
     fn handle_pan_zoom(&mut self, response: &egui::Response, ui: &egui::Ui) {
         // Drag
         if response.dragged() {
-            self.translation += response.drag_delta() * 0.01 / (self.zoom / 100.0);
+            self.translation += egui_to_vec2(response.drag_delta()) * 0.01 / (self.zoom / 100.0);
         }
 
         // Zoom
-        let scroll_delta = ui.input(|i| i.scroll_delta);
+        let scroll_delta = egui_to_vec2(ui.input(|i| i.scroll_delta));
         if scroll_delta != Vec2::ZERO {
             let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
             if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
@@ -187,8 +192,8 @@ impl HomeFlow {
                 }
                 rendered_vertical.insert(grid_line_pixel_int);
                 lines.push((
-                    Pos2::new(grid_line_pixel, visible_rect.top()),
-                    Pos2::new(grid_line_pixel, visible_rect.bottom()),
+                    egui::pos2(grid_line_pixel, visible_rect.top()),
+                    egui::pos2(grid_line_pixel, visible_rect.bottom()),
                     stroke,
                 ));
             }
@@ -204,8 +209,8 @@ impl HomeFlow {
                 }
                 rendered_horizontal.insert(grid_line_pixel_int);
                 lines.push((
-                    Pos2::new(visible_rect.left(), grid_line_pixel),
-                    Pos2::new(visible_rect.right(), grid_line_pixel),
+                    egui::pos2(visible_rect.left(), grid_line_pixel),
+                    egui::pos2(visible_rect.right(), grid_line_pixel),
                     stroke,
                 ));
             }
@@ -242,7 +247,7 @@ impl HomeFlow {
             }
             DownloadLayout::InProgress => {
                 Window::new("Layout Download")
-                    .fixed_pos(Pos2::new(
+                    .fixed_pos(egui::pos2(
                         ctx.available_rect().center().x,
                         ctx.available_rect().center().y,
                     ))
@@ -289,7 +294,7 @@ impl eframe::App for HomeFlow {
             .add(ctx.input(|i| i.time), previous_frame_time); // projected
         let fps = 1.0 / self.frame_times.mean_time_interval().unwrap_or_default();
         Window::new("Performance")
-            .fixed_pos(Pos2::new(20.0, 20.0))
+            .fixed_pos(egui::pos2(20.0, 20.0))
             .pivot(Align2::LEFT_TOP)
             .title_bar(false)
             .resizable(false)
@@ -316,12 +321,11 @@ impl eframe::App for HomeFlow {
 
                 let (response, painter) =
                     ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
-                let canvas_center = response.rect.center();
-                self.canvas_center = canvas_center;
+                self.canvas_center = egui_pos_to_vec2(response.rect.center());
 
                 let mouse_pos = ui
                     .input(|i| i.pointer.interact_pos())
-                    .map_or(self.mouse_pos, |mouse_pos| mouse_pos);
+                    .map_or(self.mouse_pos, egui_pos_to_vec2);
                 self.mouse_pos = mouse_pos;
                 self.mouse_pos_world = self.pixels_to_world(mouse_pos.x, mouse_pos.y);
 
@@ -350,13 +354,13 @@ impl eframe::App for HomeFlow {
                     let home_size = bounds_max - bounds_min;
 
                     let rect = Rect::from_center_size(
-                        self.world_to_pixels(home_center.x, home_center.y),
-                        Vec2::new(home_size.x * self.zoom, home_size.y * self.zoom),
+                        vec2_to_egui_pos(self.world_to_pixels(home_center.x, home_center.y)),
+                        egui::Vec2::new(home_size.x * self.zoom, home_size.y * self.zoom),
                     );
                     painter.image(
                         canvas_texture_id,
                         rect,
-                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
+                        Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                         Color32::WHITE,
                     );
                 }
@@ -366,7 +370,7 @@ impl eframe::App for HomeFlow {
                 }
 
                 Window::new("Bottom Right")
-                    .fixed_pos(Pos2::new(
+                    .fixed_pos(egui::pos2(
                         response.rect.right() - 10.0,
                         response.rect.bottom() - 10.0,
                     ))

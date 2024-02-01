@@ -52,7 +52,7 @@ impl Room {
 
     pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
         let (mut min, mut max) = self.bounds();
-        let wall_width = WallType::Exterior.width();
+        let wall_width = WallType::Wall.width();
         min -= vec2(wall_width, wall_width);
         max += vec2(wall_width, wall_width);
         (min, max)
@@ -331,16 +331,17 @@ impl Wall {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, Hash, VariantArray)]
 pub enum WallType {
     None,
-    Interior,
-    Exterior,
+    Wall,
+    Door,
+    Window,
 }
 
 impl WallType {
     pub const fn width(self) -> f32 {
         match self {
             Self::None => 0.0,
-            Self::Interior => 0.05,
-            Self::Exterior => 0.1,
+            Self::Wall => 0.1,
+            Self::Door | Self::Window => 0.05,
         }
     }
 }
@@ -353,53 +354,38 @@ impl Walls {
         bottom: WallType::None,
     };
 
-    pub const INTERIOR: Self = Self {
-        left: WallType::Interior,
-        top: WallType::Interior,
-        right: WallType::Interior,
-        bottom: WallType::Interior,
-    };
-
-    pub const EXTERIOR: Self = Self {
-        left: WallType::Exterior,
-        top: WallType::Exterior,
-        right: WallType::Exterior,
-        bottom: WallType::Exterior,
+    pub const WALL: Self = Self {
+        left: WallType::Wall,
+        top: WallType::Wall,
+        right: WallType::Wall,
+        bottom: WallType::Wall,
     };
 
     pub const fn left(self, wall_type: WallType) -> Self {
         Self {
             left: wall_type,
-            top: self.top,
-            right: self.right,
-            bottom: self.bottom,
+            ..self
         }
     }
 
     pub const fn top(self, wall_type: WallType) -> Self {
         Self {
-            left: self.left,
             top: wall_type,
-            right: self.right,
-            bottom: self.bottom,
+            ..self
         }
     }
 
     pub const fn right(self, wall_type: WallType) -> Self {
         Self {
-            left: self.left,
-            top: self.top,
             right: wall_type,
-            bottom: self.bottom,
+            ..self
         }
     }
 
     pub const fn bottom(self, wall_type: WallType) -> Self {
         Self {
-            left: self.left,
-            top: self.top,
-            right: self.right,
             bottom: wall_type,
+            ..self
         }
     }
 }

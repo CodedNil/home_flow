@@ -12,6 +12,22 @@ pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
     vec.y.to_bits().hash(state);
 }
 
+pub const fn vec2_to_egui(vec: Vec2) -> egui::Vec2 {
+    egui::Vec2::new(vec.x, vec.y)
+}
+
+pub const fn egui_to_vec2(vec: egui::Vec2) -> Vec2 {
+    vec2(vec.x, vec.y)
+}
+
+pub const fn egui_pos_to_vec2(vec: egui::Pos2) -> Vec2 {
+    vec2(vec.x, vec.y)
+}
+
+pub const fn vec2_to_egui_pos(vec: Vec2) -> egui::Pos2 {
+    egui::pos2(vec.x, vec.y)
+}
+
 pub fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
     let line_vec = end - start;
     let line_len = line_vec.length();

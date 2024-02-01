@@ -2,10 +2,11 @@ use super::HomeFlow;
 use crate::common::{
     layout::{Action, Operation, RenderOptions, Room, TileOptions, Walls},
     shape::{Material, Shape, WallType},
+    utils::vec2_to_egui_pos,
 };
 use egui::{
-    Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Pos2,
-    Shape as EShape, Stroke, Ui, Window,
+    Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Shape as EShape,
+    Stroke, Ui, Window,
 };
 use glam::{vec2, Vec2};
 use std::time::Duration;
@@ -24,7 +25,7 @@ pub struct EditDetails {
 struct DragData {
     room_id: Uuid,
     id: Uuid,
-    mouse_start_pos: Pos2,
+    mouse_start_pos: Vec2,
     room_start_pos: Vec2,
 }
 
@@ -316,7 +317,7 @@ impl HomeFlow {
         };
 
         Window::new(format!("Drag {rooms_id}"))
-            .fixed_pos(self.world_to_pixels(new_pos.x, new_pos.y))
+            .fixed_pos(vec2_to_egui_pos(self.world_to_pixels(new_pos.x, new_pos.y)))
             .fixed_size([200.0, 0.0])
             .pivot(Align2::CENTER_CENTER)
             .title_bar(false)
@@ -360,8 +361,8 @@ impl HomeFlow {
             let y_level = self.world_to_pixels(-1000.0, snap_line_horizontal).y;
             painter.add(EShape::dashed_line(
                 &[
-                    Pos2::new(0.0, y_level),
-                    Pos2::new(self.canvas_center.x * 2.0, y_level),
+                    egui::pos2(0.0, y_level),
+                    egui::pos2(self.canvas_center.x * 2.0, y_level),
                 ],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
                 40.0,
@@ -372,8 +373,8 @@ impl HomeFlow {
             let x_level = self.world_to_pixels(snap_line_vertical, -1000.0).x;
             painter.add(EShape::dashed_line(
                 &[
-                    Pos2::new(x_level, 0.0),
-                    Pos2::new(x_level, self.canvas_center.y * 2.0),
+                    egui::pos2(x_level, 0.0),
+                    egui::pos2(x_level, self.canvas_center.y * 2.0),
                 ],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
                 40.0,
@@ -382,7 +383,7 @@ impl HomeFlow {
         }
 
         Window::new("Edit mode instructions".to_string())
-            .fixed_pos(Pos2::new(
+            .fixed_pos(egui::pos2(
                 self.canvas_center.x,
                 self.canvas_center.y * 2.0 - 10.0,
             ))
@@ -400,7 +401,7 @@ impl HomeFlow {
                             vec2(0.0, 0.0),
                             vec2(1.0, 1.0),
                             RenderOptions::default(),
-                            Walls::INTERIOR,
+                            Walls::WALL,
                             vec![],
                         ));
                     }
@@ -462,7 +463,7 @@ impl HomeFlow {
                 .unwrap();
             let mut alter_room = AlterRoom::None;
             Window::new(format!("Edit {}", room.id))
-                .fixed_pos(Pos2::new(self.canvas_center.x, 20.0))
+                .fixed_pos(egui::pos2(self.canvas_center.x, 20.0))
                 .fixed_size([200.0, 0.0])
                 .pivot(Align2::CENTER_TOP)
                 .title_bar(false)
@@ -799,7 +800,7 @@ fn combo_box_for_enum<T: ToString + PartialEq + Copy>(
 
 fn closed_dashed_line_with_offset(
     painter: &Painter,
-    points: &[Pos2],
+    points: &[Vec2],
     stroke: Stroke,
     desired_combined_length: f32,
     time: f32,
@@ -819,8 +820,13 @@ fn closed_dashed_line_with_offset(
     let gap_length = combined_length - dash_length;
 
     let offset = time % combined_length;
-    let normal = (points[1] - points[0]).normalized();
+    let normal = (points[1] - points[0]).normalize();
     points.push(points[0] + normal * offset);
+
+    let points = points
+        .iter()
+        .map(|p| egui::pos2(p.x, p.y))
+        .collect::<Vec<_>>();
 
     painter.add(EShape::dashed_line_with_offset(
         &points,
