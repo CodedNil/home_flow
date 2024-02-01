@@ -168,8 +168,7 @@ impl Room {
 
                         // Check if within room bounds with walls
                         for wall in &walls {
-                            if wall.wall_type != WallType::None && wall.point_within(point_in_world)
-                            {
+                            if wall.point_within(point_in_world) {
                                 is_wall = true;
                                 break;
                             }

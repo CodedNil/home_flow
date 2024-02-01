@@ -1,5 +1,5 @@
 use super::{
-    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, TileOptions, Wall, Walls},
+    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, TileOptions, Walls},
     shape::{Material, Shape},
 };
 use anyhow::{anyhow, bail, Result};
@@ -226,15 +226,6 @@ impl Hash for Operation {
         self.action.hash(state);
         self.shape.hash(state);
         self.render_options.hash(state);
-    }
-}
-
-impl Hash for Wall {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        for point in &self.points {
-            hash_vec2(*point, state);
-        }
-        self.wall_type.hash(state);
     }
 }
 

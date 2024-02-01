@@ -15,7 +15,6 @@ pub struct Home {
     pub version: String,
     pub rooms: Vec<Room>,
     pub furniture: Vec<Furniture>,
-    pub walls: Vec<Wall>,
     #[serde(skip)]
     pub rendered_data: Option<HomeRender>,
 }
@@ -25,7 +24,6 @@ impl Hash for Home {
         self.version.hash(state);
         self.rooms.hash(state);
         self.furniture.hash(state);
-        self.walls.hash(state);
     }
 }
 
@@ -144,8 +142,8 @@ impl Home {
                     vec![Operation::new(
                         Action::Subtract,
                         Shape::Rectangle,
-                        vec2(-1.8, -1.4),
-                        vec2(1.5, 1.0),
+                        vec2(-1.8, -1.3),
+                        vec2(1.7, 1.0),
                         45.0,
                     )],
                 ),
@@ -210,7 +208,6 @@ impl Home {
                 ),
             ],
             furniture: vec![],
-            walls: vec![],
             rendered_data: None,
         }
     }
@@ -220,7 +217,6 @@ impl Home {
             version: String::new(),
             rooms: vec![],
             furniture: vec![],
-            walls: vec![],
             rendered_data: None,
         }
     }
@@ -295,7 +291,8 @@ pub enum Action {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Wall {
     pub points: Vec<Vec2>,
-    pub wall_type: WallType,
+    pub closed: bool,
+    pub polygon: Vec<Vec2>,
 }
 
 #[derive(Clone)]

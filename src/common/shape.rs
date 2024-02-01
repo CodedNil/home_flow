@@ -153,25 +153,68 @@ impl Room {
             }
         };
 
-        vec![
-            Wall {
-                points: get_wall_vertices(top_left_index, bottom_left_index),
-                wall_type: self.walls.left,
-            },
-            Wall {
-                points: get_wall_vertices(top_right_index, top_left_index),
-                wall_type: self.walls.top,
-            },
-            Wall {
-                points: get_wall_vertices(bottom_right_index, top_right_index),
-                wall_type: self.walls.right,
-            },
-            Wall {
-                points: get_wall_vertices(bottom_left_index, bottom_right_index),
-                wall_type: self.walls.bottom,
-            },
-        ]
+        let mut walls = vec![
+            (
+                get_wall_vertices(top_left_index, bottom_left_index),
+                self.walls.left,
+            ),
+            (
+                get_wall_vertices(top_right_index, top_left_index),
+                self.walls.top,
+            ),
+            (
+                get_wall_vertices(bottom_right_index, top_right_index),
+                self.walls.right,
+            ),
+            (
+                get_wall_vertices(bottom_left_index, bottom_right_index),
+                self.walls.bottom,
+            ),
+        ];
+
+        let merge1 = merge_walls_if_same_type(&mut walls, 1, 0);
+        let merge2 = merge_walls_if_same_type(&mut walls, 2, 1);
+        let merge3 = merge_walls_if_same_type(&mut walls, 3, 2);
+        let merge4 = merge_walls_if_same_type(&mut walls, 0, 3);
+
+        walls
+            .into_iter()
+            .filter(|wall| wall.0.len() >= 2 && wall.1 != WallType::None)
+            .map(|(points, _)| {
+                let mut wall = Wall {
+                    points,
+                    polygon: vec![],
+                    closed: false,
+                };
+                wall.polygon = wall.to_polygon();
+                if merge1 && merge2 && merge3 && merge4 {
+                    wall.closed = true;
+                }
+                wall
+            })
+            .collect()
     }
+}
+
+// Helper function to merge two walls if they have the same WallType and are not None
+fn merge_walls_if_same_type(
+    walls: &mut Vec<(Vec<Vec2>, WallType)>,
+    idx1: usize,
+    idx2: usize,
+) -> bool {
+    if idx1 < walls.len()
+        && idx2 < walls.len()
+        && walls[idx1].1 != WallType::None
+        && walls[idx1].1 == walls[idx2].1
+    {
+        let points_to_extend = walls[idx2].0[1..].to_vec();
+
+        // Extend the points of the first wall with the points of the second wall, skipping the first point to avoid duplication
+        walls[idx1].0.extend_from_slice(&points_to_extend);
+        walls[idx2].1 = WallType::None;
+        return true;
+    }
+    false
 }
 
 #[derive(
@@ -310,7 +353,7 @@ impl Shape {
 
 impl Wall {
     pub fn point_within(&self, point: Vec2) -> bool {
-        let width = self.wall_type.width();
+        let width = WallType::Wall.width() / 2.0;
 
         let mut min = Vec2::MAX;
         let mut max = Vec2::MIN;
@@ -325,6 +368,77 @@ impl Wall {
         self.points
             .windows(2)
             .any(|window| point_within_segment(point, window[0], window[1], width))
+    }
+
+    pub fn to_polygon(&self) -> Vec<Vec2> {
+        let points = &self.points;
+        if points.len() < 2 {
+            return vec![]; // Return empty if not enough points to form a line
+        }
+
+        let width_half = WallType::Wall.width() / 2.0;
+
+        // Handle the simple case of exactly two points
+        if points.len() == 2 {
+            let start = points[0];
+            let end = points[1];
+            let direction = (end - start).normalize();
+            let perp = Vec2::new(-direction.y, direction.x) * width_half;
+            let extend_dir = direction * width_half; // Directly compute the extension direction for square caps
+
+            return vec![
+                start - extend_dir + perp, // Top left
+                start - extend_dir - perp, // Bottom left
+                end + extend_dir - perp,   // Bottom right
+                end + extend_dir + perp,   // Top right
+            ];
+        }
+
+        let mut polygon = Vec::new();
+
+        // Helper function to calculate a perpendicular vector
+        fn perpendicular(v: Vec2) -> Vec2 {
+            Vec2::new(-v.y, v.x)
+        }
+
+        // Add vertices for the left side
+        for i in 0..points.len() - 1 {
+            let start = points[i];
+            let end = points[i + 1];
+            let segment_direction = (end - start).normalize();
+            let perp = perpendicular(segment_direction) * width_half;
+
+            // Extend start and end points for square caps
+            if i == 0 {
+                polygon.push(start + perp); // Add extended first point
+            }
+
+            polygon.push(start + perp);
+            polygon.push(end + perp);
+        }
+
+        // Handle the last point for the left side (for square cap)
+        let last_segment_direction =
+            (*points.last().unwrap() - points[points.len() - 2]).normalize();
+        let last_perp = perpendicular(last_segment_direction) * width_half;
+        polygon.push(*points.last().unwrap() + last_perp);
+
+        // Add vertices for the right side in reverse order
+        for i in (1..points.len()).rev() {
+            let start = points[i - 1];
+            let end = points[i];
+            let segment_direction = (end - start).normalize();
+            let perp = perpendicular(segment_direction) * -width_half;
+
+            polygon.push(end + perp);
+            if i == 1 {
+                polygon.push(start + perp); // Add extended first point for the right side
+            }
+        }
+
+        // No need to handle the very first point for the right side, it's already added
+
+        polygon
     }
 }
 
