@@ -393,10 +393,8 @@ impl Wall {
         // Extend first and last segment by half the wall width for square caps
         let first_direction = (points[1] - points[0]).normalize();
         let last_direction = (points[points_len - 1] - points[points_len - 2]).normalize();
-        let first_perp = first_direction.perp() * width_half;
-        let last_perp = last_direction.perp() * width_half;
-        points[0] += first_perp;
-        points[points_len - 1] -= last_perp;
+        points[0] -= first_direction * width_half;
+        points[points_len - 1] += last_direction * width_half;
 
         let mut polygon = Vec::new();
 
@@ -409,6 +407,17 @@ impl Wall {
 
             polygon.push(start + perp);
             polygon.push(end + perp);
+        }
+
+        // Add vertices for the right side
+        for i in (0..points_len - 1).rev() {
+            let start = points[i];
+            let end = points[i + 1];
+            let segment_direction = (end - start).normalize();
+            let perp = segment_direction.perp() * width_half;
+
+            polygon.push(end + perp);
+            polygon.push(start + perp);
         }
 
         polygon
