@@ -4,7 +4,7 @@ use super::{
 };
 use anyhow::{anyhow, bail, Result};
 use egui::Color32;
-use glam::{vec2, Vec2};
+use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::hash::{Hash, Hasher};
 
 pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
@@ -13,47 +13,22 @@ pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
 }
 
 pub const fn vec2_to_egui(vec: Vec2) -> egui::Vec2 {
-    egui::Vec2::new(vec.x, vec.y)
-}
-
-pub const fn egui_to_vec2(vec: egui::Vec2) -> Vec2 {
-    vec2(vec.x, vec.y)
-}
-
-pub const fn egui_pos_to_vec2(vec: egui::Pos2) -> Vec2 {
-    vec2(vec.x, vec.y)
+    egui::Vec2::new(vec.x as f32, vec.y as f32)
 }
 
 pub const fn vec2_to_egui_pos(vec: Vec2) -> egui::Pos2 {
-    egui::pos2(vec.x, vec.y)
+    egui::pos2(vec.x as f32, vec.y as f32)
 }
 
-pub fn point_within_segment(point: Vec2, start: Vec2, end: Vec2, width: f32) -> bool {
-    let line_vec = end - start;
-    let line_len = line_vec.length();
-
-    if line_len < 0.025 {
-        return false;
-    }
-
-    // Project 'point' onto the line segment, but keep within the segment
-    let n = (point - start).dot(line_vec);
-    let t = n / line_len.powi(2);
-    if (0.0..=1.0).contains(&t) {
-        // Projection is within the segment
-        let projection = start + line_vec * t;
-        (point - projection).length() <= width
-    } else if t < 0.0 {
-        let distance_rotated = (point - start).dot(vec2(-line_vec.y, line_vec.x).normalize());
-        (t * line_len).abs() < width && distance_rotated.abs() <= width
-    } else {
-        let distance_rotated = (point - end).dot(vec2(-line_vec.y, line_vec.x).normalize());
-        ((t - 1.0) * line_len).abs() < width && distance_rotated.abs() <= width
-    }
+pub const fn egui_to_vec2(vec: egui::Vec2) -> Vec2 {
+    vec2(vec.x as f64, vec.y as f64)
 }
 
-// Helper function to rotate a point around a pivot
-pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f32) -> Vec2 {
+pub const fn egui_pos_to_vec2(vec: egui::Pos2) -> Vec2 {
+    vec2(vec.x as f64, vec.y as f64)
+}
+
+pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
     let cos_theta = angle.to_radians().cos();
     let sin_theta = angle.to_radians().sin();
 
@@ -190,7 +165,7 @@ impl Hash for Furniture {
 }
 
 impl Operation {
-    pub fn new(action: Action, shape: Shape, pos: Vec2, size: Vec2, rotation: f32) -> Self {
+    pub fn new(action: Action, shape: Shape, pos: Vec2, size: Vec2, rotation: f64) -> Self {
         Self {
             id: uuid::Uuid::new_v4(),
             action,
@@ -232,7 +207,7 @@ impl Hash for Operation {
 impl RenderOptions {
     pub fn new(
         material: Material,
-        scale: f32,
+        scale: f64,
         tint: Option<&str>,
         tiles: Option<TileOptions>,
     ) -> Self {
@@ -261,7 +236,7 @@ impl Default for RenderOptions {
 impl std::fmt::Display for RenderOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!("Material: {}", self.material);
-        if (self.scale - 1.0).abs() > f32::EPSILON {
+        if (self.scale - 1.0).abs() > f64::EPSILON {
             string.push_str(format!(" - Scale: {}", self.scale).as_str());
         }
         if let Some(tint) = self.tint {
@@ -283,7 +258,7 @@ impl Hash for RenderOptions {
 }
 
 impl TileOptions {
-    pub fn new(scale: u8, odd_tint: &str, grout_width: f32, grout_tint: &str) -> Self {
+    pub fn new(scale: u8, odd_tint: &str, grout_width: f64, grout_tint: &str) -> Self {
         let odd_tint = hex_to_rgba(odd_tint).unwrap_or([255, 255, 255, 255]);
         let grout_tint = hex_to_rgba(grout_tint).unwrap_or([255, 255, 255, 255]);
         Self {

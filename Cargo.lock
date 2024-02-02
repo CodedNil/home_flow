@@ -1144,6 +1144,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "geo-buffer"
+version = "0.2.1"
+source = "git+https://github.com/1011-git/geo-buffer.git?rev=899c4dba1e0d8fdd99bd8ae1ce6efcaf482176a3#899c4dba1e0d8fdd99bd8ae1ce6efcaf482176a3"
+dependencies = [
+ "geo",
+ "geo-types 0.7.12",
+]
+
+[[package]]
 name = "geo-types"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1417,6 +1426,7 @@ dependencies = [
  "env_logger",
  "geo",
  "geo-booleanop",
+ "geo-buffer",
  "geo-types 0.7.12",
  "glam",
  "image",

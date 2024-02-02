@@ -1,14 +1,16 @@
 use self::edit_mode::EditDetails;
 use crate::common::{
     layout,
-    utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui_pos},
+    shape::coord_to_vec2,
+    utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui, vec2_to_egui_pos},
 };
 use egui::{
-    epaint::PathShape, util::History, Align2, CentralPanel, Color32, ColorImage, Context, FontId,
-    Frame, Painter, Rect, Sense, Shape as EShape, Stroke, TextureOptions, Window,
+    epaint::PathShape, util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame,
+    Painter, Rect, Sense, Shape as EShape, Stroke, TextureOptions, Window,
 };
 use egui_notify::Toasts;
-use glam::{vec2, Vec2};
+use geo_types::LineString;
+use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -21,7 +23,7 @@ pub struct HomeFlow {
     time: f64,
 
     translation: Vec2,
-    zoom: f32, // Zoom is meter to pixels
+    zoom: f64, // Zoom is meter to pixels
     canvas_center: Vec2,
     mouse_pos: Vec2,
     mouse_pos_world: Vec2,
@@ -95,12 +97,12 @@ impl HomeFlow {
         }
     }
 
-    fn pixels_to_world(&self, x: f32, y: f32) -> Vec2 {
+    fn pixels_to_world(&self, x: f64, y: f64) -> Vec2 {
         vec2(x - self.canvas_center.x, self.canvas_center.y - y) / self.zoom
             - vec2(self.translation.x, -self.translation.y)
     }
 
-    fn world_to_pixels(&self, x: f32, y: f32) -> Vec2 {
+    fn world_to_pixels(&self, x: f64, y: f64) -> Vec2 {
         vec2(x + self.translation.x, self.translation.y - y) * self.zoom
             + vec2(self.canvas_center.x, self.canvas_center.y)
     }
@@ -116,9 +118,11 @@ impl HomeFlow {
         if scroll_delta != Vec2::ZERO {
             let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
             if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
-                let mouse_world_before_zoom = self.pixels_to_world(mouse_pos.x, mouse_pos.y);
+                let mouse_world_before_zoom =
+                    self.pixels_to_world(mouse_pos.x as f64, mouse_pos.y as f64);
                 self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
-                let mouse_world_after_zoom = self.pixels_to_world(mouse_pos.x, mouse_pos.y);
+                let mouse_world_after_zoom =
+                    self.pixels_to_world(mouse_pos.x as f64, mouse_pos.y as f64);
                 let difference = mouse_world_after_zoom - mouse_world_before_zoom;
                 self.translation += Vec2::new(difference.x, -difference.y);
             } else {
@@ -128,7 +132,8 @@ impl HomeFlow {
 
         // Clamp translation to bounds
         let bounds = [-30.0, 30.0, -30.0, 30.0];
-        let window_size_meters = ui.ctx().available_rect().size() / self.zoom / 2.0;
+        let window_size = ui.ctx().available_rect().size();
+        let window_size_meters = vec2(window_size.x as f64, window_size.y as f64) / self.zoom / 2.0;
         let min_translation = Vec2::new(
             bounds[0] + window_size_meters.x,
             bounds[2] + window_size_meters.y,
@@ -156,7 +161,7 @@ impl HomeFlow {
     }
 
     fn render_grid(&self, painter: &Painter, visible_rect: &Rect) {
-        let grid_interval = 2.0_f32.powf((160.0 / self.zoom).abs().log2().round());
+        let grid_interval = 2.0_f64.powf((160.0 / self.zoom).abs().log2().round());
         let grid_intervals = [
             (
                 grid_interval,
@@ -169,12 +174,12 @@ impl HomeFlow {
         ];
 
         let (bottom_edge_world, top_edge_world) = (
-            self.pixels_to_world(0.0, visible_rect.bottom()).y,
-            self.pixels_to_world(0.0, visible_rect.top()).y,
+            self.pixels_to_world(0.0, visible_rect.bottom() as f64).y,
+            self.pixels_to_world(0.0, visible_rect.top() as f64).y,
         );
         let (left_edge_world, right_edge_world) = (
-            self.pixels_to_world(visible_rect.left(), 0.0).x,
-            self.pixels_to_world(visible_rect.right(), 0.0).x,
+            self.pixels_to_world(visible_rect.left() as f64, 0.0).x,
+            self.pixels_to_world(visible_rect.right() as f64, 0.0).x,
         );
 
         let mut rendered_vertical = HashSet::new();
@@ -185,15 +190,15 @@ impl HomeFlow {
             for x in ((left_edge_world / grid_interval).ceil() as i32)
                 ..=((right_edge_world / grid_interval).floor() as i32)
             {
-                let grid_line_pixel = self.world_to_pixels(x as f32 * grid_interval, 0.0).x;
+                let grid_line_pixel = self.world_to_pixels(x as f64 * grid_interval, 0.0).x;
                 let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
                 if rendered_vertical.contains(&grid_line_pixel_int) {
                     continue;
                 }
                 rendered_vertical.insert(grid_line_pixel_int);
                 lines.push((
-                    egui::pos2(grid_line_pixel, visible_rect.top()),
-                    egui::pos2(grid_line_pixel, visible_rect.bottom()),
+                    egui::pos2(grid_line_pixel as f32, visible_rect.top()),
+                    egui::pos2(grid_line_pixel as f32, visible_rect.bottom()),
                     stroke,
                 ));
             }
@@ -202,15 +207,15 @@ impl HomeFlow {
             for y in ((bottom_edge_world / grid_interval).ceil() as i32)
                 ..=((top_edge_world / grid_interval).floor() as i32)
             {
-                let grid_line_pixel = self.world_to_pixels(0.0, y as f32 * grid_interval).y;
+                let grid_line_pixel = self.world_to_pixels(0.0, y as f64 * grid_interval).y;
                 let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
                 if rendered_horizontal.contains(&grid_line_pixel_int) {
                     continue;
                 }
                 rendered_horizontal.insert(grid_line_pixel_int);
                 lines.push((
-                    egui::pos2(visible_rect.left(), grid_line_pixel),
-                    egui::pos2(visible_rect.right(), grid_line_pixel),
+                    egui::pos2(visible_rect.left(), grid_line_pixel as f32),
+                    egui::pos2(visible_rect.right(), grid_line_pixel as f32),
                     stroke,
                 ));
             }
@@ -355,7 +360,7 @@ impl eframe::App for HomeFlow {
 
                     let rect = Rect::from_center_size(
                         vec2_to_egui_pos(self.world_to_pixels(home_center.x, home_center.y)),
-                        egui::Vec2::new(home_size.x * self.zoom, home_size.y * self.zoom),
+                        vec2_to_egui(vec2(home_size.x * self.zoom, home_size.y * self.zoom)),
                     );
                     painter.image(
                         canvas_texture_id,
@@ -366,22 +371,24 @@ impl eframe::App for HomeFlow {
                 }
 
                 for room in &self.layout.rooms {
-                    for wall in &room.rendered_data.as_ref().unwrap().walls {
-                        // Draw circle at each vertice in the wall
-                        for vertice in &wall.points {
-                            let pos = vec2_to_egui_pos(self.world_to_pixels(vertice.x, vertice.y));
-                            painter.circle_filled(pos, 4.0, Color32::GREEN);
+                    for polygon in &room.rendered_data.as_ref().unwrap().wall_polygons {
+                        // Create an iterator over both the exterior and interiors
+                        let all_rings = std::iter::once(polygon.exterior())
+                            .chain(polygon.interiors().iter())
+                            .collect::<Vec<&LineString<f64>>>();
+
+                        for poly in all_rings {
+                            painter.add(EShape::Path(PathShape {
+                                points: poly
+                                    .points()
+                                    .map(coord_to_vec2)
+                                    .map(|p| vec2_to_egui_pos(self.world_to_pixels(p.x, p.y)))
+                                    .collect(),
+                                closed: true,
+                                fill: Color32::TRANSPARENT,
+                                stroke: Stroke::new(4.0, Color32::RED),
+                            }));
                         }
-                        painter.add(EShape::Path(PathShape {
-                            points: wall
-                                .polygon
-                                .iter()
-                                .map(|p| vec2_to_egui_pos(self.world_to_pixels(p.x, p.y)))
-                                .collect(),
-                            closed: false,
-                            fill: Color32::TRANSPARENT,
-                            stroke: Stroke::new(4.0, Color32::RED),
-                        }));
                     }
                 }
 

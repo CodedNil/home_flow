@@ -1,14 +1,18 @@
 use super::shape::{Material, Shape, WallType};
 use egui::Color32;
-use glam::{vec2, Vec2};
+use geo_types::MultiPolygon;
+use glam::{dvec2 as vec2, DVec2 as Vec2};
 use image::{ImageBuffer, Rgba};
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+};
 use strum_macros::{Display, VariantArray};
 use uuid::Uuid;
 
 const LAYOUT_VERSION: &str = "0.1";
-pub const RESOLUTION_FACTOR: f32 = 80.0; // Pixels per meter
+pub const RESOLUTION_FACTOR: f64 = 80.0; // Pixels per meter
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Home {
@@ -66,7 +70,7 @@ impl Home {
                             Action::Add,
                             Shape::Rectangle,
                             vec2(2.2, 2.4),
-                            vec2(0.4, 2.5),
+                            vec2(0.5, 2.5),
                             0.0,
                         ),
                     ],
@@ -92,8 +96,8 @@ impl Home {
                 ),
                 Room::new(
                     "Pantry",
-                    vec2(-1.6, 1.3),
-                    vec2(0.8, 0.8),
+                    vec2(-1.3, 1.3),
+                    vec2(1.4, 0.8),
                     RenderOptions::new(
                         Material::Marble,
                         2.0,
@@ -103,25 +107,18 @@ impl Home {
                     Walls::WALL,
                     vec![
                         Operation::new(
-                            Action::Add,
+                            Action::Subtract,
                             Shape::Rectangle,
-                            vec2(0.4, 0.1),
-                            vec2(1.0, 0.4),
+                            vec2(0.7, 0.2),
+                            vec2(1.5, 0.6),
                             45.0,
                         ),
                         Operation::new(
                             Action::Subtract,
                             Shape::Rectangle,
-                            vec2(0.1, 0.9),
-                            vec2(1.0, 1.0),
-                            0.0,
-                        ),
-                        Operation::new(
-                            Action::Add,
-                            Shape::Rectangle,
-                            vec2(0.4, -0.2),
-                            vec2(0.4, 0.4),
-                            0.0,
+                            vec2(0.6, -0.5),
+                            vec2(0.6, 0.6),
+                            45.0,
                         ),
                     ],
                 ),
@@ -248,7 +245,7 @@ pub struct Furniture {
     pub id: Uuid,
     pub pos: Vec2,
     pub size: Vec2,
-    pub rotation: f32,
+    pub rotation: f64,
     pub children: Vec<Furniture>,
 }
 
@@ -260,13 +257,13 @@ pub struct Operation {
     pub render_options: Option<RenderOptions>,
     pub pos: Vec2,
     pub size: Vec2,
-    pub rotation: f32,
+    pub rotation: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RenderOptions {
     pub material: Material,
-    pub scale: f32,
+    pub scale: f64,
     pub tint: Option<Color32>,
     pub tiles: Option<TileOptions>,
 }
@@ -275,7 +272,7 @@ pub struct RenderOptions {
 pub struct TileOptions {
     pub scale: u8,
     pub odd_tint: Color32,
-    pub grout_width: f32,
+    pub grout_width: f64,
     pub grout_tint: Color32,
 }
 
@@ -288,11 +285,10 @@ pub enum Action {
     Subtract,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub struct Wall {
     pub points: Vec<Vec2>,
     pub closed: bool,
-    pub polygon: Vec<Vec2>,
 }
 
 #[derive(Clone)]
@@ -309,6 +305,6 @@ pub struct RoomRender {
     pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
     pub center: Vec2,
     pub size: Vec2,
-    pub vertices: Vec<Vec2>,
-    pub walls: Vec<Wall>,
+    pub polygons: HashMap<Material, MultiPolygon>,
+    pub wall_polygons: MultiPolygon,
 }

@@ -1,14 +1,14 @@
 use super::HomeFlow;
 use crate::common::{
     layout::{Action, Operation, RenderOptions, Room, TileOptions, Walls},
-    shape::{Material, Shape, WallType},
+    shape::{coord_to_vec2, Material, Shape, WallType},
     utils::vec2_to_egui_pos,
 };
 use egui::{
     Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Painter, Shape as EShape,
     Stroke, Ui, Window,
 };
-use glam::{vec2, Vec2};
+use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::time::Duration;
 use strum::VariantArray;
 use uuid::Uuid;
@@ -33,8 +33,8 @@ pub struct EditResponse {
     pub used_dragged: bool,
     room_hovered: Option<Uuid>,
     room_selected: Option<Uuid>,
-    snap_line_horizontal: Option<f32>,
-    snap_line_vertical: Option<f32>,
+    snap_line_horizontal: Option<f64>,
+    snap_line_vertical: Option<f64>,
 }
 
 impl HomeFlow {
@@ -212,7 +212,7 @@ impl HomeFlow {
         drag_data: &DragData,
         rooms_id: Uuid,
         ctx: &Context,
-    ) -> (Option<f32>, Option<f32>) {
+    ) -> (Option<f64>, Option<f64>) {
         let mut snap_line_horizontal = None;
         let mut snap_line_vertical = None;
 
@@ -361,8 +361,8 @@ impl HomeFlow {
             let y_level = self.world_to_pixels(-1000.0, snap_line_horizontal).y;
             painter.add(EShape::dashed_line(
                 &[
-                    egui::pos2(0.0, y_level),
-                    egui::pos2(self.canvas_center.x * 2.0, y_level),
+                    vec2_to_egui_pos(vec2(0.0, y_level)),
+                    vec2_to_egui_pos(vec2(self.canvas_center.x * 2.0, y_level)),
                 ],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
                 40.0,
@@ -373,8 +373,8 @@ impl HomeFlow {
             let x_level = self.world_to_pixels(snap_line_vertical, -1000.0).x;
             painter.add(EShape::dashed_line(
                 &[
-                    egui::pos2(x_level, 0.0),
-                    egui::pos2(x_level, self.canvas_center.y * 2.0),
+                    vec2_to_egui_pos(vec2(x_level, 0.0)),
+                    vec2_to_egui_pos(vec2(x_level, self.canvas_center.y * 2.0)),
                 ],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
                 40.0,
@@ -383,10 +383,10 @@ impl HomeFlow {
         }
 
         Window::new("Edit mode instructions".to_string())
-            .fixed_pos(egui::pos2(
+            .fixed_pos(vec2_to_egui_pos(vec2(
                 self.canvas_center.x,
                 self.canvas_center.y * 2.0 - 10.0,
-            ))
+            )))
             .fixed_size([300.0, 0.0])
             .pivot(Align2::CENTER_BOTTOM)
             .title_bar(false)
@@ -413,18 +413,37 @@ impl HomeFlow {
             let rendered_data = room.rendered_data.as_ref().unwrap();
 
             // Render outline
-            let points = rendered_data
-                .vertices
-                .iter()
-                .map(|v| self.world_to_pixels(v.x, v.y))
-                .collect::<Vec<_>>();
-            closed_dashed_line_with_offset(
-                painter,
-                &points,
-                Stroke::new(6.0, Color32::from_rgba_premultiplied(255, 255, 255, 150)),
-                60.0,
-                self.time as f32 * 50.0,
-            );
+            for multipoly in rendered_data.polygons.values() {
+                for poly in multipoly {
+                    let points: Vec<Vec2> = poly
+                        .exterior()
+                        .points()
+                        .map(coord_to_vec2)
+                        .map(|p| self.world_to_pixels(p.x, p.y))
+                        .collect();
+                    closed_dashed_line_with_offset(
+                        painter,
+                        &points,
+                        Stroke::new(6.0, Color32::from_rgba_premultiplied(255, 255, 255, 150)),
+                        60.0,
+                        self.time * 50.0,
+                    );
+                    for interior in poly.interiors() {
+                        let points: Vec<Vec2> = interior
+                            .points()
+                            .map(coord_to_vec2)
+                            .map(|p| self.world_to_pixels(p.x, p.y))
+                            .collect();
+                        closed_dashed_line_with_offset(
+                            painter,
+                            &points,
+                            Stroke::new(4.0, Color32::from_rgba_premultiplied(255, 200, 200, 150)),
+                            60.0,
+                            self.time * 50.0,
+                        );
+                    }
+                }
+            }
 
             // Render operations
             for operation in &room.operations {
@@ -445,13 +464,7 @@ impl HomeFlow {
                     }
                     .gamma_multiply(0.6),
                 );
-                closed_dashed_line_with_offset(
-                    painter,
-                    &points,
-                    stroke,
-                    35.0,
-                    self.time as f32 * 50.0,
-                );
+                closed_dashed_line_with_offset(painter, &points, stroke, 35.0, self.time * 50.0);
             }
         }
         if let Some(room_id) = &edit_response.room_selected {
@@ -463,7 +476,7 @@ impl HomeFlow {
                 .unwrap();
             let mut alter_room = AlterRoom::None;
             Window::new(format!("Edit {}", room.id))
-                .fixed_pos(egui::pos2(self.canvas_center.x, 20.0))
+                .fixed_pos(vec2_to_egui_pos(vec2(self.canvas_center.x, 20.0)))
                 .fixed_size([200.0, 0.0])
                 .pivot(Align2::CENTER_TOP)
                 .title_bar(false)
@@ -745,7 +758,7 @@ fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions,
         }
     });
 
-    // Tiles boolean and then pub struct TileOptions { scale: u8, odd_tint: Color32, grout_width: f32, grout_tint: Color32 }
+    // Tiles boolean and then pub struct TileOptions { scale: u8, odd_tint: Color32, grout_width: f64, grout_tint: Color32 }
     ui.horizontal(|ui| {
         if ui
             .add(Checkbox::new(&mut render_options.tiles.is_some(), "Tiles"))
@@ -802,8 +815,8 @@ fn closed_dashed_line_with_offset(
     painter: &Painter,
     points: &[Vec2],
     stroke: Stroke,
-    desired_combined_length: f32,
-    time: f32,
+    desired_combined_length: f64,
+    time: f64,
 ) {
     let mut points = points.to_vec();
     points.push(points[0]);
@@ -815,7 +828,7 @@ fn closed_dashed_line_with_offset(
     }
 
     let num_dashes = (total_length / desired_combined_length).round() as usize;
-    let combined_length = total_length / num_dashes as f32;
+    let combined_length = total_length / num_dashes as f64;
     let dash_length = combined_length * 0.6;
     let gap_length = combined_length - dash_length;
 
@@ -825,14 +838,14 @@ fn closed_dashed_line_with_offset(
 
     let points = points
         .iter()
-        .map(|p| egui::pos2(p.x, p.y))
+        .map(|p| vec2_to_egui_pos(*p))
         .collect::<Vec<_>>();
 
     painter.add(EShape::dashed_line_with_offset(
         &points,
         stroke,
-        &[dash_length],
-        &[gap_length],
-        offset,
+        &[dash_length as f32],
+        &[gap_length as f32],
+        offset as f32,
     ));
 }

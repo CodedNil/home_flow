@@ -1,6 +1,6 @@
 use crate::common::layout::{Action, RenderOptions, Room, RoomRender, RESOLUTION_FACTOR};
 use crate::common::shape::{Material, Shape, WallType, TEXTURES};
-use glam::{vec2, Vec2};
+use glam::{dvec2 as vec2, DVec2 as Vec2};
 use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use rayon::prelude::*;
 use std::{
@@ -9,6 +9,7 @@ use std::{
 };
 
 use super::layout::Home;
+use super::shape::wall_polygons;
 
 const WALL_COLOR: Rgba<u8> = Rgba([130, 80, 20, 255]);
 const CHUNK_SIZE: u32 = 64;
@@ -53,8 +54,9 @@ impl Room {
         let height = new_size.y * RESOLUTION_FACTOR;
 
         // Calculate the vertices and walls of the room
-        let vertices = self.vertices();
-        let walls = self.walls(&vertices);
+        let polygons = self.polygons();
+        let polygon_values: Vec<_> = polygons.values().cloned().collect();
+        let wall_polygons = wall_polygons(&polygon_values);
 
         // Create an image buffer with the calculated size, filled with transparent pixels
         let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
@@ -91,7 +93,7 @@ impl Room {
 
                         let mut pixel_color = Rgba([0, 0, 0, 0]);
 
-                        let point = vec2(x as f32 / width, 1.0 - (y as f32 / height));
+                        let point = vec2(x as f64 / width, 1.0 - (y as f64 / height));
                         let point_in_world = bounds_min + point * new_size;
 
                         let mut rooms_pixel_color = None;
@@ -104,8 +106,8 @@ impl Room {
                                 rooms_pixel_color = Some(apply_render_options(
                                     &self.render_options,
                                     texture,
-                                    x as f32,
-                                    y as f32,
+                                    x as f64,
+                                    y as f64,
                                     point_within_shape,
                                     self.size.x / self.size.y,
                                 ));
@@ -138,8 +140,8 @@ impl Room {
                                             rooms_pixel_color = Some(apply_render_options(
                                                 render_options,
                                                 texture,
-                                                x as f32,
-                                                y as f32,
+                                                x as f64,
+                                                y as f64,
                                                 point_within_shape,
                                                 self.size.x / self.size.y,
                                             ));
@@ -176,8 +178,8 @@ impl Room {
                         // if is_wall {
                         //     let scale = Material::Wall.get_scale() / RESOLUTION_FACTOR;
                         //     let mut texture_color = *wall_texture.get_pixel(
-                        //         (x as f32 * scale) as u32 % wall_texture.width(),
-                        //         (y as f32 * scale) as u32 % wall_texture.height(),
+                        //         (x as f64 * scale) as u32 % wall_texture.width(),
+                        //         (y as f64 * scale) as u32 % wall_texture.height(),
                         //     );
                         //     texture_color.blend(&Rgba([
                         //         WALL_COLOR[0],
@@ -224,8 +226,8 @@ impl Room {
             texture: image_buffer,
             center: new_center,
             size: new_size,
-            vertices,
-            walls,
+            polygons,
+            wall_polygons,
         }
     }
 }
@@ -233,10 +235,10 @@ impl Room {
 fn apply_render_options(
     render_options: &RenderOptions,
     texture: &RgbaImage,
-    x: f32,
-    y: f32,
+    x: f64,
+    y: f64,
     point: Vec2,
-    aspect_ratio: f32,
+    aspect_ratio: f64,
 ) -> Rgba<u8> {
     // Get texture
     let scale = render_options.material.get_scale() * render_options.scale / RESOLUTION_FACTOR;
@@ -255,7 +257,7 @@ fn apply_render_options(
     }
     // Add tiles if specified
     if let Some(tile_options) = &render_options.tiles {
-        let tile_scale_x = tile_options.scale as f32;
+        let tile_scale_x = tile_options.scale as f64;
         let tile_scale_y = (tile_scale_x / aspect_ratio).round();
         let tile_x = point.x.abs() * tile_scale_x;
         let tile_y = point.y.abs() * tile_scale_y;
