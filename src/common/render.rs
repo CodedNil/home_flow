@@ -1,8 +1,13 @@
-use crate::common::layout::{Action, RenderOptions, Room, RoomRender, RESOLUTION_FACTOR};
-use crate::common::shape::{Material, Shape, WallType, TEXTURES};
+use crate::common::layout::{
+    Action, HomeRender, RenderOptions, Room, RoomRender, RESOLUTION_FACTOR,
+};
+use crate::common::shape::{Material, Shape, WallType, EMPTY_MULTI_POLYGON, TEXTURES};
+use geo::BooleanOps;
+use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use rayon::prelude::*;
+use std::collections::HashMap;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
@@ -16,8 +21,66 @@ const CHUNK_SIZE: u32 = 64;
 
 impl Home {
     pub fn render(&mut self) {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        let hash = hasher.finish();
+        if let Some(rendered_data) = &self.rendered_data {
+            if rendered_data.hash == hash {
+                return;
+            }
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let start_time = std::time::Instant::now();
+
+        // Process all rooms in parallel
+        let room_polygons = self
+            .rooms
+            .clone()
+            .into_par_iter()
+            .enumerate()
+            .map(|(index, room)| (index, room.id, room.polygons(), room.material_polygons()))
+            .collect::<Vec<_>>();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        println!("Processed polygons in {:?}", start_time.elapsed());
+
+        // For each rooms polygon, subtract rooms above it
+        let room_process_data = {
+            let mut room_process_data = HashMap::new();
+            for (index, id, polygons, material_polygons) in &room_polygons {
+                let mut new_polygons = polygons.clone();
+                let mut new_material_polygons = material_polygons.clone();
+                for (above_index, _, above_polygons, _) in &room_polygons {
+                    if above_index > index {
+                        new_polygons = new_polygons.difference(above_polygons);
+                        for material in material_polygons.keys() {
+                            new_material_polygons.entry(*material).and_modify(|e| {
+                                *e = e.difference(above_polygons);
+                            });
+                        }
+                    }
+                }
+                let should_make_walls = self.rooms[*index].has_walls;
+                let wall_polygons = if should_make_walls {
+                    wall_polygons(&new_polygons)
+                } else {
+                    EMPTY_MULTI_POLYGON
+                };
+                room_process_data.insert(
+                    *id,
+                    RoomProcess {
+                        polygons: new_polygons,
+                        material_polygons: new_material_polygons,
+                        wall_polygons,
+                    },
+                );
+            }
+            room_process_data
+        };
+
         // Render out all rooms in parallel if their hashes have changed
-        let rooms_to_update: Vec<(usize, u64)> = self
+        let rooms_to_update = self
             .rooms
             .iter()
             .enumerate()
@@ -27,23 +90,57 @@ impl Home {
                 let hash = hasher.finish();
                 match &room.rendered_data {
                     Some(rendered_data) if rendered_data.hash == hash => None,
-                    _ => Some((index, hash)),
+                    _ => Some((index, room.id, hash)),
                 }
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        let new_data: Vec<(usize, u64, RoomRender)> = rooms_to_update
+        let new_data = rooms_to_update
             .into_par_iter()
-            .map(|(index, hash)| (index, hash, self.rooms[index].render()))
-            .collect();
-        for (index, hash, data) in new_data {
-            self.rooms[index].rendered_data = Some(RoomRender { hash, ..data });
+            .map(|(index, id, hash)| {
+                (
+                    id,
+                    hash,
+                    self.rooms[index].render(room_process_data.get(&id).unwrap().clone()),
+                )
+            })
+            .collect::<Vec<_>>();
+        for room in &mut self.rooms {
+            let process_data = room_process_data.get(&room.id).unwrap().clone();
+            let mut render = None;
+            for (id, hash, data) in &new_data {
+                if &room.id == id {
+                    render = Some(RoomRender {
+                        hash: *hash,
+                        ..data.clone()
+                    });
+                }
+            }
+            if let Some(render) = render {
+                room.rendered_data = Some(render);
+            } else if let Some(rendered_data) = &mut room.rendered_data {
+                rendered_data.polygons = process_data.polygons;
+                rendered_data.material_polygons = process_data.material_polygons;
+                rendered_data.wall_polygons = process_data.wall_polygons;
+            }
         }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        println!("Rendered in {:?}", start_time.elapsed());
+
+        self.rendered_data = Some(HomeRender { hash });
     }
 }
 
+#[derive(Clone)]
+pub struct RoomProcess {
+    pub polygons: MultiPolygon,
+    pub material_polygons: HashMap<Material, MultiPolygon>,
+    pub wall_polygons: MultiPolygon,
+}
+
 impl Room {
-    pub fn render(&self) -> RoomRender {
+    pub fn render(&self, processed: RoomProcess) -> RoomRender {
         // Calculate the center and size of the home
         let (bounds_min, bounds_max) = self.bounds_with_walls();
         let new_center = (bounds_min + bounds_max) / 2.0;
@@ -53,16 +150,8 @@ impl Room {
         let width = new_size.x * RESOLUTION_FACTOR;
         let height = new_size.y * RESOLUTION_FACTOR;
 
-        // Calculate the vertices and walls of the room
-        let material_polygons = self.material_polygons();
-        let polygons = self.polygons();
-        let wall_polygons = wall_polygons(&polygons);
-
         // Create an image buffer with the calculated size, filled with transparent pixels
         let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
-
-        // Load required textures
-        let wall_texture = TEXTURES.get(&Material::Wall).unwrap();
 
         let (image_width, image_height) = (image_buffer.width(), image_buffer.height());
         let num_chunks_x = (image_width + CHUNK_SIZE - 1) / CHUNK_SIZE;
@@ -165,33 +254,6 @@ impl Room {
                             pixel_color = rooms_pixel_color;
                         }
 
-                        // Check if within room bounds with walls
-                        // let mut is_wall = false;
-                        // for wall in &walls {
-                        //     if wall.point_within(point_in_world) {
-                        //         is_wall = true;
-                        //         break;
-                        //     }
-                        // }
-
-                        // // Walls
-                        // if is_wall {
-                        //     let scale = Material::Wall.get_scale() / RESOLUTION_FACTOR;
-                        //     let mut texture_color = *wall_texture.get_pixel(
-                        //         (x as f64 * scale) as u32 % wall_texture.width(),
-                        //         (y as f64 * scale) as u32 % wall_texture.height(),
-                        //     );
-                        //     texture_color.blend(&Rgba([
-                        //         WALL_COLOR[0],
-                        //         WALL_COLOR[1],
-                        //         WALL_COLOR[2],
-                        //         200,
-                        //     ]));
-
-                        //     pixel_color = texture_color;
-                        //     chunk_edited = true;
-                        // }
-
                         chunk_buffer[(chunk_y * chunk_width + chunk_x) as usize] = pixel_color;
                     }
                 }
@@ -226,9 +288,9 @@ impl Room {
             texture: image_buffer,
             center: new_center,
             size: new_size,
-            polygons,
-            material_polygons,
-            wall_polygons,
+            polygons: processed.polygons,
+            material_polygons: processed.material_polygons,
+            wall_polygons: processed.wall_polygons,
         }
     }
 }

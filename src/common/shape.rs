@@ -306,8 +306,8 @@ pub fn coord_to_vec2(c: geo_types::Point<f64>) -> Vec2 {
     vec2(c.x(), c.y())
 }
 
-pub fn create_polygon(vertices: &[Vec2]) -> Polygon<f64> {
-    Polygon::new(
+pub fn create_multipolygon(vertices: &[Vec2]) -> MultiPolygon {
+    MultiPolygon(vec![Polygon::new(
         geo::LineString::from(
             vertices
                 .iter()
@@ -315,12 +315,10 @@ pub fn create_polygon(vertices: &[Vec2]) -> Polygon<f64> {
                 .collect::<Vec<_>>(),
         ),
         vec![],
-    )
+    )])
 }
 
-pub fn create_multipolygon(vertices: &[Vec2]) -> MultiPolygon {
-    MultiPolygon(vec![create_polygon(vertices)])
-}
+pub const EMPTY_MULTI_POLYGON: MultiPolygon = MultiPolygon(vec![]);
 
 pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
     // Convert the geo Polygon into the Vec<Vec<Vec<T>>> format expected by flatten
@@ -368,6 +366,7 @@ pub enum Shape {
     #[default]
     Rectangle,
     Circle,
+    Triangle,
 }
 
 impl Shape {
@@ -387,6 +386,19 @@ impl Shape {
                 let dy = (point.y - center.y) / b;
 
                 dx * dx + dy * dy <= 1.0
+            }
+            Self::Triangle => {
+                let base = size.x;
+                let height = size.y;
+                let hypotenuse_slope = height / base;
+
+                let relative_point_x = point.x - center.x + size.x / 2.0;
+                let relative_point_y = center.y - point.y + size.y / 2.0;
+
+                relative_point_x >= 0.0
+                    && relative_point_y >= 0.0
+                    && relative_point_y <= height
+                    && relative_point_y <= (-hypotenuse_slope) * relative_point_x + height
             }
         }
     }
@@ -417,6 +429,17 @@ impl Shape {
                         pos.y + angle.sin() * radius_y,
                     ));
                 }
+                for vertex in &mut vertices {
+                    *vertex = rotate_point(*vertex, pos, -rotation);
+                }
+                vertices
+            }
+            Self::Triangle => {
+                let mut vertices = vec![
+                    vec2(pos.x - size.x / 2.0, pos.y + size.y / 2.0), // Right angle at top left
+                    vec2(pos.x + size.x / 2.0, pos.y + size.y / 2.0), // Bottom right
+                    vec2(pos.x - size.x / 2.0, pos.y - size.y / 2.0), // Top right
+                ];
                 for vertex in &mut vertices {
                     *vertex = rotate_point(*vertex, pos, -rotation);
                 }

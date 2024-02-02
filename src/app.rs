@@ -1,17 +1,14 @@
 use self::edit_mode::EditDetails;
 use crate::common::{
     layout,
-    shape::{coord_to_vec2, triangulate_polygon},
+    shape::triangulate_polygon,
     utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui, vec2_to_egui_pos},
 };
 use egui::{
-    epaint::{PathShape, Vertex},
-    util::History,
-    Align2, CentralPanel, Color32, ColorImage, Context, Frame, Mesh, Painter, Rect, Sense,
-    Shape as EShape, Stroke, TextureId, TextureOptions, Window,
+    epaint::Vertex, util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Mesh,
+    Painter, Rect, Sense, Shape as EShape, Stroke, TextureId, TextureOptions, Window,
 };
 use egui_notify::Toasts;
-use geo_types::LineString;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
 use std::{

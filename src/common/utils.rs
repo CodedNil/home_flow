@@ -83,6 +83,7 @@ impl Room {
         pos: Vec2,
         size: Vec2,
         render_options: RenderOptions,
+        has_walls: bool,
         walls: Walls,
         operations: Vec<Operation>,
     ) -> Self {
@@ -92,6 +93,7 @@ impl Room {
             render_options,
             pos,
             size,
+            has_walls,
             walls,
             operations,
             rendered_data: None,

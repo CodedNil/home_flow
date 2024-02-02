@@ -41,6 +41,7 @@ impl Home {
                     vec2(2.9, -0.1),
                     vec2(2.2, 4.8),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    false,
                     Walls::NONE,
                     vec![],
                 ),
@@ -49,6 +50,7 @@ impl Home {
                     vec2(-0.2, -4.0),
                     vec2(4.0, 1.8),
                     RenderOptions::new(Material::Limestone, 1.5, None, None),
+                    false,
                     Walls::NONE,
                     vec![],
                 ),
@@ -57,6 +59,7 @@ impl Home {
                     vec2(-0.2, 0.55),
                     vec2(4.0, 7.3),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    true,
                     Walls::WALL.right(WallType::None),
                     vec![
                         Operation::new(
@@ -85,6 +88,7 @@ impl Home {
                         Some("#fff8e8ff"),
                         Some(TileOptions::new(7, "#ffffff00", 0.015, "#505050cc")),
                     ),
+                    true,
                     Walls::WALL.right(WallType::None).bottom(WallType::None),
                     vec![Operation::new(
                         Action::Subtract,
@@ -104,6 +108,7 @@ impl Home {
                         Some("#fff8e8ff"),
                         Some(TileOptions::new(2, "#ffffff00", 0.015, "#505050cc")),
                     ),
+                    true,
                     Walls::WALL,
                     vec![
                         Operation::new(
@@ -127,6 +132,7 @@ impl Home {
                     vec2(-2.5, 1.3),
                     vec2(1.0, 0.8),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    true,
                     Walls::WALL,
                     vec![],
                 ),
@@ -135,6 +141,7 @@ impl Home {
                     vec2(4.2, 2.7),
                     vec2(4.0, 3.0),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    true,
                     Walls::WALL,
                     vec![Operation::new(
                         Action::Subtract,
@@ -149,6 +156,7 @@ impl Home {
                     vec2(3.8, -4.5),
                     vec2(4.0, 4.0),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    true,
                     Walls::WALL,
                     vec![],
                 ),
@@ -157,6 +165,7 @@ impl Home {
                     vec2(2.4, -0.1),
                     vec2(1.2, 1.6),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    true,
                     Walls::WALL,
                     vec![Operation::new(
                         Action::Subtract,
@@ -171,6 +180,7 @@ impl Home {
                     vec2(2.4, -1.7),
                     vec2(1.2, 1.6),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    true,
                     Walls::WALL,
                     vec![],
                 ),
@@ -179,6 +189,7 @@ impl Home {
                     vec2(4.9, -1.9),
                     vec2(1.8, 1.2),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    true,
                     Walls::WALL,
                     vec![],
                 ),
@@ -192,6 +203,7 @@ impl Home {
                         Some("#fff8e8"),
                         Some(TileOptions::new(4, "#ffffff00", 0.015, "#505050cc")),
                     ),
+                    true,
                     Walls::WALL,
                     vec![],
                 ),
@@ -200,6 +212,7 @@ impl Home {
                     vec2(3.9, 0.8),
                     vec2(0.8, 0.8),
                     RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    true,
                     Walls::WALL,
                     vec![],
                 ),
@@ -227,6 +240,7 @@ pub struct Room {
     pub pos: Vec2,
     pub size: Vec2,
     pub operations: Vec<Operation>,
+    pub has_walls: bool,
     pub walls: Walls,
     #[serde(skip)]
     pub rendered_data: Option<RoomRender>,
@@ -294,9 +308,6 @@ pub struct Wall {
 #[derive(Clone)]
 pub struct HomeRender {
     pub hash: u64,
-    pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
-    pub center: Vec2,
-    pub size: Vec2,
 }
 
 #[derive(Clone)]

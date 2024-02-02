@@ -401,6 +401,7 @@ impl HomeFlow {
                             vec2(0.0, 0.0),
                             vec2(1.0, 1.0),
                             RenderOptions::default(),
+                            true,
                             Walls::WALL,
                             vec![],
                         ));
@@ -442,6 +443,15 @@ impl HomeFlow {
                     );
                 }
             }
+
+            // Render original shape
+            let vertices = Shape::Rectangle.vertices(room.pos, room.size, 0.0);
+            let points = vertices
+                .iter()
+                .map(|v| self.world_to_pixels(v.x, v.y))
+                .collect::<Vec<_>>();
+            let stroke = Stroke::new(3.0, Color32::from_rgb(50, 200, 50).gamma_multiply(0.6));
+            closed_dashed_line_with_offset(painter, &points, stroke, 35.0, self.time * 50.0);
 
             // Render operations
             for operation in &room.operations {
