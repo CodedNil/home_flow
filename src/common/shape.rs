@@ -258,6 +258,7 @@ pub enum Material {
     Carpet,
     Marble,
     Granite,
+    Limestone,
     Wood,
     WoodPlanks,
 }
@@ -267,9 +268,10 @@ impl Material {
         match self {
             Self::Wall
             | Self::Carpet
-            | Self::Granite
-            | Self::Wood
             | Self::Marble
+            | Self::Granite
+            | Self::Limestone
+            | Self::Wood
             | Self::WoodPlanks => 40.0,
         }
     }
@@ -280,6 +282,7 @@ impl Material {
             Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
+            Self::Limestone => include_bytes!("../../assets/textures/limestone.png"),
             Self::Wood => include_bytes!("../../assets/textures/wood.png"),
             Self::WoodPlanks => include_bytes!("../../assets/textures/wood_planks.png"),
         }

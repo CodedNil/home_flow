@@ -48,7 +48,7 @@ impl Home {
                     "Balcony",
                     vec2(-0.2, -4.0),
                     vec2(4.0, 1.8),
-                    RenderOptions::new(Material::Marble, 1.5, Some("#979797ff"), None),
+                    RenderOptions::new(Material::Limestone, 1.5, None, None),
                     Walls::NONE,
                     vec![],
                 ),
