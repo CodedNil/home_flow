@@ -1,5 +1,5 @@
 use super::{
-    layout::{Action, Room, Wall, Walls},
+    layout::{Action, Room, Walls},
     utils::rotate_point,
 };
 use geo::BooleanOps;
@@ -139,115 +139,7 @@ impl Room {
 
         polygons
     }
-
-    // pub fn walls(&self, vertices: &[Vec2]) -> Vec<Wall> {
-    //     if vertices.is_empty() {
-    //         return Vec::new();
-    //     }
-
-    //     let mut top_left_index = 0;
-    //     let mut top_right_index = 0;
-    //     let mut bottom_left_index = 0;
-    //     let mut bottom_right_index = 0;
-
-    //     let top_left_corner = self.pos + vec2(-99999.0, 99999.0);
-    //     let mut top_left_distance = f64::MAX;
-    //     let top_right_corner = self.pos + vec2(99999.0, 99999.0);
-    //     let mut top_right_distance = f64::MAX;
-    //     let bottom_left_corner = self.pos + vec2(-99999.0, -99999.0);
-    //     let mut bottom_left_distance = f64::MAX;
-    //     let bottom_right_corner = self.pos + vec2(99999.0, -99999.0);
-    //     let mut bottom_right_distance = f64::MAX;
-
-    //     for (i, vertex) in vertices.iter().enumerate() {
-    //         let distance_top_left = (*vertex - top_left_corner).length();
-    //         if distance_top_left < top_left_distance {
-    //             top_left_distance = distance_top_left;
-    //             top_left_index = i;
-    //         }
-    //         let distance_top_right = (*vertex - top_right_corner).length();
-    //         if distance_top_right < top_right_distance {
-    //             top_right_distance = distance_top_right;
-    //             top_right_index = i;
-    //         }
-    //         let distance_bottom_left = (*vertex - bottom_left_corner).length();
-    //         if distance_bottom_left < bottom_left_distance {
-    //             bottom_left_distance = distance_bottom_left;
-    //             bottom_left_index = i;
-    //         }
-    //         let distance_bottom_right = (*vertex - bottom_right_corner).length();
-    //         if distance_bottom_right < bottom_right_distance {
-    //             bottom_right_distance = distance_bottom_right;
-    //             bottom_right_index = i;
-    //         }
-    //     }
-
-    //     let get_wall_vertices = |start_index: usize, end_index: usize| -> Vec<Vec2> {
-    //         if start_index <= end_index {
-    //             vertices[start_index..=end_index].to_vec()
-    //         } else {
-    //             vertices[start_index..]
-    //                 .iter()
-    //                 .chain(vertices[..=end_index].iter())
-    //                 .copied()
-    //                 .collect()
-    //         }
-    //     };
-
-    //     let mut walls = vec![
-    //         (
-    //             get_wall_vertices(top_left_index, bottom_left_index),
-    //             self.walls.left,
-    //         ),
-    //         (
-    //             get_wall_vertices(top_right_index, top_left_index),
-    //             self.walls.top,
-    //         ),
-    //         (
-    //             get_wall_vertices(bottom_right_index, top_right_index),
-    //             self.walls.right,
-    //         ),
-    //         (
-    //             get_wall_vertices(bottom_left_index, bottom_right_index),
-    //             self.walls.bottom,
-    //         ),
-    //     ];
-
-    //     let merge1 = merge_walls_if_same_type(&mut walls, 1, 0);
-    //     let merge2 = merge_walls_if_same_type(&mut walls, 2, 1);
-    //     let merge3 = merge_walls_if_same_type(&mut walls, 3, 2);
-    //     let merge4 = merge_walls_if_same_type(&mut walls, 0, 3);
-
-    //     walls
-    //         .into_iter()
-    //         .filter(|wall| wall.0.len() >= 2 && wall.1 != WallType::None)
-    //         .map(|(points, _)| {
-    //             let points = points.iter().fold(Vec::new(), |mut acc, &p| {
-    //                 if !acc.iter().any(|mp| p.distance(*mp) < f64::EPSILON) {
-    //                     acc.push(p);
-    //                 }
-    //                 acc
-    //             });
-    //             Wall {
-    //                 points,
-    //                 closed: (merge1 && merge2 && merge3 && merge4),
-    //             }
-    //         })
-    //         .collect()
-    // }
 }
-
-// fn merge_walls_if_same_type(walls: &mut [(Vec<Vec2>, WallType)], idx1: usize, idx2: usize) -> bool {
-//     if walls[idx1].1 != WallType::None && walls[idx1].1 == walls[idx2].1 {
-//         let points_to_extend = walls[idx2].0[1..].to_vec();
-
-//         // Extend the points of the first wall with the points of the second wall, skipping the first point to avoid duplication
-//         walls[idx1].0.extend_from_slice(&points_to_extend);
-//         walls[idx2].1 = WallType::None;
-//         return true;
-//     }
-//     false
-// }
 
 #[derive(
     Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, VariantArray, Default,
@@ -449,7 +341,12 @@ impl Shape {
     }
 }
 
-pub fn wall_polygons(polygons: &MultiPolygon) -> MultiPolygon {
+pub fn wall_polygons(
+    polygons: &MultiPolygon,
+    center: Vec2,
+    size: Vec2,
+    walls: &Walls,
+) -> MultiPolygon {
     // Filter out inner polygons
     let mut new_polygons = MultiPolygon(vec![]);
     for polygon in polygons {
@@ -467,6 +364,61 @@ pub fn wall_polygons(polygons: &MultiPolygon) -> MultiPolygon {
 
     let diff = polygon_outside.difference(&polygon_inside);
     new_polys = new_polys.union(&diff);
+
+    // If walls arent on all sides, trim as needed
+    if walls == &Walls::WALL {
+        return new_polys;
+    }
+
+    let up = size.y * 0.5 - width_half * 3.0;
+    let right = size.x * 0.5 - width_half * 3.0;
+    let vertices = vec![
+        // Left
+        vec![
+            center,
+            center + vec2(-right, up),
+            center + vec2(-right * 4.0, up),
+            center + vec2(-right * 4.0, -up),
+            center + vec2(-right, -up),
+        ],
+        // Top
+        vec![
+            center,
+            center + vec2(-right, up),
+            center + vec2(-right, up * 4.0),
+            center + vec2(right, up * 4.0),
+            center + vec2(right, up),
+        ],
+        // Right
+        vec![
+            center,
+            center + vec2(right, up),
+            center + vec2(right * 4.0, up),
+            center + vec2(right * 4.0, -up),
+            center + vec2(right, -up),
+        ],
+        // Bottom
+        vec![
+            center,
+            center + vec2(-right, -up),
+            center + vec2(-right, -up * 4.0),
+            center + vec2(right, -up * 4.0),
+            center + vec2(right, -up),
+        ],
+    ];
+    for index in 0..4 {
+        let (wall_type, vertices) = match index {
+            0 => (walls.left, vertices[0].clone()),
+            1 => (walls.top, vertices[1].clone()),
+            2 => (walls.right, vertices[2].clone()),
+            _ => (walls.bottom, vertices[3].clone()),
+        };
+        if wall_type == WallType::None {
+            // Subtract the new polygon from wall polygons
+            let wall_polygon = create_multipolygon(&vertices);
+            new_polys = new_polys.difference(&wall_polygon);
+        }
+    }
 
     new_polys
 }

@@ -18,6 +18,8 @@ use std::{
 
 mod edit_mode;
 
+const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
+
 pub struct HomeFlow {
     time: f64,
 
@@ -393,7 +395,7 @@ impl eframe::App for HomeFlow {
                     );
                     for polygon in &room.rendered_data.as_ref().unwrap().wall_polygons {
                         let (tri_indices, tri_vertices) = triangulate_polygon(polygon);
-                        self.render_mesh(&painter, tri_indices, tri_vertices, Color32::BLACK);
+                        self.render_mesh(&painter, tri_indices, tri_vertices, WALL_COLOR);
                     }
                 }
 

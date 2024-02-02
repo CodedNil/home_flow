@@ -1,7 +1,9 @@
+use super::layout::Home;
+use super::shape::{Material, Shape, EMPTY_MULTI_POLYGON, TEXTURES};
 use crate::common::layout::{
-    Action, HomeRender, RenderOptions, Room, RoomRender, RESOLUTION_FACTOR,
+    Action, HomeRender, RenderOptions, Room, RoomRender, Walls, RESOLUTION_FACTOR,
 };
-use crate::common::shape::{Material, Shape, WallType, EMPTY_MULTI_POLYGON, TEXTURES};
+use crate::common::shape::wall_polygons;
 use geo::BooleanOps;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -13,10 +15,6 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use super::layout::Home;
-use super::shape::wall_polygons;
-
-const WALL_COLOR: Rgba<u8> = Rgba([130, 80, 20, 255]);
 const CHUNK_SIZE: u32 = 64;
 
 impl Home {
@@ -61,11 +59,14 @@ impl Home {
                         }
                     }
                 }
-                let should_make_walls = self.rooms[*index].has_walls;
-                let wall_polygons = if should_make_walls {
-                    wall_polygons(&new_polygons)
-                } else {
+                let room = &self.rooms[*index];
+                let wall_polygons = if room.walls == Walls::NONE {
                     EMPTY_MULTI_POLYGON
+                } else {
+                    let bounds = room.bounds_with_walls();
+                    let center = (bounds.0 + bounds.1) / 2.0;
+                    let size = bounds.1 - bounds.0;
+                    wall_polygons(&new_polygons, center, size, &room.walls)
                 };
                 room_process_data.insert(
                     *id,
