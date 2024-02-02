@@ -54,9 +54,9 @@ impl Room {
         let height = new_size.y * RESOLUTION_FACTOR;
 
         // Calculate the vertices and walls of the room
+        let material_polygons = self.material_polygons();
         let polygons = self.polygons();
-        let polygon_values: Vec<_> = polygons.values().cloned().collect();
-        let wall_polygons = wall_polygons(&polygon_values);
+        let wall_polygons = wall_polygons(&polygons);
 
         // Create an image buffer with the calculated size, filled with transparent pixels
         let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
@@ -227,6 +227,7 @@ impl Room {
             center: new_center,
             size: new_size,
             polygons,
+            material_polygons,
             wall_polygons,
         }
     }

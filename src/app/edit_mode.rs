@@ -413,10 +413,22 @@ impl HomeFlow {
             let rendered_data = room.rendered_data.as_ref().unwrap();
 
             // Render outline
-            for multipoly in rendered_data.polygons.values() {
-                for poly in multipoly {
-                    let points: Vec<Vec2> = poly
-                        .exterior()
+            for poly in &rendered_data.polygons {
+                let points: Vec<Vec2> = poly
+                    .exterior()
+                    .points()
+                    .map(coord_to_vec2)
+                    .map(|p| self.world_to_pixels(p.x, p.y))
+                    .collect();
+                closed_dashed_line_with_offset(
+                    painter,
+                    &points,
+                    Stroke::new(6.0, Color32::from_rgba_premultiplied(255, 255, 255, 150)),
+                    60.0,
+                    self.time * 50.0,
+                );
+                for interior in poly.interiors() {
+                    let points: Vec<Vec2> = interior
                         .points()
                         .map(coord_to_vec2)
                         .map(|p| self.world_to_pixels(p.x, p.y))
@@ -424,24 +436,10 @@ impl HomeFlow {
                     closed_dashed_line_with_offset(
                         painter,
                         &points,
-                        Stroke::new(6.0, Color32::from_rgba_premultiplied(255, 255, 255, 150)),
+                        Stroke::new(4.0, Color32::from_rgba_premultiplied(255, 200, 200, 150)),
                         60.0,
                         self.time * 50.0,
                     );
-                    for interior in poly.interiors() {
-                        let points: Vec<Vec2> = interior
-                            .points()
-                            .map(coord_to_vec2)
-                            .map(|p| self.world_to_pixels(p.x, p.y))
-                            .collect();
-                        closed_dashed_line_with_offset(
-                            painter,
-                            &points,
-                            Stroke::new(4.0, Color32::from_rgba_premultiplied(255, 200, 200, 150)),
-                            60.0,
-                            self.time * 50.0,
-                        );
-                    }
                 }
             }
 

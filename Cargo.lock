@@ -1418,6 +1418,7 @@ dependencies = [
  "axum",
  "chrono",
  "diff",
+ "earcutr",
  "eframe",
  "egui",
  "egui-notify",

@@ -75,7 +75,30 @@ impl Room {
         inside
     }
 
-    pub fn polygons(&self) -> HashMap<Material, MultiPolygon> {
+    pub fn polygons(&self) -> MultiPolygon {
+        let mut polygons =
+            create_multipolygon(&Shape::Rectangle.vertices(self.pos, self.size, 0.0));
+        for operation in &self.operations {
+            let operation_polygon = create_multipolygon(&operation.shape.vertices(
+                self.pos + operation.pos,
+                operation.size,
+                operation.rotation,
+            ));
+
+            match operation.action {
+                Action::Add => {
+                    polygons = polygons.union(&operation_polygon);
+                }
+                Action::Subtract => {
+                    polygons = polygons.difference(&operation_polygon);
+                }
+            }
+        }
+
+        polygons
+    }
+
+    pub fn material_polygons(&self) -> HashMap<Material, MultiPolygon> {
         let mut polygons = HashMap::new();
         polygons.insert(
             self.render_options.material,
@@ -296,6 +319,45 @@ pub fn create_multipolygon(vertices: &[Vec2]) -> MultiPolygon {
     MultiPolygon(vec![create_polygon(vertices)])
 }
 
+pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
+    // Convert the geo Polygon into the Vec<Vec<Vec<T>>> format expected by flatten
+    let mut data = Vec::new();
+    let mut exterior_ring = Vec::new();
+    for point in polygon.exterior().points() {
+        exterior_ring.push(vec![point.x(), point.y()]);
+    }
+    data.push(exterior_ring);
+
+    for interior in polygon.interiors() {
+        let mut interior_ring = Vec::new();
+        for point in interior.points() {
+            interior_ring.push(vec![point.x(), point.y()]);
+        }
+        data.push(interior_ring);
+    }
+
+    // Use the flatten function to prepare data for earcut
+    let (vertices, hole_indices, dims) = earcutr::flatten(&data);
+
+    // Perform triangulation
+    let triangle_indices = earcutr::earcut(&vertices, &hole_indices, dims);
+
+    triangle_indices.map_or_else(
+        |_| (vec![], vec![]),
+        |triangle_indices| {
+            // Convert flat vertex list to Vec<glam::Vec2>
+            let vertices_vec2: Vec<Vec2> = vertices
+                .chunks(dims)
+                .map(|chunk| vec2(chunk[0], chunk[1]))
+                .collect();
+            // Convert triangle indices to Vec<u32>
+            let triangle_indices: Vec<u32> = triangle_indices.iter().map(|&i| i as u32).collect();
+
+            (triangle_indices, vertices_vec2)
+        },
+    )
+}
+
 #[derive(
     Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default, Hash,
 )]
@@ -361,16 +423,25 @@ impl Shape {
     }
 }
 
-pub fn wall_polygons(polygons: &Vec<MultiPolygon>) -> MultiPolygon {
+pub fn wall_polygons(polygons: &MultiPolygon) -> MultiPolygon {
+    // Filter out inner polygons
+    let mut new_polygons = MultiPolygon(vec![]);
+    for polygon in polygons {
+        new_polygons = new_polygons.union(&MultiPolygon::new(vec![Polygon::new(
+            polygon.exterior().clone(),
+            vec![],
+        )]));
+    }
+
     let width_half = WallType::Wall.width() / 2.0;
     let mut new_polys = MultiPolygon(vec![]);
-    for poly in polygons {
-        let polygon_outside = geo_buffer::buffer_multi_polygon(poly, width_half);
-        let polygon_inside = geo_buffer::buffer_multi_polygon(poly, -width_half);
 
-        let diff = polygon_outside.difference(&polygon_inside);
-        new_polys = new_polys.union(&diff);
-    }
+    let polygon_outside = geo_buffer::buffer_multi_polygon(&new_polygons, width_half);
+    let polygon_inside = geo_buffer::buffer_multi_polygon(&new_polygons, -width_half);
+
+    let diff = polygon_outside.difference(&polygon_inside);
+    new_polys = new_polys.union(&diff);
+
     new_polys
 }
 

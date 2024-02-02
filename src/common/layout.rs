@@ -305,6 +305,7 @@ pub struct RoomRender {
     pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
     pub center: Vec2,
     pub size: Vec2,
-    pub polygons: HashMap<Material, MultiPolygon>,
+    pub polygons: MultiPolygon,
+    pub material_polygons: HashMap<Material, MultiPolygon>,
     pub wall_polygons: MultiPolygon,
 }

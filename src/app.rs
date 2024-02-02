@@ -1,12 +1,14 @@
 use self::edit_mode::EditDetails;
 use crate::common::{
     layout,
-    shape::coord_to_vec2,
+    shape::{coord_to_vec2, triangulate_polygon},
     utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui, vec2_to_egui_pos},
 };
 use egui::{
-    epaint::PathShape, util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame,
-    Painter, Rect, Sense, Shape as EShape, Stroke, TextureOptions, Window,
+    epaint::{PathShape, Vertex},
+    util::History,
+    Align2, CentralPanel, Color32, ColorImage, Context, Frame, Mesh, Painter, Rect, Sense,
+    Shape as EShape, Stroke, TextureId, TextureOptions, Window,
 };
 use egui_notify::Toasts;
 use geo_types::LineString;
@@ -225,6 +227,30 @@ impl HomeFlow {
         }
     }
 
+    fn render_mesh(
+        &self,
+        painter: &Painter,
+        indices: Vec<u32>,
+        vertices: Vec<Vec2>,
+        color: Color32,
+    ) {
+        let mut vertices_pixels = Vec::new();
+        for vertex in vertices {
+            vertices_pixels.push(Vertex {
+                pos: vec2_to_egui_pos(self.world_to_pixels(vertex.x, vertex.y)),
+                color,
+                ..Default::default()
+            });
+        }
+
+        let mesh = Mesh {
+            indices,
+            vertices: vertices_pixels,
+            texture_id: TextureId::Managed(0),
+        };
+        painter.add(EShape::mesh(mesh));
+    }
+
     fn load_layout(&mut self, ctx: &Context) {
         // Load layout from server if needed
         if !self.layout.version.is_empty() {
@@ -368,27 +394,9 @@ impl eframe::App for HomeFlow {
                         Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                         Color32::WHITE,
                     );
-                }
-
-                for room in &self.layout.rooms {
                     for polygon in &room.rendered_data.as_ref().unwrap().wall_polygons {
-                        // Create an iterator over both the exterior and interiors
-                        let all_rings = std::iter::once(polygon.exterior())
-                            .chain(polygon.interiors().iter())
-                            .collect::<Vec<&LineString<f64>>>();
-
-                        for poly in all_rings {
-                            painter.add(EShape::Path(PathShape {
-                                points: poly
-                                    .points()
-                                    .map(coord_to_vec2)
-                                    .map(|p| vec2_to_egui_pos(self.world_to_pixels(p.x, p.y)))
-                                    .collect(),
-                                closed: true,
-                                fill: Color32::TRANSPARENT,
-                                stroke: Stroke::new(4.0, Color32::RED),
-                            }));
-                        }
+                        let (tri_indices, tri_vertices) = triangulate_polygon(polygon);
+                        self.render_mesh(&painter, tri_indices, tri_vertices, Color32::BLACK);
                     }
                 }
 
