@@ -2,7 +2,6 @@ use super::shape::{Material, Shape, WallType};
 use egui::Color32;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
-use image::{ImageBuffer, Rgba};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -12,7 +11,6 @@ use strum_macros::{Display, VariantArray};
 use uuid::Uuid;
 
 const LAYOUT_VERSION: &str = "0.1";
-pub const RESOLUTION_FACTOR: f64 = 80.0; // Pixels per meter
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Home {
@@ -29,6 +27,90 @@ impl Hash for Home {
         self.rooms.hash(state);
         self.furniture.hash(state);
     }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Room {
+    pub id: Uuid,
+    pub name: String,
+    pub render_options: RenderOptions,
+    pub pos: Vec2,
+    pub size: Vec2,
+    pub operations: Vec<Operation>,
+    pub walls: Walls,
+    #[serde(skip)]
+    pub rendered_data: Option<RoomRender>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Hash, PartialEq, Eq)]
+pub struct Walls {
+    pub left: WallType,
+    pub top: WallType,
+    pub right: WallType,
+    pub bottom: WallType,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Furniture {
+    pub id: Uuid,
+    pub pos: Vec2,
+    pub size: Vec2,
+    pub rotation: f64,
+    pub children: Vec<Furniture>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Operation {
+    pub id: Uuid,
+    pub action: Action,
+    pub shape: Shape,
+    pub render_options: Option<RenderOptions>,
+    pub pos: Vec2,
+    pub size: Vec2,
+    pub rotation: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct RenderOptions {
+    pub material: Material,
+    pub scale: f64,
+    pub tint: Option<Color32>,
+    pub tiles: Option<TileOptions>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct TileOptions {
+    pub scale: u8,
+    pub odd_tint: Color32,
+    pub grout_width: f64,
+    pub grout_tint: Color32,
+}
+
+#[derive(
+    Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default, Hash,
+)]
+pub enum Action {
+    #[default]
+    Add,
+    Subtract,
+}
+
+#[derive(Clone)]
+pub struct Wall {
+    pub points: Vec<Vec2>,
+    pub closed: bool,
+}
+
+#[derive(Clone)]
+pub struct HomeRender {
+    pub hash: u64,
+}
+
+#[derive(Clone)]
+pub struct RoomRender {
+    pub polygons: MultiPolygon,
+    pub material_polygons: HashMap<Material, MultiPolygon>,
+    pub wall_polygons: MultiPolygon,
 }
 
 impl Home {
@@ -217,92 +299,4 @@ impl Home {
             rendered_data: None,
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Room {
-    pub id: Uuid,
-    pub name: String,
-    pub render_options: RenderOptions,
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub operations: Vec<Operation>,
-    pub walls: Walls,
-    #[serde(skip)]
-    pub rendered_data: Option<RoomRender>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Hash, PartialEq, Eq)]
-pub struct Walls {
-    pub left: WallType,
-    pub top: WallType,
-    pub right: WallType,
-    pub bottom: WallType,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Furniture {
-    pub id: Uuid,
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub rotation: f64,
-    pub children: Vec<Furniture>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Operation {
-    pub id: Uuid,
-    pub action: Action,
-    pub shape: Shape,
-    pub render_options: Option<RenderOptions>,
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub rotation: f64,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct RenderOptions {
-    pub material: Material,
-    pub scale: f64,
-    pub tint: Option<Color32>,
-    pub tiles: Option<TileOptions>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default)]
-pub struct TileOptions {
-    pub scale: u8,
-    pub odd_tint: Color32,
-    pub grout_width: f64,
-    pub grout_tint: Color32,
-}
-
-#[derive(
-    Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default, Hash,
-)]
-pub enum Action {
-    #[default]
-    Add,
-    Subtract,
-}
-
-#[derive(Clone)]
-pub struct Wall {
-    pub points: Vec<Vec2>,
-    pub closed: bool,
-}
-
-#[derive(Clone)]
-pub struct HomeRender {
-    pub hash: u64,
-}
-
-#[derive(Clone)]
-pub struct RoomRender {
-    pub hash: u64,
-    pub texture: ImageBuffer<Rgba<u8>, Vec<u8>>,
-    pub center: Vec2,
-    pub size: Vec2,
-    pub polygons: MultiPolygon,
-    pub material_polygons: HashMap<Material, MultiPolygon>,
-    pub wall_polygons: MultiPolygon,
 }

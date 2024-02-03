@@ -121,6 +121,7 @@ impl Room {
                         .material;
                     polygons
                         .entry(material)
+                        .and_modify(|poly| *poly = poly.union(&operation_polygon))
                         .or_insert_with(|| operation_polygon.clone());
                     // Remove from all other polygons
                     for (other_material, poly) in &mut polygons {
@@ -158,13 +159,8 @@ pub enum Material {
 impl Material {
     pub const fn get_scale(self) -> f64 {
         match self {
-            Self::Wall
-            | Self::Carpet
-            | Self::Marble
-            | Self::Granite
-            | Self::Limestone
-            | Self::Wood
-            | Self::WoodPlanks => 40.0,
+            Self::Carpet => 0.4,
+            _ => 0.25,
         }
     }
 

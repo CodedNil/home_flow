@@ -1,8 +1,8 @@
 use self::edit_mode::EditDetails;
 use crate::common::{
     layout,
-    shape::triangulate_polygon,
-    utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui, vec2_to_egui_pos},
+    shape::{triangulate_polygon, TEXTURES},
+    utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui_pos},
 };
 use egui::{
     epaint::Vertex, util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Mesh,
@@ -12,7 +12,7 @@ use egui_notify::Toasts;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -115,7 +115,7 @@ impl HomeFlow {
         }
 
         // Zoom
-        let scroll_delta = egui_to_vec2(ui.input(|i| i.scroll_delta));
+        let scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta));
         if scroll_delta != Vec2::ZERO {
             let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
             if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
@@ -224,30 +224,6 @@ impl HomeFlow {
         for line in lines.iter().rev() {
             painter.line_segment([line.0, line.1], line.2);
         }
-    }
-
-    fn render_mesh(
-        &self,
-        painter: &Painter,
-        indices: Vec<u32>,
-        vertices: Vec<Vec2>,
-        color: Color32,
-    ) {
-        let mut vertices_pixels = Vec::new();
-        for vertex in vertices {
-            vertices_pixels.push(Vertex {
-                pos: vec2_to_egui_pos(self.world_to_pixels(vertex.x, vertex.y)),
-                color,
-                ..Default::default()
-            });
-        }
-
-        let mesh = Mesh {
-            indices,
-            vertices: vertices_pixels,
-            texture_id: TextureId::Managed(0),
-        };
-        painter.add(EShape::mesh(mesh));
     }
 
     fn load_layout(&mut self, ctx: &Context) {
@@ -367,35 +343,73 @@ impl eframe::App for HomeFlow {
                 self.render_grid(&painter, &response.rect);
 
                 self.layout.render();
+                // Get texture_ids for each material
+                let mut texture_ids = HashMap::new();
+                for room in &self.layout.rooms {
+                    for material in room
+                        .rendered_data
+                        .as_ref()
+                        .unwrap()
+                        .material_polygons
+                        .keys()
+                    {
+                        let texture = TEXTURES.get(material).unwrap();
+                        let canvas_size = texture.dimensions();
+                        let egui_image = ColorImage::from_rgba_unmultiplied(
+                            [canvas_size.0 as usize, canvas_size.1 as usize],
+                            texture,
+                        );
+                        let texture_id = ctx
+                            .load_texture(
+                                "home_texture",
+                                egui_image,
+                                TextureOptions::NEAREST_REPEAT,
+                            )
+                            .id();
+                        texture_ids.insert(material, texture_id);
+                    }
+                }
+                // Render rooms
                 for room in &self.layout.rooms {
                     let rendered_data = room.rendered_data.as_ref().unwrap();
-
-                    let canvas_size = rendered_data.texture.dimensions();
-                    let egui_image = ColorImage::from_rgba_unmultiplied(
-                        [canvas_size.0 as usize, canvas_size.1 as usize],
-                        &rendered_data.texture,
-                    );
-                    let canvas_texture_id = ctx
-                        .load_texture("home_texture", egui_image, TextureOptions::NEAREST)
-                        .id();
-
-                    let (bounds_min, bounds_max) = room.bounds_with_walls();
-                    let home_center = (bounds_min + bounds_max) / 2.0;
-                    let home_size = bounds_max - bounds_min;
-
-                    let rect = Rect::from_center_size(
-                        vec2_to_egui_pos(self.world_to_pixels(home_center.x, home_center.y)),
-                        vec2_to_egui(vec2(home_size.x * self.zoom, home_size.y * self.zoom)),
-                    );
-                    painter.image(
-                        canvas_texture_id,
-                        rect,
-                        Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                        Color32::WHITE,
-                    );
-                    for polygon in &room.rendered_data.as_ref().unwrap().wall_polygons {
-                        let (tri_indices, tri_vertices) = triangulate_polygon(polygon);
-                        self.render_mesh(&painter, tri_indices, tri_vertices, WALL_COLOR);
+                    for (material, multi_poly) in &rendered_data.material_polygons {
+                        for poly in multi_poly {
+                            let (indices, vertices) = triangulate_polygon(poly);
+                            let vertices = vertices
+                                .iter()
+                                .map(|&v| {
+                                    let local_pos =
+                                        v * material.get_scale() * room.render_options.scale;
+                                    Vertex {
+                                        pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
+                                        uv: egui::pos2(local_pos.x as f32, local_pos.y as f32),
+                                        color: Color32::WHITE,
+                                    }
+                                })
+                                .collect();
+                            let texture_id = *texture_ids.get(material).unwrap();
+                            painter.add(EShape::mesh(Mesh {
+                                indices,
+                                vertices,
+                                texture_id,
+                            }));
+                        }
+                    }
+                    for wall in &rendered_data.wall_polygons {
+                        let (indices, vertices) = triangulate_polygon(wall);
+                        let vertices = vertices
+                            .iter()
+                            .map(|v| Vertex {
+                                pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
+                                uv: egui::Pos2::default(),
+                                color: WALL_COLOR,
+                            })
+                            .collect();
+                        painter.add(EShape::mesh(Mesh {
+                            indices,
+                            vertices,
+                            texture_id: TextureId::Managed(0),
+                        }));
                     }
                 }
 
@@ -417,7 +431,8 @@ impl eframe::App for HomeFlow {
                         self.edit_mode_settings(ctx, ui);
                     });
 
-                self.toasts.lock().unwrap().show(ctx);
+                // TODO: reimplement this once toasts updates
+                // self.toasts.lock().unwrap().show(ctx);
             });
     }
 }
