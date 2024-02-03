@@ -127,7 +127,10 @@ impl HomeFlow {
         let mut room_hovered = None;
         let mut operation_hovered = None;
         for room in &self.layout.rooms {
-            if room.contains_full(self.mouse_pos_world.x, self.mouse_pos_world.y) {
+            if room.contains_full(self.mouse_pos_world.x, self.mouse_pos_world.y)
+                && (self.edit_mode.selected_room.is_none()
+                    || self.edit_mode.selected_room == Some(room.id))
+            {
                 room_hovered = Some(room.id);
                 operation_hovered = None;
             }
@@ -138,6 +141,7 @@ impl HomeFlow {
                     operation.size,
                     operation.rotation,
                 ) {
+                    room_hovered = Some(room.id);
                     operation_hovered = Some(operation.id);
                 }
             }
@@ -192,10 +196,8 @@ impl HomeFlow {
             }
         }
 
-        if room_hovered.is_none() {
-            if let Some(room_id) = &self.edit_mode.selected_room {
-                room_hovered = Some(*room_id);
-            }
+        if let Some(room_id) = &self.edit_mode.selected_room {
+            room_hovered = Some(*room_id);
         }
 
         EditResponse {
@@ -483,15 +485,21 @@ impl HomeFlow {
                 .find(|r| &r.id == room_id)
                 .unwrap();
             let mut alter_room = AlterRoom::None;
+            let mut window_open: bool = true;
             Window::new(format!("Edit {}", room.id))
-                .fixed_pos(vec2_to_egui_pos(vec2(self.canvas_center.x, 20.0)))
-                .fixed_size([200.0, 0.0])
+                .default_pos(vec2_to_egui_pos(vec2(self.canvas_center.x, 20.0)))
+                .default_size([0.0, 0.0])
                 .pivot(Align2::CENTER_TOP)
-                .title_bar(false)
-                .resizable(false)
+                .movable(true)
+                .resizable(true)
+                .collapsible(true)
+                .open(&mut window_open)
                 .show(ctx, |ui| {
                     alter_room = room_edit_widgets(ui, room);
                 });
+            if !window_open {
+                self.edit_mode.selected_room = None;
+            }
             match alter_room {
                 AlterRoom::Delete => {
                     self.layout.rooms.retain(|r| r.id != *room_id);
