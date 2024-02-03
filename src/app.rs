@@ -1,7 +1,7 @@
 use self::edit_mode::EditDetails;
 use crate::common::{
     layout,
-    shape::{triangulate_polygon, TEXTURES},
+    shape::TEXTURES,
     utils::{egui_pos_to_vec2, egui_to_vec2, vec2_to_egui_pos},
 };
 use egui::{
