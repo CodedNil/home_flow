@@ -75,15 +75,6 @@ pub struct RenderOptions {
     pub material: Material,
     pub scale: f64,
     pub tint: Option<Color32>,
-    pub tiles: Option<TileOptions>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default)]
-pub struct TileOptions {
-    pub scale: u8,
-    pub odd_tint: Color32,
-    pub grout_width: f64,
-    pub grout_tint: Color32,
 }
 
 #[derive(
@@ -93,6 +84,7 @@ pub enum Action {
     #[default]
     Add,
     Subtract,
+    SubtractWall,
 }
 
 #[derive(Clone)]
@@ -122,7 +114,7 @@ impl Home {
                     "Hall",
                     vec2(2.9, -0.1),
                     vec2(2.2, 4.8),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::NONE,
                     vec![],
                 ),
@@ -130,7 +122,7 @@ impl Home {
                     "Balcony",
                     vec2(-0.2, -4.0),
                     vec2(4.0, 1.8),
-                    RenderOptions::new(Material::Limestone, 1.5, None, None),
+                    RenderOptions::new(Material::Limestone, 1.5, None),
                     Walls::NONE,
                     vec![],
                 ),
@@ -138,7 +130,7 @@ impl Home {
                     "Lounge",
                     vec2(-0.2, 0.55),
                     vec2(4.0, 7.3),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::WALL.right(WallType::None),
                     vec![
                         Operation::new(
@@ -155,18 +147,20 @@ impl Home {
                             vec2(0.5, 2.5),
                             0.0,
                         ),
+                        Operation::new(
+                            Action::SubtractWall,
+                            Shape::Rectangle,
+                            vec2(-0.3, 2.30),
+                            vec2(1.6, 2.6),
+                            0.0,
+                        ),
                     ],
                 ),
                 Room::new(
                     "Kitchen",
                     vec2(-1.5, 2.95),
                     vec2(3.0, 2.5),
-                    RenderOptions::new(
-                        Material::Marble,
-                        2.0,
-                        Some("#fff8e8ff"),
-                        Some(TileOptions::new(7, "#ffffff00", 0.015, "#505050cc")),
-                    ),
+                    RenderOptions::new(Material::Marble, 2.0, Some("#fff8e8ff")),
                     Walls::WALL.right(WallType::None).bottom(WallType::None),
                     vec![Operation::new(
                         Action::Subtract,
@@ -180,12 +174,7 @@ impl Home {
                     "Pantry",
                     vec2(-1.3, 1.3),
                     vec2(1.4, 0.8),
-                    RenderOptions::new(
-                        Material::Marble,
-                        2.0,
-                        Some("#fff8e8ff"),
-                        Some(TileOptions::new(2, "#ffffff00", 0.015, "#505050cc")),
-                    ),
+                    RenderOptions::new(Material::Marble, 2.0, Some("#fff8e8ff")),
                     Walls::WALL,
                     vec![
                         Operation::new(
@@ -208,7 +197,7 @@ impl Home {
                     "Storage1",
                     vec2(-2.5, 1.3),
                     vec2(1.0, 0.8),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::WALL,
                     vec![],
                 ),
@@ -216,7 +205,7 @@ impl Home {
                     "Office",
                     vec2(4.2, 2.7),
                     vec2(4.0, 3.0),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::WALL,
                     vec![Operation::new(
                         Action::Subtract,
@@ -230,7 +219,7 @@ impl Home {
                     "Bedroom",
                     vec2(3.8, -4.5),
                     vec2(4.0, 4.0),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::WALL,
                     vec![],
                 ),
@@ -238,7 +227,7 @@ impl Home {
                     "Storage2",
                     vec2(2.4, -0.1),
                     vec2(1.2, 1.6),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::WALL,
                     vec![Operation::new(
                         Action::Subtract,
@@ -252,7 +241,7 @@ impl Home {
                     "Storage3",
                     vec2(2.4, -1.7),
                     vec2(1.2, 1.6),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::WALL,
                     vec![],
                 ),
@@ -260,7 +249,7 @@ impl Home {
                     "Closet",
                     vec2(4.9, -1.9),
                     vec2(1.8, 1.2),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::WALL,
                     vec![],
                 ),
@@ -268,12 +257,7 @@ impl Home {
                     "Bathroom",
                     vec2(4.9, -0.05),
                     vec2(1.8, 2.5),
-                    RenderOptions::new(
-                        Material::Granite,
-                        2.0,
-                        Some("#fff8e8"),
-                        Some(TileOptions::new(4, "#ffffff00", 0.015, "#505050cc")),
-                    ),
+                    RenderOptions::new(Material::Granite, 2.0, Some("#fff8e8")),
                     Walls::WALL,
                     vec![],
                 ),
@@ -281,7 +265,7 @@ impl Home {
                     "Storage4",
                     vec2(3.9, 0.8),
                     vec2(0.8, 0.8),
-                    RenderOptions::new(Material::Carpet, 1.0, None, None),
+                    RenderOptions::new(Material::Carpet, 1.0, None),
                     Walls::WALL,
                     vec![],
                 ),

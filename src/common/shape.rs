@@ -1,5 +1,5 @@
-use super::{
-    layout::{Action, Room, Walls},
+use crate::common::{
+    layout::{Action, Home, HomeRender, Operation, Room, RoomRender, Walls},
     utils::rotate_point,
 };
 use geo::BooleanOps;
@@ -7,10 +7,85 @@ use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use image::RgbaImage;
 use once_cell::sync::Lazy;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    hash::{Hash, Hasher},
+};
 use strum::VariantArray;
 use strum_macros::{Display, VariantArray};
+
+impl Home {
+    pub fn render(&mut self) {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        let hash = hasher.finish();
+        if let Some(rendered_data) = &self.rendered_data {
+            if rendered_data.hash == hash {
+                return;
+            }
+        }
+
+        // Process all rooms in parallel
+        let room_polygons = self
+            .rooms
+            .clone()
+            .into_par_iter()
+            .enumerate()
+            .map(|(index, room)| (index, room.id, room.polygons(), room.material_polygons()))
+            .collect::<Vec<_>>();
+
+        // For each rooms polygon, subtract rooms above it
+        let room_process_data = {
+            let mut room_process_data = HashMap::new();
+            for (index, id, polygons, material_polygons) in &room_polygons {
+                let mut new_polygons = polygons.clone();
+                let mut new_material_polygons = material_polygons.clone();
+                for (above_index, _, above_polygons, _) in &room_polygons {
+                    if above_index > index {
+                        new_polygons = new_polygons.difference(above_polygons);
+                        for material in material_polygons.keys() {
+                            new_material_polygons.entry(*material).and_modify(|e| {
+                                *e = e.difference(above_polygons);
+                            });
+                        }
+                    }
+                }
+                let room = &self.rooms[*index];
+                let wall_polygons = if room.walls == Walls::NONE {
+                    EMPTY_MULTI_POLYGON
+                } else {
+                    let bounds = room.bounds_with_walls();
+                    let center = (bounds.0 + bounds.1) / 2.0;
+                    let size = bounds.1 - bounds.0;
+                    wall_polygons(
+                        &new_polygons,
+                        center,
+                        size,
+                        &room.walls,
+                        room.pos,
+                        &room.operations,
+                    )
+                };
+                room_process_data.insert(*id, (new_polygons, new_material_polygons, wall_polygons));
+            }
+            room_process_data
+        };
+
+        for room in &mut self.rooms {
+            let (polygons, material_polygons, wall_polygons) =
+                room_process_data.get(&room.id).unwrap().clone();
+            room.rendered_data = Some(RoomRender {
+                polygons,
+                material_polygons,
+                wall_polygons,
+            });
+        }
+
+        self.rendered_data = Some(HomeRender { hash });
+    }
+}
 
 impl Room {
     pub fn self_bounds(&self) -> (Vec2, Vec2) {
@@ -92,6 +167,7 @@ impl Room {
                 Action::Subtract => {
                     polygons = polygons.difference(&operation_polygon);
                 }
+                Action::SubtractWall => {}
             }
         }
 
@@ -135,6 +211,7 @@ impl Room {
                         *poly = poly.difference(&operation_polygon);
                     }
                 }
+                Action::SubtractWall => {}
             }
         }
 
@@ -342,6 +419,8 @@ pub fn wall_polygons(
     center: Vec2,
     size: Vec2,
     walls: &Walls,
+    room_pos: Vec2,
+    operations: &Vec<Operation>,
 ) -> MultiPolygon {
     // Filter out inner polygons
     let mut new_polygons = MultiPolygon(vec![]);
@@ -413,6 +492,18 @@ pub fn wall_polygons(
             // Subtract the new polygon from wall polygons
             let wall_polygon = create_multipolygon(&vertices);
             new_polys = new_polys.difference(&wall_polygon);
+        }
+    }
+
+    // Subtract operations that are SubtractWall
+    for operation in operations {
+        if operation.action == Action::SubtractWall {
+            let operation_polygon = create_multipolygon(&operation.shape.vertices(
+                room_pos + operation.pos,
+                operation.size,
+                operation.rotation,
+            ));
+            new_polys = new_polys.difference(&operation_polygon);
         }
     }
 

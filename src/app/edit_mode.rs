@@ -1,6 +1,6 @@
 use super::HomeFlow;
 use crate::common::{
-    layout::{Action, Operation, RenderOptions, Room, TileOptions, Walls},
+    layout::{Action, Operation, RenderOptions, Room, Walls},
     shape::{coord_to_vec2, Material, Shape, WallType},
     utils::vec2_to_egui_pos,
 };
@@ -468,6 +468,7 @@ impl HomeFlow {
                     match operation.action {
                         Action::Add => Color32::from_rgb(50, 200, 50),
                         Action::Subtract => Color32::from_rgb(200, 50, 50),
+                        Action::SubtractWall => Color32::from_rgb(200, 70, 50),
                     }
                     .gamma_multiply(0.6),
                 );
@@ -762,36 +763,6 @@ fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions,
         }
         if let Some(tint) = &mut render_options.tint {
             ui.color_edit_button_srgba(tint);
-        }
-    });
-
-    // Tiles boolean and then pub struct TileOptions { scale: u8, odd_tint: Color32, grout_width: f64, grout_tint: Color32 }
-    ui.horizontal(|ui| {
-        if ui
-            .add(Checkbox::new(&mut render_options.tiles.is_some(), "Tiles"))
-            .changed()
-        {
-            if render_options.tiles.is_some() {
-                render_options.tiles = None;
-            } else {
-                render_options.tiles = Some(TileOptions::default());
-            }
-        }
-        if let Some(tile_options) = &mut render_options.tiles {
-            ui.add(
-                DragValue::new(&mut tile_options.scale)
-                    .speed(1)
-                    .fixed_decimals(0)
-                    .clamp_range(0..=100),
-            );
-            ui.color_edit_button_srgba(&mut tile_options.odd_tint);
-            ui.add(
-                DragValue::new(&mut tile_options.grout_width)
-                    .speed(0.005)
-                    .fixed_decimals(3)
-                    .clamp_range(0.0..=1.0),
-            );
-            ui.color_edit_button_srgba(&mut tile_options.grout_tint);
         }
     });
 }

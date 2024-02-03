@@ -1,5 +1,5 @@
 use super::{
-    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, TileOptions, Walls},
+    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, Walls},
     shape::{Material, Shape},
 };
 use anyhow::{anyhow, bail, Result};
@@ -205,12 +205,7 @@ impl Hash for Operation {
 }
 
 impl RenderOptions {
-    pub fn new(
-        material: Material,
-        scale: f64,
-        tint: Option<&str>,
-        tiles: Option<TileOptions>,
-    ) -> Self {
+    pub fn new(material: Material, scale: f64, tint: Option<&str>) -> Self {
         let tint = tint.map(|tint| {
             let color = hex_to_rgba(tint).unwrap_or([255, 255, 255, 255]);
             Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3])
@@ -219,7 +214,6 @@ impl RenderOptions {
             material,
             scale,
             tint,
-            tiles,
         }
     }
 }
@@ -229,7 +223,6 @@ impl Default for RenderOptions {
             material: Material::default(),
             scale: 1.0,
             tint: None,
-            tiles: None,
         }
     }
 }
@@ -242,9 +235,6 @@ impl std::fmt::Display for RenderOptions {
         if let Some(tint) = self.tint {
             string.push_str(format!(" - Tint: {}", color_to_string(tint)).as_str());
         }
-        if let Some(tiles) = &self.tiles {
-            string.push_str(format!(" - Tiles: {tiles}").as_str());
-        }
         write!(f, "{string}")
     }
 }
@@ -253,51 +243,5 @@ impl Hash for RenderOptions {
         self.material.hash(state);
         self.scale.to_bits().hash(state);
         self.tint.hash(state);
-        self.tiles.hash(state);
-    }
-}
-
-impl TileOptions {
-    pub fn new(scale: u8, odd_tint: &str, grout_width: f64, grout_tint: &str) -> Self {
-        let odd_tint = hex_to_rgba(odd_tint).unwrap_or([255, 255, 255, 255]);
-        let grout_tint = hex_to_rgba(grout_tint).unwrap_or([255, 255, 255, 255]);
-        Self {
-            scale,
-            odd_tint: Color32::from_rgba_premultiplied(
-                odd_tint[0],
-                odd_tint[1],
-                odd_tint[2],
-                odd_tint[3],
-            ),
-            grout_width,
-            grout_tint: Color32::from_rgba_premultiplied(
-                grout_tint[0],
-                grout_tint[1],
-                grout_tint[2],
-                grout_tint[3],
-            ),
-        }
-    }
-}
-impl std::fmt::Display for TileOptions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!("Num: {}", self.scale);
-        if self.odd_tint.a() != 0 {
-            string.push_str(format!(" - Odd tint: {}", color_to_string(self.odd_tint)).as_str());
-        }
-        string.push_str(format!(" - Grout width: {}", self.grout_width).as_str());
-        if self.grout_tint.a() != 0 {
-            string
-                .push_str(format!(" - Grout tint: {}", color_to_string(self.grout_tint)).as_str());
-        }
-        write!(f, "{string}")
-    }
-}
-impl Hash for TileOptions {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.scale.hash(state);
-        self.odd_tint.hash(state);
-        self.grout_width.to_bits().hash(state);
-        self.grout_tint.hash(state);
     }
 }

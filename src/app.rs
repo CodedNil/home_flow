@@ -361,9 +361,9 @@ impl eframe::App for HomeFlow {
                         );
                         let texture_id = ctx
                             .load_texture(
-                                "home_texture",
+                                material.to_string(),
                                 egui_image,
-                                TextureOptions::NEAREST_REPEAT,
+                                TextureOptions::LINEAR_REPEAT,
                             )
                             .id();
                         texture_ids.insert(material, texture_id);
@@ -374,6 +374,8 @@ impl eframe::App for HomeFlow {
                     let rendered_data = room.rendered_data.as_ref().unwrap();
                     for (material, multi_poly) in &rendered_data.material_polygons {
                         for poly in multi_poly {
+                            let texture_id = *texture_ids.get(material).unwrap();
+                            let color = room.render_options.tint.unwrap_or(Color32::WHITE);
                             let (indices, vertices) = triangulate_polygon(poly);
                             let vertices = vertices
                                 .iter()
@@ -383,11 +385,10 @@ impl eframe::App for HomeFlow {
                                     Vertex {
                                         pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
                                         uv: egui::pos2(local_pos.x as f32, local_pos.y as f32),
-                                        color: Color32::WHITE,
+                                        color,
                                     }
                                 })
                                 .collect();
-                            let texture_id = *texture_ids.get(material).unwrap();
                             painter.add(EShape::mesh(Mesh {
                                 indices,
                                 vertices,
