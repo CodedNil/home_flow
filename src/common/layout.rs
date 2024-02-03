@@ -114,7 +114,7 @@ impl Home {
                     "Hall",
                     vec2(2.9, -0.1),
                     vec2(2.2, 4.8),
-                    RenderOptions::new(Material::Carpet, 1.0, None),
+                    RenderOptions::new(Material::WoodPlanks, 1.0, None),
                     Walls::NONE,
                     vec![],
                 ),
@@ -130,7 +130,7 @@ impl Home {
                     "Lounge",
                     vec2(-0.2, 0.55),
                     vec2(4.0, 7.3),
-                    RenderOptions::new(Material::Carpet, 1.0, None),
+                    RenderOptions::new(Material::WoodPlanks, 1.0, None),
                     Walls::WALL.right(WallType::None),
                     vec![
                         Operation::new(

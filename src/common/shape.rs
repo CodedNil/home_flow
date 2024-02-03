@@ -237,6 +237,7 @@ impl Material {
     pub const fn get_scale(self) -> f64 {
         match self {
             Self::Carpet => 0.4,
+            Self::WoodPlanks => 0.5,
             _ => 0.25,
         }
     }

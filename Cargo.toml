@@ -39,7 +39,7 @@ earcutr = "0.4.3"
 #     "glow",
 #     "persistence",
 # ], optional = true }
-eframe = { git = "https://github.com/emilk/egui.git", rev = "9ae890dd1e217d5fd18760d6dd8860ea58bf165f", features = [
+eframe = { git = "https://github.com/emilk/egui.git", rev = "9ae890dd1e217d5fd18760d6dd8860ea58bf165f", default-features = false, features = [
     "default_fonts",
     "glow",
     "persistence",

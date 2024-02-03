@@ -396,6 +396,9 @@ impl eframe::App for HomeFlow {
                             }));
                         }
                     }
+                }
+                for room in &self.layout.rooms {
+                    let rendered_data = room.rendered_data.as_ref().unwrap();
                     for wall in &rendered_data.wall_polygons {
                         let (indices, vertices) = triangulate_polygon(wall);
                         let vertices = vertices
