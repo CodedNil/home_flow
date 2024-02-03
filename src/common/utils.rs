@@ -205,33 +205,17 @@ impl Hash for Operation {
 }
 
 impl RenderOptions {
-    pub fn new(material: Material, scale: f64, tint: Option<&str>) -> Self {
+    pub fn new(material: Material, tint: Option<&str>) -> Self {
         let tint = tint.map(|tint| {
             let color = hex_to_rgba(tint).unwrap_or([255, 255, 255, 255]);
             Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3])
         });
-        Self {
-            material,
-            scale,
-            tint,
-        }
-    }
-}
-impl Default for RenderOptions {
-    fn default() -> Self {
-        Self {
-            material: Material::default(),
-            scale: 1.0,
-            tint: None,
-        }
+        Self { material, tint }
     }
 }
 impl std::fmt::Display for RenderOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!("Material: {}", self.material);
-        if (self.scale - 1.0).abs() > f64::EPSILON {
-            string.push_str(format!(" - Scale: {}", self.scale).as_str());
-        }
         if let Some(tint) = self.tint {
             string.push_str(format!(" - Tint: {}", color_to_string(tint)).as_str());
         }
@@ -241,7 +225,6 @@ impl std::fmt::Display for RenderOptions {
 impl Hash for RenderOptions {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.material.hash(state);
-        self.scale.to_bits().hash(state);
         self.tint.hash(state);
     }
 }

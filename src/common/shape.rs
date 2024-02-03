@@ -230,18 +230,9 @@ pub enum Material {
     Granite,
     Limestone,
     Wood,
-    WoodPlanks,
 }
 
 impl Material {
-    pub const fn get_scale(self) -> f64 {
-        match self {
-            Self::Carpet => 0.4,
-            Self::WoodPlanks => 0.5,
-            _ => 0.25,
-        }
-    }
-
     pub const fn get_image(&self) -> &[u8] {
         match self {
             Self::Wall => include_bytes!("../../assets/textures/wall.png"),
@@ -250,7 +241,6 @@ impl Material {
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
             Self::Limestone => include_bytes!("../../assets/textures/limestone.png"),
             Self::Wood => include_bytes!("../../assets/textures/wood.png"),
-            Self::WoodPlanks => include_bytes!("../../assets/textures/wood_planks.png"),
         }
     }
 }

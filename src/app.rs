@@ -363,7 +363,7 @@ impl eframe::App for HomeFlow {
                             .load_texture(
                                 material.to_string(),
                                 egui_image,
-                                TextureOptions::LINEAR_REPEAT,
+                                TextureOptions::NEAREST_REPEAT,
                             )
                             .id();
                         texture_ids.insert(material, texture_id);
@@ -380,8 +380,7 @@ impl eframe::App for HomeFlow {
                             let vertices = vertices
                                 .iter()
                                 .map(|&v| {
-                                    let local_pos =
-                                        v * material.get_scale() * room.render_options.scale;
+                                    let local_pos = v * 0.2;
                                     Vertex {
                                         pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
                                         uv: egui::pos2(local_pos.x as f32, local_pos.y as f32),

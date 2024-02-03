@@ -751,12 +751,6 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
 fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions, id: String) {
     ui.horizontal(|ui| {
         combo_box_for_enum(ui, id, &mut render_options.material, Material::VARIANTS, "");
-        ui.add(
-            DragValue::new(&mut render_options.scale)
-                .speed(0.1)
-                .fixed_decimals(1)
-                .clamp_range(0.1..=100.0),
-        );
 
         // Tint boolean and then color picker
         if ui
