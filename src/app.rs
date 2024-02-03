@@ -6,7 +6,8 @@ use crate::common::{
 };
 use egui::{
     epaint::Vertex, util::History, Align2, CentralPanel, Color32, ColorImage, Context, Frame, Mesh,
-    Painter, Rect, Sense, Shape as EShape, Stroke, TextureId, TextureOptions, Window,
+    Painter, Rect, Sense, Shape as EShape, Stroke, TextureHandle, TextureId, TextureOptions,
+    Window,
 };
 use egui_notify::Toasts;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -31,6 +32,7 @@ pub struct HomeFlow {
 
     layout_server: layout::Home,
     layout: layout::Home,
+    textures: HashMap<String, TextureHandle>,
 
     toasts: Arc<Mutex<Toasts>>,
     edit_mode: EditDetails,
@@ -50,8 +52,6 @@ pub struct StoredData {
 
 impl Default for HomeFlow {
     fn default() -> Self {
-        let max_age: f32 = 1.0;
-        let max_len = (max_age * 300.0).round() as usize;
         Self {
             time: 0.0,
             translation: Vec2::ZERO,
@@ -60,12 +60,13 @@ impl Default for HomeFlow {
             mouse_pos: Vec2::ZERO,
             mouse_pos_world: Vec2::ZERO,
 
-            layout_server: layout::Home::empty(),
-            layout: layout::Home::empty(),
+            layout_server: layout::Home::default(),
+            layout: layout::Home::default(),
+            textures: HashMap::new(),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
-            frame_times: History::new(0..max_len, max_age),
+            frame_times: History::new(0..300, 1.0),
             host: "localhost:3000".to_string(),
             stored_data: StoredData::default(),
             download_data: Arc::new(Mutex::new(DownloadData::default())),
@@ -343,6 +344,7 @@ impl eframe::App for HomeFlow {
                 self.render_grid(&painter, &response.rect);
 
                 self.layout.render();
+
                 // Get texture_ids for each material
                 let mut texture_ids = HashMap::new();
                 for room in &self.layout.rooms {
@@ -353,31 +355,35 @@ impl eframe::App for HomeFlow {
                         .material_polygons
                         .keys()
                     {
-                        let texture = TEXTURES.get(material).unwrap();
-                        let canvas_size = texture.dimensions();
-                        let egui_image = ColorImage::from_rgba_unmultiplied(
-                            [canvas_size.0 as usize, canvas_size.1 as usize],
-                            texture,
-                        );
-                        let texture_id = ctx
-                            .load_texture(
-                                material.to_string(),
-                                egui_image,
-                                TextureOptions::NEAREST_REPEAT,
-                            )
-                            .id();
-                        texture_ids.insert(material, texture_id);
+                        let texture =
+                            self.textures
+                                .entry(material.to_string())
+                                .or_insert_with(|| {
+                                    let texture = TEXTURES.get(material).unwrap();
+                                    let canvas_size = texture.dimensions();
+                                    let egui_image = ColorImage::from_rgba_unmultiplied(
+                                        [canvas_size.0 as usize, canvas_size.1 as usize],
+                                        texture,
+                                    );
+                                    ctx.load_texture(
+                                        material.to_string(),
+                                        egui_image,
+                                        TextureOptions::NEAREST_REPEAT,
+                                    )
+                                });
+                        texture_ids.insert(material, texture.id());
                     }
                 }
+
                 // Render rooms
                 for room in &self.layout.rooms {
                     let rendered_data = room.rendered_data.as_ref().unwrap();
-                    for (material, multi_poly) in &rendered_data.material_polygons {
-                        for poly in multi_poly {
+                    for (material, multi_triangles) in &rendered_data.material_triangles {
+                        for triangles in multi_triangles {
                             let texture_id = *texture_ids.get(material).unwrap();
                             let color = room.render_options.tint.unwrap_or(Color32::WHITE);
-                            let (indices, vertices) = triangulate_polygon(poly);
-                            let vertices = vertices
+                            let vertices = triangles
+                                .vertices
                                 .iter()
                                 .map(|&v| {
                                     let local_pos = v * 0.2;
@@ -389,31 +395,31 @@ impl eframe::App for HomeFlow {
                                 })
                                 .collect();
                             painter.add(EShape::mesh(Mesh {
-                                indices,
+                                indices: triangles.indices.clone(),
                                 vertices,
                                 texture_id,
                             }));
                         }
                     }
                 }
-                for room in &self.layout.rooms {
-                    let rendered_data = room.rendered_data.as_ref().unwrap();
-                    for wall in &rendered_data.wall_polygons {
-                        let (indices, vertices) = triangulate_polygon(wall);
-                        let vertices = vertices
-                            .iter()
-                            .map(|v| Vertex {
-                                pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
-                                uv: egui::Pos2::default(),
-                                color: WALL_COLOR,
-                            })
-                            .collect();
-                        painter.add(EShape::mesh(Mesh {
-                            indices,
-                            vertices,
-                            texture_id: TextureId::Managed(0),
-                        }));
-                    }
+
+                // Render walls
+                let rendered_data = self.layout.rendered_data.as_ref().unwrap();
+                for wall in &rendered_data.wall_triangles {
+                    let vertices = wall
+                        .vertices
+                        .iter()
+                        .map(|v| Vertex {
+                            pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
+                            uv: egui::Pos2::default(),
+                            color: WALL_COLOR,
+                        })
+                        .collect();
+                    painter.add(EShape::mesh(Mesh {
+                        indices: wall.indices.clone(),
+                        vertices,
+                        texture_id: TextureId::Managed(0),
+                    }));
                 }
 
                 if self.edit_mode.enabled {

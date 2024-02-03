@@ -1,5 +1,5 @@
-use crate::common::{
-    layout::{Action, Home, HomeRender, Operation, Room, RoomRender, Walls},
+use super::{
+    layout::{Action, Home, HomeRender, Operation, Room, RoomRender, Triangles, Walls},
     utils::rotate_point,
 };
 use geo::BooleanOps;
@@ -20,39 +20,38 @@ impl Home {
     pub fn render(&mut self) {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
-        let hash = hasher.finish();
+        let home_hash = hasher.finish();
         if let Some(rendered_data) = &self.rendered_data {
-            if rendered_data.hash == hash {
+            if rendered_data.hash == home_hash {
                 return;
             }
         }
 
-        // Process all rooms in parallel
-        let room_polygons = self
+        // Find rooms to update which have been modified, get (index, id, hash)
+        let rooms_to_update = self
             .rooms
-            .clone()
-            .into_par_iter()
+            .iter()
             .enumerate()
-            .map(|(index, room)| (index, room.id, room.polygons(), room.material_polygons()))
+            .filter_map(|(index, room)| {
+                let mut hasher = DefaultHasher::new();
+                room.hash(&mut hasher);
+                let hash = hasher.finish();
+                if room.rendered_data.is_none() || room.rendered_data.as_ref().unwrap().hash != hash
+                {
+                    Some((index, room.id, hash))
+                } else {
+                    None
+                }
+            })
             .collect::<Vec<_>>();
 
-        // For each rooms polygon, subtract rooms above it
-        let room_process_data = {
-            let mut room_process_data = HashMap::new();
-            for (index, id, polygons, material_polygons) in &room_polygons {
-                let mut new_polygons = polygons.clone();
-                let mut new_material_polygons = material_polygons.clone();
-                for (above_index, _, above_polygons, _) in &room_polygons {
-                    if above_index > index {
-                        new_polygons = new_polygons.difference(above_polygons);
-                        for material in material_polygons.keys() {
-                            new_material_polygons.entry(*material).and_modify(|e| {
-                                *e = e.difference(above_polygons);
-                            });
-                        }
-                    }
-                }
+        // Process all rooms in parallel
+        let new_data = rooms_to_update
+            .par_iter()
+            .map(|(index, id, hash)| {
                 let room = &self.rooms[*index];
+                let polygons = room.polygons();
+                let (material_polygons, material_triangles) = room.material_polygons();
                 let wall_polygons = if room.walls == Walls::NONE {
                     EMPTY_MULTI_POLYGON
                 } else {
@@ -60,30 +59,58 @@ impl Home {
                     let center = (bounds.0 + bounds.1) / 2.0;
                     let size = bounds.1 - bounds.0;
                     wall_polygons(
-                        &new_polygons,
+                        &polygons,
                         center,
                         size,
-                        &room.walls,
+                        room.walls,
                         room.pos,
                         &room.operations,
                     )
                 };
-                room_process_data.insert(*id, (new_polygons, new_material_polygons, wall_polygons));
+                (
+                    *id,
+                    *hash,
+                    polygons,
+                    material_polygons,
+                    material_triangles,
+                    wall_polygons,
+                )
+            })
+            .collect::<Vec<_>>();
+        // Update rooms with new data
+        for (id, hash, polygons, material_polygons, material_triangles, wall_polygons) in new_data {
+            if let Some(room) = self.rooms.iter_mut().find(|room| room.id == id) {
+                room.rendered_data = Some(RoomRender {
+                    hash,
+                    polygons,
+                    material_polygons,
+                    material_triangles,
+                    wall_polygons,
+                });
             }
-            room_process_data
-        };
-
-        for room in &mut self.rooms {
-            let (polygons, material_polygons, wall_polygons) =
-                room_process_data.get(&room.id).unwrap().clone();
-            room.rendered_data = Some(RoomRender {
-                polygons,
-                material_polygons,
-                wall_polygons,
-            });
         }
 
-        self.rendered_data = Some(HomeRender { hash });
+        // Collect all the rooms together to build up the walls
+        let mut wall_polygons = MultiPolygon(vec![]);
+        for room in &self.rooms {
+            if let Some(rendered_data) = &room.rendered_data {
+                wall_polygons = wall_polygons.difference(&rendered_data.polygons);
+                wall_polygons = wall_polygons.union(&rendered_data.wall_polygons);
+            }
+        }
+
+        // Create triangles for each polygon
+        let mut wall_triangles = Vec::new();
+        for polygon in &wall_polygons.0 {
+            let (indices, vertices) = triangulate_polygon(polygon);
+            wall_triangles.push(Triangles { indices, vertices });
+        }
+
+        self.rendered_data = Some(HomeRender {
+            hash: home_hash,
+            wall_polygons,
+            wall_triangles,
+        });
     }
 }
 
@@ -174,7 +201,12 @@ impl Room {
         polygons
     }
 
-    pub fn material_polygons(&self) -> HashMap<Material, MultiPolygon> {
+    pub fn material_polygons(
+        &self,
+    ) -> (
+        HashMap<Material, MultiPolygon>,
+        HashMap<Material, Vec<Triangles>>,
+    ) {
         let mut polygons = HashMap::new();
         polygons.insert(
             self.render_options.material,
@@ -215,7 +247,18 @@ impl Room {
             }
         }
 
-        polygons
+        // Create triangles for each material
+        let mut triangles = HashMap::new();
+        for (material, poly) in &polygons {
+            let mut material_triangles = Vec::new();
+            for polygon in &poly.0 {
+                let (indices, vertices) = triangulate_polygon(polygon);
+                material_triangles.push(Triangles { indices, vertices });
+            }
+            triangles.insert(*material, material_triangles);
+        }
+
+        (polygons, triangles)
     }
 }
 
@@ -409,7 +452,7 @@ pub fn wall_polygons(
     polygons: &MultiPolygon,
     center: Vec2,
     size: Vec2,
-    walls: &Walls,
+    walls: Walls,
     room_pos: Vec2,
     operations: &Vec<Operation>,
 ) -> MultiPolygon {
@@ -432,7 +475,7 @@ pub fn wall_polygons(
     new_polys = new_polys.union(&diff);
 
     // If walls arent on all sides, trim as needed
-    if walls == &Walls::WALL {
+    if walls == Walls::WALL {
         return new_polys;
     }
 
@@ -519,6 +562,7 @@ impl WallType {
     }
 }
 
+#[allow(dead_code)]
 impl Walls {
     pub const NONE: Self = Self {
         left: WallType::None,

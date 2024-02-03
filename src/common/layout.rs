@@ -1,35 +1,31 @@
-use super::shape::{Material, Shape, WallType};
+use super::{
+    shape::{Material, Shape, WallType},
+    utils::clone_as_none,
+};
+use derivative::Derivative;
 use egui::Color32;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-};
+use std::{collections::HashMap, hash::Hash};
 use strum_macros::{Display, VariantArray};
 use uuid::Uuid;
 
 const LAYOUT_VERSION: &str = "0.1";
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Default, Derivative)]
+#[derivative(Clone)]
 pub struct Home {
     pub version: String,
     pub rooms: Vec<Room>,
     pub furniture: Vec<Furniture>,
     #[serde(skip)]
+    #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<HomeRender>,
 }
 
-impl Hash for Home {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.version.hash(state);
-        self.rooms.hash(state);
-        self.furniture.hash(state);
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Clone)]
 pub struct Room {
     pub id: Uuid,
     pub name: String,
@@ -39,10 +35,11 @@ pub struct Room {
     pub operations: Vec<Operation>,
     pub walls: Walls,
     #[serde(skip)]
+    #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<RoomRender>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Walls {
     pub left: WallType,
     pub top: WallType,
@@ -70,7 +67,7 @@ pub struct Operation {
     pub rotation: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default, Hash)]
 pub struct RenderOptions {
     pub material: Material,
     pub tint: Option<Color32>,
@@ -86,22 +83,23 @@ pub enum Action {
     SubtractWall,
 }
 
-#[derive(Clone)]
-pub struct Wall {
-    pub points: Vec<Vec2>,
-    pub closed: bool,
-}
-
-#[derive(Clone)]
 pub struct HomeRender {
     pub hash: u64,
+    pub wall_polygons: MultiPolygon,
+    pub wall_triangles: Vec<Triangles>,
 }
 
-#[derive(Clone)]
 pub struct RoomRender {
+    pub hash: u64,
     pub polygons: MultiPolygon,
     pub material_polygons: HashMap<Material, MultiPolygon>,
+    pub material_triangles: HashMap<Material, Vec<Triangles>>,
     pub wall_polygons: MultiPolygon,
+}
+
+pub struct Triangles {
+    pub indices: Vec<u32>,
+    pub vertices: Vec<Vec2>,
 }
 
 impl Home {
@@ -144,13 +142,6 @@ impl Home {
                             Shape::Rectangle,
                             vec2(2.2, 2.4),
                             vec2(0.5, 2.5),
-                            0.0,
-                        ),
-                        Operation::new(
-                            Action::SubtractWall,
-                            Shape::Rectangle,
-                            vec2(-0.3, 2.30),
-                            vec2(1.6, 2.6),
                             0.0,
                         ),
                     ],
@@ -269,15 +260,6 @@ impl Home {
                     vec![],
                 ),
             ],
-            furniture: vec![],
-            rendered_data: None,
-        }
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            version: String::new(),
-            rooms: vec![],
             furniture: vec![],
             rendered_data: None,
         }

@@ -12,6 +12,7 @@ pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
     vec.y.to_bits().hash(state);
 }
 
+#[allow(dead_code)]
 pub const fn vec2_to_egui(vec: Vec2) -> egui::Vec2 {
     egui::Vec2::new(vec.x as f32, vec.y as f32)
 }
@@ -67,6 +68,13 @@ fn color_to_string(color: Color32) -> String {
     )
 }
 
+impl Hash for Home {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.version.hash(state);
+        self.rooms.hash(state);
+        self.furniture.hash(state);
+    }
+}
 impl std::fmt::Display for Home {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = String::new();
@@ -222,9 +230,7 @@ impl std::fmt::Display for RenderOptions {
         write!(f, "{string}")
     }
 }
-impl Hash for RenderOptions {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.material.hash(state);
-        self.tint.hash(state);
-    }
+
+pub const fn clone_as_none<T>(_x: &Option<T>) -> Option<T> {
+    None
 }

@@ -16,6 +16,7 @@ glam = { version = "0.25.0", features = ["serde"] }
 
 strum = "0.26.1"
 strum_macros = "0.26.1"
+derivative = "2.2.0"
 diff = "0.1.13"
 
 # egui = { version = "0.25.0", features = ["serde"] }
