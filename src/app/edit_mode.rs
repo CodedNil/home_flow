@@ -1,12 +1,14 @@
 use super::HomeFlow;
 use crate::common::{
-    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, Walls},
+    layout::{
+        Action, Furniture, Home, Opening, OpeningType, Operation, RenderOptions, Room, Walls,
+    },
     shape::{coord_to_vec2, Shape},
     utils::vec2_to_egui_pos,
 };
 use egui::{
-    Align2, Button, Checkbox, Color32, ComboBox, Context, CursorIcon, DragValue, Key, Painter,
-    PointerButton, Shape as EShape, Stroke, Ui, Window,
+    collapsing_header::CollapsingState, Align2, Button, Checkbox, Color32, ComboBox, Context,
+    CursorIcon, DragValue, Key, Painter, PointerButton, Shape as EShape, Stroke, Ui, Window,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::time::Duration;
@@ -44,6 +46,10 @@ impl ObjectType {
 
     const fn snap_to_rooms(&self) -> bool {
         matches!(self, Self::Room | Self::Operation)
+    }
+
+    const fn snap_to_walls(&self) -> bool {
+        matches!(self, Self::Opening)
     }
 }
 
@@ -176,7 +182,7 @@ impl HomeFlow {
                         }
                     }
                     for opening in &room.openings {
-                        if (self.mouse_pos_world - opening.pos).length() < 0.2 {
+                        if (self.mouse_pos_world - (room.pos + opening.pos)).length() < 0.2 {
                             hovered_id = Some(opening.id);
                         }
                     }
@@ -254,7 +260,7 @@ impl HomeFlow {
                         result = Some((
                             ObjectType::Opening,
                             opening.id,
-                            opening.pos,
+                            room.pos + opening.pos,
                             (Vec2::ZERO, Vec2::ZERO),
                         ));
                     }
@@ -320,7 +326,7 @@ impl HomeFlow {
                         }
                         for opening in &mut room.openings {
                             if opening.id == drag_data.id {
-                                opening.pos = new_pos;
+                                opening.pos = new_pos - room.pos;
                             }
                         }
                     }
@@ -496,7 +502,7 @@ impl HomeFlow {
                         if ui.button("Add Room").clicked() {
                             self.layout.rooms.push(Room::new(
                                 "New Room",
-                                vec2(0.0, 0.0),
+                                Vec2::ZERO,
                                 vec2(1.0, 1.0),
                                 RenderOptions::default(),
                                 Walls::WALL,
@@ -505,13 +511,11 @@ impl HomeFlow {
                             ));
                         }
                         if ui.button("Add Furniture").clicked() {
-                            self.layout.furniture.push(Furniture {
-                                id: Uuid::new_v4(),
-                                pos: vec2(0.0, 0.0),
-                                size: vec2(1.0, 1.0),
-                                rotation: 0.0,
-                                children: vec![],
-                            });
+                            self.layout.furniture.push(Furniture::new(
+                                Vec2::ZERO,
+                                vec2(1.0, 1.0),
+                                0.0,
+                            ));
                         }
                         ui.add_space(ui.available_width() / 4.0);
                     });
@@ -595,11 +599,17 @@ impl HomeFlow {
             for opening in &room.openings {
                 let selected = edit_response.hovered_id == Some(opening.id);
                 // Draw a circle for each opening
-                let pos = self.world_to_pixels(opening.pos.x, opening.pos.y);
+                let pos = room.pos + opening.pos;
+                let pos = self.world_to_pixels(pos.x, pos.y);
+                let color = match opening.opening_type {
+                    OpeningType::Door => Color32::from_rgb(255, 100, 0),
+                    OpeningType::Window => Color32::from_rgb(0, 70, 230),
+                }
+                .gamma_multiply(0.8);
                 painter.add(EShape::circle_filled(
                     vec2_to_egui_pos(pos),
                     if selected { 16.0 } else { 10.0 },
-                    Color32::from_rgb(255, 255, 0).gamma_multiply(0.8),
+                    color,
                 ));
                 painter.add(EShape::circle_filled(
                     vec2_to_egui_pos(pos),
@@ -738,7 +748,26 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
     );
     ui.separator();
 
-    ui.collapsing("Operations", |ui| {
+    CollapsingState::load_with_default_open(
+        ui.ctx(),
+        ui.make_persistent_id("operations_collapsing_header"),
+        false,
+    )
+    .show_header(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label("Operations");
+            if ui.add(Button::new("Add")).clicked() {
+                room.operations.push(Operation::new(
+                    Action::Add,
+                    Shape::Rectangle,
+                    Vec2::ZERO,
+                    vec2(1.0, 1.0),
+                    0.0,
+                ));
+            }
+        });
+    })
+    .body(|ui| {
         let mut operations_to_remove = vec![];
         let mut operations_to_raise = vec![];
         let mut operations_to_lower = vec![];
@@ -779,7 +808,8 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                         .add(
                             DragValue::new(&mut operation.rotation)
                                 .speed(5)
-                                .fixed_decimals(0),
+                                .fixed_decimals(0)
+                                .suffix("°"),
                         )
                         .changed()
                     {
@@ -812,19 +842,6 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                 }
             });
         }
-        ui.horizontal(|ui| {
-            if ui.add(Button::new("Add")).clicked() {
-                room.operations.push(Operation {
-                    id: Uuid::new_v4(),
-                    action: Action::Add,
-                    shape: Shape::Rectangle,
-                    render_options: None,
-                    pos: vec2(0.0, 0.0),
-                    size: vec2(1.0, 1.0),
-                    rotation: 0.0,
-                });
-            }
-        });
         for index in operations_to_remove {
             room.operations.remove(index);
         }
@@ -836,6 +853,61 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
         for index in operations_to_lower {
             if index < room.operations.len() - 1 {
                 room.operations.swap(index, index + 1);
+            }
+        }
+    });
+
+    CollapsingState::load_with_default_open(
+        ui.ctx(),
+        ui.make_persistent_id("openings_collapsing_header"),
+        false,
+    )
+    .show_header(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label("Openings");
+            if ui.add(Button::new("Add")).clicked() {
+                room.openings
+                    .push(Opening::new(Vec2::ZERO, OpeningType::Door));
+            }
+        });
+    })
+    .body(|ui| {
+        let mut openings_to_remove = vec![];
+        let mut openings_to_raise = vec![];
+        let mut openings_to_lower = vec![];
+        let num_openings = room.openings.len();
+        for (index, opening) in room.openings.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label("Pos");
+                edit_vec2(ui, &mut opening.pos, 0.1, 2);
+                combo_box_for_enum(
+                    ui,
+                    format!("Opening {}", opening.id),
+                    &mut opening.opening_type,
+                    "",
+                );
+                if ui.add(Button::new("Delete")).clicked() {
+                    openings_to_remove.push(opening.id);
+                }
+                if index > 0 && ui.add(Button::new("^")).clicked() {
+                    openings_to_raise.push(index);
+                }
+                if index < num_openings - 1 && ui.add(Button::new("v")).clicked() {
+                    openings_to_lower.push(index);
+                }
+            });
+        }
+        for id in openings_to_remove {
+            room.openings.retain(|o| o.id != id);
+        }
+        for index in openings_to_raise {
+            if index > 0 {
+                room.openings.swap(index, index - 1);
+            }
+        }
+        for index in openings_to_lower {
+            if index < room.openings.len() - 1 {
+                room.openings.swap(index, index + 1);
             }
         }
     });

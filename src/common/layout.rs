@@ -75,7 +75,7 @@ pub struct Operation {
     pub rotation: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
 pub enum OpeningType {
     Door,
     Window,

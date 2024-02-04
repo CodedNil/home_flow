@@ -437,13 +437,22 @@ impl eframe::App for HomeFlow {
                         response.rect.right() - 10.0,
                         response.rect.bottom() - 10.0,
                     ))
-                    .auto_sized()
+                    .fixed_size(egui::vec2(100.0, 0.0))
                     .pivot(Align2::RIGHT_BOTTOM)
                     .title_bar(false)
                     .resizable(false)
                     .constrain(false)
                     .show(ctx, |ui| {
-                        self.edit_mode_settings(ctx, ui);
+                        ui.with_layout(
+                            egui::Layout::from_main_dir_and_cross_align(
+                                egui::Direction::TopDown,
+                                egui::Align::Center,
+                            )
+                            .with_cross_justify(true),
+                            |ui| {
+                                self.edit_mode_settings(ctx, ui);
+                            },
+                        );
                     });
 
                 // TODO: reimplement this once toasts updates

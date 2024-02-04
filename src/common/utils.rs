@@ -1,5 +1,7 @@
 use super::{
-    layout::{Action, Furniture, Home, Opening, Operation, RenderOptions, Room, Walls},
+    layout::{
+        Action, Furniture, Home, Opening, OpeningType, Operation, RenderOptions, Room, Walls,
+    },
     shape::{Material, Shape},
 };
 use egui::Color32;
@@ -125,6 +127,32 @@ impl std::fmt::Display for Room {
     }
 }
 
+impl Opening {
+    pub fn new(pos: Vec2, opening_type: OpeningType) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            pos,
+            opening_type,
+        }
+    }
+}
+
+impl Furniture {
+    pub fn new(pos: Vec2, size: Vec2, rotation: f64) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            pos,
+            size,
+            rotation,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn with_children(mut self, children: Vec<Self>) -> Self {
+        self.children = children;
+        self
+    }
+}
 impl std::fmt::Display for Furniture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!(
