@@ -159,9 +159,8 @@ impl Room {
 
     pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
         let (mut min, mut max) = self.bounds();
-        let wall_width = WallType::Wall.width();
-        min -= vec2(wall_width, wall_width);
-        max += vec2(wall_width, wall_width);
+        min -= vec2(WALL_WIDTH, WALL_WIDTH);
+        max += vec2(WALL_WIDTH, WALL_WIDTH);
         (min, max)
     }
 
@@ -513,7 +512,7 @@ pub fn wall_polygons(
         )]));
     }
 
-    let width_half = WallType::Wall.width() / 2.0;
+    let width_half = WALL_WIDTH / 2.0;
     let mut new_polys = MultiPolygon(vec![]);
 
     let polygon_outside = geo_buffer::buffer_multi_polygon(&new_polygons, width_half);
@@ -580,13 +579,13 @@ pub fn wall_polygons(
     ];
     let mut subtract_shape = EMPTY_MULTI_POLYGON;
     for index in 0..4 {
-        let (wall_type, vertices) = match index {
+        let (is_wall, vertices) = match index {
             0 => (walls.left, vertices[0].clone()),
             1 => (walls.top, vertices[1].clone()),
             2 => (walls.right, vertices[2].clone()),
             _ => (walls.bottom, vertices[3].clone()),
         };
-        if wall_type == WallType::None {
+        if !is_wall {
             subtract_shape = subtract_shape.union(&create_multipolygon(&vertices));
         }
     }
@@ -595,7 +594,7 @@ pub fn wall_polygons(
     let verticals = [(walls.top, up), (walls.bottom, -up)];
     for (wall_horizontal, horizontal_multiplier) in &directions {
         for (wall_vertical, vertical_multiplier) in &verticals {
-            if *wall_horizontal == WallType::None && *wall_vertical == WallType::None {
+            if !wall_horizontal && !wall_vertical {
                 subtract_shape = subtract_shape.union(&create_multipolygon(&[
                     center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
                     center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
@@ -621,64 +620,48 @@ pub fn wall_polygons(
     new_polys.difference(&subtract_shape)
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
-pub enum WallType {
-    None,
-    Wall,
-    Door,
-    Window,
-}
-
-impl WallType {
-    pub const fn width(self) -> f64 {
-        match self {
-            Self::None => 0.0,
-            Self::Wall => 0.1,
-            Self::Door | Self::Window => 0.05,
-        }
-    }
-}
+pub const WALL_WIDTH: f64 = 0.1;
 
 #[allow(dead_code)]
 impl Walls {
     pub const NONE: Self = Self {
-        left: WallType::None,
-        top: WallType::None,
-        right: WallType::None,
-        bottom: WallType::None,
+        left: false,
+        top: false,
+        right: false,
+        bottom: false,
     };
 
     pub const WALL: Self = Self {
-        left: WallType::Wall,
-        top: WallType::Wall,
-        right: WallType::Wall,
-        bottom: WallType::Wall,
+        left: true,
+        top: true,
+        right: true,
+        bottom: true,
     };
 
-    pub const fn left(self, wall_type: WallType) -> Self {
+    pub const fn left(self, is_wall: bool) -> Self {
         Self {
-            left: wall_type,
+            left: is_wall,
             ..self
         }
     }
 
-    pub const fn top(self, wall_type: WallType) -> Self {
+    pub const fn top(self, is_wall: bool) -> Self {
         Self {
-            top: wall_type,
+            top: is_wall,
             ..self
         }
     }
 
-    pub const fn right(self, wall_type: WallType) -> Self {
+    pub const fn right(self, is_wall: bool) -> Self {
         Self {
-            right: wall_type,
+            right: is_wall,
             ..self
         }
     }
 
-    pub const fn bottom(self, wall_type: WallType) -> Self {
+    pub const fn bottom(self, is_wall: bool) -> Self {
         Self {
-            bottom: wall_type,
+            bottom: is_wall,
             ..self
         }
     }

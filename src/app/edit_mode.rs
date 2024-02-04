@@ -366,7 +366,7 @@ impl HomeFlow {
 
             for other_room in &self.layout.rooms {
                 if other_room.id != drag_data.id {
-                    let (other_min, other_max) = other_room.self_bounds();
+                    let (other_min, other_max) = other_room.bounds();
                     // Horizontal snap
                     for (index, &room_edge) in [bounds_min.y, bounds_max.y].iter().enumerate() {
                         for &other_edge in &[other_min.y, other_max.y] {
@@ -709,36 +709,24 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
         .spacing([20.0, 4.0])
         .striped(true)
         .show(ui, |ui| {
-            ui.label("Position ");
-            ui.horizontal(|ui| {
-                ui.add(DragValue::new(&mut room.pos.x).speed(0.1).fixed_decimals(2));
-                ui.add(DragValue::new(&mut room.pos.y).speed(0.1).fixed_decimals(2));
-            });
-
-            ui.label("Size ");
-            ui.horizontal(|ui| {
-                ui.add(
-                    DragValue::new(&mut room.size.x)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                );
-                ui.add(
-                    DragValue::new(&mut room.size.y)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                );
-            });
+            ui.label("Position");
+            edit_vec2(ui, &mut room.pos, 0.1, 2);
+            ui.label("Size");
+            edit_vec2(ui, &mut room.size, 0.1, 2);
             ui.end_row();
 
             // Wall selection
             for index in 0..4 {
-                let (wall_type, wall_side) = match index {
+                let (is_wall, wall_side) = match index {
                     0 => (&mut room.walls.left, "Left"),
                     1 => (&mut room.walls.top, "Top"),
                     2 => (&mut room.walls.right, "Right"),
                     _ => (&mut room.walls.bottom, "Bottom"),
                 };
-                combo_box_for_enum(ui, format!("{wall_side} Wall"), wall_type, wall_side);
+                ui.horizontal(|ui| {
+                    ui.label(format!("{wall_side} Wall"));
+                    ui.checkbox(is_wall, "");
+                });
             }
             ui.end_row();
         });
@@ -761,7 +749,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                 Action::AddWall => Color32::from_rgb(50, 100, 50),
                 Action::SubtractWall => Color32::from_rgb(160, 90, 50),
             }
-            .gamma_multiply(0.5);
+            .gamma_multiply(0.15);
             egui::Frame::fill(egui::Frame::central_panel(ui.style()), color).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("{index}"));
@@ -782,27 +770,9 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
 
                 ui.horizontal(|ui| {
                     ui.label("Pos");
-                    ui.add(
-                        DragValue::new(&mut operation.pos.x)
-                            .speed(0.1)
-                            .fixed_decimals(2),
-                    );
-                    ui.add(
-                        DragValue::new(&mut operation.pos.y)
-                            .speed(0.1)
-                            .fixed_decimals(2),
-                    );
+                    edit_vec2(ui, &mut operation.pos, 0.1, 2);
                     ui.label("Size");
-                    ui.add(
-                        DragValue::new(&mut operation.size.x)
-                            .speed(0.1)
-                            .fixed_decimals(2),
-                    );
-                    ui.add(
-                        DragValue::new(&mut operation.size.y)
-                            .speed(0.1)
-                            .fixed_decimals(2),
-                    );
+                    edit_vec2(ui, &mut operation.size, 0.1, 2);
                     ui.label("Rotation");
                     if ui
                         .add(
@@ -893,6 +863,7 @@ fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions,
     });
 }
 
+// Helper function to create a combo box for an enum
 fn combo_box_for_enum<T>(ui: &mut egui::Ui, id: impl std::hash::Hash, selected: &mut T, label: &str)
 where
     T: ToString + PartialEq + Copy + IntoEnumIterator,
@@ -910,6 +881,24 @@ where
                 ui.selectable_value(selected, variant, variant.to_string());
             }
         });
+}
+
+// Helper function to edit Vec2 using two DragValue widgets
+fn edit_vec2(ui: &mut egui::Ui, vec2: &mut Vec2, speed: f32, fixed_decimals: usize) {
+    ui.horizontal(|ui| {
+        ui.add(
+            egui::DragValue::new(&mut vec2.x)
+                .speed(speed)
+                .fixed_decimals(fixed_decimals)
+                .prefix("X: "),
+        );
+        ui.add(
+            egui::DragValue::new(&mut vec2.y)
+                .speed(speed)
+                .fixed_decimals(fixed_decimals)
+                .prefix("Y: "),
+        );
+    });
 }
 
 fn closed_dashed_line_with_offset(

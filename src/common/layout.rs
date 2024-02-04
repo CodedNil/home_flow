@@ -1,5 +1,5 @@
 use super::{
-    shape::{Material, Shape, WallType},
+    shape::{Material, Shape},
     utils::clone_as_none,
 };
 use derivative::Derivative;
@@ -42,10 +42,10 @@ pub struct Room {
 
 #[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Walls {
-    pub left: WallType,
-    pub top: WallType,
-    pub right: WallType,
-    pub bottom: WallType,
+    pub left: bool,
+    pub top: bool,
+    pub right: bool,
+    pub bottom: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -125,7 +125,7 @@ impl Home {
                     vec2(0.525, 0.5),
                     vec2(5.65, 1.10),
                     Material::Carpet.into(),
-                    Walls::NONE.top(WallType::Wall),
+                    Walls::NONE.top(true),
                     vec![Operation::new(
                         Action::Add,
                         Shape::Rectangle,
@@ -141,7 +141,7 @@ impl Home {
                     vec2(-2.75, -1.4),
                     vec2(6.1, 2.7),
                     Material::Carpet.into(),
-                    Walls::WALL.top(WallType::None),
+                    Walls::WALL.top(false),
                     vec![],
                     vec![],
                 ),
@@ -150,7 +150,7 @@ impl Home {
                     vec2(-4.05, 1.5),
                     vec2(3.5, 3.1),
                     RenderOptions::new(Material::Marble, Color32::from_rgb(255, 250, 230)),
-                    Walls::WALL.right(WallType::None).bottom(WallType::None),
+                    Walls::WALL.right(false).bottom(false),
                     vec![],
                     vec![],
                 ),

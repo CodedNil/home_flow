@@ -6,7 +6,8 @@
     clippy::cast_lossless,
     clippy::too_many_lines,
     clippy::struct_field_names,
-    clippy::cognitive_complexity
+    clippy::cognitive_complexity,
+    clippy::struct_excessive_bools
 )]
 
 #[cfg(feature = "gui")]
