@@ -489,8 +489,10 @@ impl HomeFlow {
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label("Drag to move room or operation");
-                    ui.label("Double click to select room with options");
+                    ui.label("Double click to select room, escape to deselect");
+                    ui.label("Shift to disable snap");
                     ui.horizontal(|ui| {
+                        ui.add_space(ui.available_width() / 4.0);
                         if ui.button("Add Room").clicked() {
                             self.layout.rooms.push(Room::new(
                                 "New Room",
@@ -511,6 +513,7 @@ impl HomeFlow {
                                 children: vec![],
                             });
                         }
+                        ui.add_space(ui.available_width() / 4.0);
                     });
                 });
             });
@@ -636,7 +639,7 @@ impl HomeFlow {
                 .default_size([0.0, 0.0])
                 .pivot(Align2::CENTER_TOP)
                 .movable(true)
-                .resizable(true)
+                .resizable(false)
                 .collapsible(true)
                 .open(&mut window_open)
                 .show(ctx, |ui| {

@@ -317,6 +317,11 @@ impl eframe::App for HomeFlow {
             self.host = web_info.location.host.clone();
         }
 
+        // Styling
+        ctx.style_mut(|style| {
+            style.visuals.window_shadow = egui::epaint::Shadow::NONE;
+        });
+
         self.load_layout(ctx);
 
         CentralPanel::default()
