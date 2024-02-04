@@ -19,7 +19,10 @@ mod common;
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() {
-    simple_logger::SimpleLogger::new().init().unwrap();
+    simple_logger::SimpleLogger::new()
+        .with_level(log::LevelFilter::Warn)
+        .init()
+        .unwrap();
 
     // Set up router
     let app = axum::Router::new()
