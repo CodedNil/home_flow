@@ -1,8 +1,8 @@
 use super::{
     layout::{
-        Action, Furniture, Home, Opening, OpeningType, Operation, RenderOptions, Room, Walls,
+        Action, Furniture, Home, Opening, OpeningType, Operation, RenderOptions, Room, Shape, Walls,
     },
-    shape::{Material, Shape},
+    shape::Material,
 };
 use egui::Color32;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -11,11 +11,6 @@ use std::hash::{Hash, Hasher};
 pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
     vec.x.to_bits().hash(state);
     vec.y.to_bits().hash(state);
-}
-
-#[allow(dead_code)]
-pub const fn vec2_to_egui(vec: Vec2) -> egui::Vec2 {
-    egui::Vec2::new(vec.x as f32, vec.y as f32)
 }
 
 pub const fn vec2_to_egui_pos(vec: Vec2) -> egui::Pos2 {
@@ -146,11 +141,6 @@ impl Furniture {
             rotation,
             children: Vec::new(),
         }
-    }
-
-    pub fn with_children(mut self, children: Vec<Self>) -> Self {
-        self.children = children;
-        self
     }
 }
 impl std::fmt::Display for Furniture {

@@ -1,7 +1,4 @@
-use super::{
-    shape::{Material, Shape},
-    utils::clone_as_none,
-};
+use super::{shape::Material, utils::clone_as_none};
 use derivative::Derivative;
 use egui::Color32;
 use geo_types::MultiPolygon;
@@ -94,6 +91,14 @@ pub enum Action {
     Subtract,
     AddWall,
     SubtractWall,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
+pub enum Shape {
+    #[default]
+    Rectangle,
+    Circle,
+    Triangle,
 }
 
 pub struct HomeRender {

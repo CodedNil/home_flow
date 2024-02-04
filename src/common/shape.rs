@@ -1,5 +1,7 @@
 use super::{
-    layout::{Action, Furniture, Home, HomeRender, Operation, Room, RoomRender, Triangles, Walls},
+    layout::{
+        Action, Furniture, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles, Walls,
+    },
     utils::rotate_point,
 };
 use geo::BooleanOps;
@@ -405,14 +407,6 @@ pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
             (triangle_indices, vertices_vec2)
         },
     )
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum Shape {
-    #[default]
-    Rectangle,
-    Circle,
-    Triangle,
 }
 
 impl Shape {

@@ -1,9 +1,9 @@
 use super::HomeFlow;
 use crate::common::{
     layout::{
-        Action, Furniture, Home, Opening, OpeningType, Operation, RenderOptions, Room, Walls,
+        Action, Furniture, Home, Opening, OpeningType, Operation, RenderOptions, Room, Shape, Walls,
     },
-    shape::{coord_to_vec2, Shape},
+    shape::coord_to_vec2,
     utils::vec2_to_egui_pos,
 };
 use egui::{
@@ -26,13 +26,13 @@ pub struct EditDetails {
 struct DragData {
     id: Uuid,
     object_type: ObjectType,
-    drag_type: DragType,
+    manipulation_type: ManipulationType,
     mouse_start_pos: Vec2,
     object_start_pos: Vec2,
     bounds: (Vec2, Vec2),
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum ObjectType {
     Room,
     Operation,
@@ -40,22 +40,26 @@ enum ObjectType {
     Furniture,
 }
 impl ObjectType {
-    const fn snap_to_grid(&self) -> bool {
+    const fn snap_to_grid(self) -> bool {
         matches!(self, Self::Room | Self::Operation)
     }
 
-    const fn snap_to_rooms(&self) -> bool {
+    const fn snap_to_rooms(self) -> bool {
         matches!(self, Self::Room | Self::Operation)
     }
 
-    const fn snap_to_walls(&self) -> bool {
+    const fn snap_to_walls(self) -> bool {
         matches!(self, Self::Opening)
     }
 }
 
-enum DragType {
+#[derive(Clone, Copy)]
+enum ManipulationType {
     Move,
-    Resize,
+    ResizeLeft,
+    ResizeRight,
+    ResizeTop,
+    ResizeBottom,
 }
 
 pub struct EditResponse {
@@ -168,6 +172,9 @@ impl HomeFlow {
 
         let mut used_dragged = false;
         let mut hovered_id = None;
+        let mut hovered_type = None;
+        let mut hovered_pos = None;
+        let mut hovered_bounds = None;
 
         if let Some(selected_id) = self.edit_mode.selected_room {
             // Selected room hover
@@ -175,15 +182,24 @@ impl HomeFlow {
                 if room.id == selected_id {
                     if room.contains(self.mouse_pos_world) {
                         hovered_id = Some(room.id);
+                        hovered_type = Some(ObjectType::Room);
+                        hovered_pos = Some(room.pos);
+                        hovered_bounds = Some((-room.size / 2.0, room.size / 2.0));
                     }
                     for operation in &room.operations {
                         if operation.contains(room.pos, self.mouse_pos_world) {
                             hovered_id = Some(operation.id);
+                            hovered_type = Some(ObjectType::Operation);
+                            hovered_pos = Some(room.pos + operation.pos);
+                            hovered_bounds = Some((-operation.size / 2.0, operation.size / 2.0));
                         }
                     }
                     for opening in &room.openings {
                         if (self.mouse_pos_world - (room.pos + opening.pos)).length() < 0.2 {
                             hovered_id = Some(opening.id);
+                            hovered_type = Some(ObjectType::Opening);
+                            hovered_pos = Some(room.pos + opening.pos);
+                            hovered_bounds = Some((Vec2::ZERO, Vec2::ZERO));
                         }
                     }
                 }
@@ -193,6 +209,9 @@ impl HomeFlow {
             for room in &self.layout.rooms {
                 if room.contains(self.mouse_pos_world) {
                     hovered_id = Some(room.id);
+                    hovered_type = Some(ObjectType::Room);
+                    hovered_pos = Some(room.pos);
+                    hovered_bounds = Some((-room.size / 2.0, room.size / 2.0));
                 }
             }
             // Hover over furniture
@@ -204,6 +223,9 @@ impl HomeFlow {
                     furniture.rotation,
                 ) {
                     hovered_id = Some(furniture.id);
+                    hovered_type = Some(ObjectType::Furniture);
+                    hovered_pos = Some(furniture.pos);
+                    hovered_bounds = Some(furniture.bounds());
                 }
             }
         }
@@ -226,67 +248,73 @@ impl HomeFlow {
         // Shift to disable snap
         let snap_enabled = !ui.input(|i| i.modifiers.shift);
 
-        // Apply edit changes
-        let mut snap_line_x = None;
-        let mut snap_line_y = None;
-        if response.drag_started_by(egui::PointerButton::Primary) {
-            let mut result = None;
-            if let Some(room) = self
-                .layout
-                .rooms
-                .iter()
-                .find(|r| Some(r.id) == self.edit_mode.selected_room)
-            {
-                if Some(room.id) == hovered_id {
-                    result = Some((
-                        ObjectType::Room,
-                        room.id,
-                        room.pos,
-                        (-room.size / 2.0, room.size / 2.0),
-                    ));
-                }
-                for operation in &room.operations {
-                    if Some(operation.id) == hovered_id {
-                        result = Some((
-                            ObjectType::Operation,
-                            operation.id,
-                            room.pos + operation.pos,
-                            (-operation.size / 2.0, operation.size / 2.0),
-                        ));
-                    }
-                }
-                for opening in &room.openings {
-                    if Some(opening.id) == hovered_id {
-                        result = Some((
-                            ObjectType::Opening,
-                            opening.id,
-                            room.pos + opening.pos,
-                            (Vec2::ZERO, Vec2::ZERO),
-                        ));
-                    }
+        // If room or operation or furniture, check if at the edge of bounds to resize
+        let mut manipulation_type = ManipulationType::Move;
+        if let Some(object_type) = &hovered_type {
+            if matches!(
+                object_type,
+                ObjectType::Room | ObjectType::Operation | ObjectType::Furniture
+            ) {
+                let (min, max) = hovered_bounds.unwrap();
+                let (min, max) = (hovered_pos.unwrap() + min, hovered_pos.unwrap() + max);
+                let (min, max) = (
+                    self.world_to_pixels(min.x, min.y),
+                    self.world_to_pixels(max.x, max.y),
+                );
+                let threshold = 2.0;
+                if self.mouse_pos.x < min.x + threshold {
+                    manipulation_type = ManipulationType::ResizeLeft;
+                } else if self.mouse_pos.x > max.x - threshold {
+                    manipulation_type = ManipulationType::ResizeRight;
+                } else if self.mouse_pos.y < min.y + threshold {
+                    manipulation_type = ManipulationType::ResizeBottom;
+                } else if self.mouse_pos.y > max.y - threshold {
+                    manipulation_type = ManipulationType::ResizeTop;
                 }
             }
-            for furniture in &self.layout.furniture {
-                if Some(furniture.id) == hovered_id {
-                    result = Some((
-                        ObjectType::Furniture,
-                        furniture.id,
-                        furniture.pos,
-                        furniture.bounds(),
-                    ));
+        }
+
+        // If dragging use drag_data
+        if let Some(drag_data) = &self.edit_mode.drag_data {
+            hovered_id = Some(drag_data.id);
+            hovered_type = Some(drag_data.object_type);
+            manipulation_type = drag_data.manipulation_type;
+            hovered_pos = Some(drag_data.object_start_pos);
+            hovered_bounds = Some(drag_data.bounds);
+        }
+
+        // Cursor for hovered
+        if hovered_id.is_some()
+            && (hovered_type == Some(ObjectType::Furniture)
+                || self.edit_mode.selected_room.is_some())
+        {
+            match manipulation_type {
+                ManipulationType::Move => ctx.set_cursor_icon(CursorIcon::PointingHand),
+                ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
+                    ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
+                }
+                ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
+                    ctx.set_cursor_icon(CursorIcon::ResizeVertical);
                 }
             }
-            if let Some((object_type, id, pos, bounds)) = result {
+        }
+
+        let can_drag = self.edit_mode.selected_room.is_some()
+            || matches!(hovered_type, Some(ObjectType::Furniture));
+        if let Some(hovered_id) = hovered_id {
+            if response.drag_started_by(egui::PointerButton::Primary) && can_drag {
                 self.edit_mode.drag_data = Some(DragData {
-                    id,
-                    object_type,
-                    drag_type: DragType::Move,
+                    id: hovered_id,
+                    object_type: hovered_type.unwrap(),
+                    manipulation_type,
                     mouse_start_pos: self.mouse_pos_world,
-                    object_start_pos: pos,
-                    bounds,
+                    object_start_pos: hovered_pos.unwrap(),
+                    bounds: hovered_bounds.unwrap(),
                 });
             }
         }
+        let mut snap_line_x = None;
+        let mut snap_line_y = None;
         if response.dragged_by(PointerButton::Primary) {
             if let Some(drag_data) = &self.edit_mode.drag_data {
                 used_dragged = true;
@@ -523,12 +551,11 @@ impl HomeFlow {
             });
 
         // Get hovered room or selected room if there isn't one
-        let hovered_room = [edit_response.hovered_id, self.edit_mode.selected_room]
+        if let Some(room) = [edit_response.hovered_id, self.edit_mode.selected_room]
             .iter()
             .filter_map(|&id| id)
-            .find_map(|id| self.layout.rooms.iter().find(|r| r.id == id));
-
-        if let Some(room) = hovered_room {
+            .find_map(|id| self.layout.rooms.iter().find(|r| r.id == id))
+        {
             let rendered_data = room.rendered_data.as_ref().unwrap();
 
             // Render outline
