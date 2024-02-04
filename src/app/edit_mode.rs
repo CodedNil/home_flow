@@ -1,6 +1,8 @@
 use super::HomeFlow;
 use crate::common::{
-    layout::{Action, Furniture, Opening, OpeningType, Operation, RenderOptions, Room, Walls},
+    layout::{
+        self, Action, Furniture, Opening, OpeningType, Operation, RenderOptions, Room, Walls,
+    },
     shape::{coord_to_vec2, Material, Shape, WallType},
     utils::vec2_to_egui_pos,
 };
@@ -114,6 +116,10 @@ impl HomeFlow {
         // If not in edit mode, show button to enter edit mode
         else if ui.button("Edit Mode").clicked() {
             self.edit_mode.enabled = true;
+        }
+        if ui.button("Refresn").clicked() {
+            self.layout = layout::Home::default();
+            self.layout_server = layout::Home::default();
         }
     }
 
