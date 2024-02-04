@@ -1,6 +1,6 @@
 use super::HomeFlow;
 use crate::common::{
-    layout::{Action, Operation, RenderOptions, Room, Walls},
+    layout::{Action, Furniture, Opening, OpeningType, Operation, RenderOptions, Room, Walls},
     shape::{coord_to_vec2, Material, Shape, WallType},
     utils::vec2_to_egui_pos,
 };
@@ -48,7 +48,6 @@ impl HomeFlow {
                 let toasts_store = self.toasts.clone();
                 toasts_store
                     .lock()
-                    .unwrap()
                     .info("Saving Layout")
                     .set_duration(Some(Duration::from_secs(2)));
                 ehttp::fetch(
@@ -62,7 +61,6 @@ impl HomeFlow {
                     move |_| {
                         toasts_store
                             .lock()
-                            .unwrap()
                             .success("Layout Saved")
                             .set_duration(Some(Duration::from_secs(2)));
                     },
@@ -399,18 +397,51 @@ impl HomeFlow {
                 ui.vertical_centered(|ui| {
                     ui.label("Drag to move room or operation");
                     ui.label("Double click to select room with options");
-                    if ui.button("Add Room").clicked() {
-                        self.layout.rooms.push(Room::new(
-                            "New Room",
-                            vec2(0.0, 0.0),
-                            vec2(1.0, 1.0),
-                            RenderOptions::default(),
-                            Walls::WALL,
-                            vec![],
-                        ));
-                    }
+                    ui.horizontal(|ui| {
+                        if ui.button("Add Room").clicked() {
+                            self.layout.rooms.push(Room::new(
+                                "New Room",
+                                vec2(0.0, 0.0),
+                                vec2(1.0, 1.0),
+                                RenderOptions::default(),
+                                Walls::WALL,
+                                vec![],
+                            ));
+                        }
+                        if ui.button("Add Opening").clicked() {
+                            self.layout.openings.push(Opening {
+                                id: Uuid::new_v4(),
+                                opening_type: OpeningType::Door,
+                                pos: vec2(0.0, 0.0),
+                            });
+                        }
+                        if ui.button("Add Furniture").clicked() {
+                            self.layout.furniture.push(Furniture {
+                                id: Uuid::new_v4(),
+                                pos: vec2(0.0, 0.0),
+                                size: vec2(1.0, 1.0),
+                                rotation: 0.0,
+                                children: vec![],
+                            });
+                        }
+                    });
                 });
             });
+
+        for opening in &self.layout.openings {
+            // Draw a circle for each opening
+            let pos = self.world_to_pixels(opening.pos.x, opening.pos.y);
+            painter.add(EShape::circle_filled(
+                vec2_to_egui_pos(pos),
+                10.0,
+                Color32::from_rgb(255, 255, 0).gamma_multiply(0.5),
+            ));
+            painter.add(EShape::circle_filled(
+                vec2_to_egui_pos(pos),
+                2.0,
+                Color32::from_rgb(0, 0, 0),
+            ));
+        }
 
         if let Some(room_id) = &edit_response.room_hovered {
             let room = self.layout.rooms.iter().find(|r| &r.id == room_id).unwrap();

@@ -11,10 +11,11 @@ use egui::{
 };
 use egui_notify::Toasts;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 mod edit_mode;
@@ -239,7 +240,7 @@ impl HomeFlow {
             return;
         }
         let download_store = self.download_data.clone();
-        let mut download_data_guard = download_store.lock().unwrap();
+        let mut download_data_guard = download_store.lock();
         match &download_data_guard.layout {
             DownloadLayout::None => {
                 log::info!("Loading layout from server");
@@ -248,7 +249,7 @@ impl HomeFlow {
                 ehttp::fetch(
                     ehttp::Request::get(format!("http://{}/load_layout", self.host)),
                     move |response| {
-                        download_store.lock().unwrap().layout = DownloadLayout::Done(response);
+                        download_store.lock().layout = DownloadLayout::Done(response);
                     },
                 );
             }
@@ -441,7 +442,7 @@ impl eframe::App for HomeFlow {
                     });
 
                 // TODO: reimplement this once toasts updates
-                // self.toasts.lock().unwrap().show(ctx);
+                // self.toasts.lock().show(ctx);
             });
     }
 }

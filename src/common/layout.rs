@@ -19,6 +19,7 @@ pub struct Home {
     pub version: String,
     pub rooms: Vec<Room>,
     pub furniture: Vec<Furniture>,
+    pub openings: Vec<Opening>,
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<HomeRender>,
@@ -57,6 +58,13 @@ pub struct Furniture {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct Opening {
+    pub id: Uuid,
+    pub pos: Vec2,
+    pub opening_type: OpeningType,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Operation {
     pub id: Uuid,
     pub action: Action,
@@ -65,6 +73,12 @@ pub struct Operation {
     pub pos: Vec2,
     pub size: Vec2,
     pub rotation: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum OpeningType {
+    Door,
+    Window,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Hash)]
@@ -201,6 +215,7 @@ impl Home {
                 ),
             ],
             furniture: vec![],
+            openings: vec![],
             rendered_data: None,
         }
     }
