@@ -23,19 +23,24 @@ pub struct EditDetails {
     preview_edits: bool,
 }
 
-#[derive(Clone)]
 struct DragData {
     id: Uuid,
+    drag_type: DragType,
     mouse_start_pos: Vec2,
     object_start_pos: Vec2,
+}
+
+enum DragType {
+    RoomOperation,
+    Opening,
 }
 
 pub struct EditResponse {
     pub used_dragged: bool,
     hovered_id: Option<Uuid>,
     room_selected: Option<Uuid>,
-    snap_line_horizontal: Option<f64>,
-    snap_line_vertical: Option<f64>,
+    snap_line_x: Option<f64>,
+    snap_line_y: Option<f64>,
 }
 
 impl HomeFlow {
@@ -133,8 +138,8 @@ impl HomeFlow {
                 used_dragged: false,
                 hovered_id: None,
                 room_selected: None,
-                snap_line_horizontal: None,
-                snap_line_vertical: None,
+                snap_line_x: None,
+                snap_line_y: None,
             };
         }
 
@@ -189,61 +194,103 @@ impl HomeFlow {
         }
 
         // Apply edit changes
-        let mut snap_line_horizontal = None;
-        let mut snap_line_vertical = None;
-        if let Some(room) = self
-            .layout
-            .rooms
-            .iter()
-            .find(|r| Some(r.id) == self.edit_mode.selected_room)
-        {
-            if response.drag_started() {
-                let mut result = if Some(room.id) == hovered_id {
-                    Some((room.id, room.pos))
-                } else {
-                    None
-                };
+        let mut snap_line_x = None;
+        let mut snap_line_y = None;
+        if response.drag_started_by(egui::PointerButton::Primary) {
+            let mut result = None;
+            if let Some(room) = self
+                .layout
+                .rooms
+                .iter()
+                .find(|r| Some(r.id) == self.edit_mode.selected_room)
+            {
+                if Some(room.id) == hovered_id {
+                    result = Some((DragType::RoomOperation, room.id, room.pos));
+                }
                 for operation in &room.operations {
                     if Some(operation.id) == hovered_id {
-                        result = Some((operation.id, room.pos + operation.pos));
+                        result = Some((
+                            DragType::RoomOperation,
+                            operation.id,
+                            room.pos + operation.pos,
+                        ));
                     }
                 }
-                if let Some((id, pos)) = result {
-                    self.edit_mode.drag_data = Some(DragData {
-                        id,
-                        mouse_start_pos: self.mouse_pos_world,
-                        object_start_pos: pos,
-                    });
+            }
+            for opening in &self.layout.openings {
+                if Some(opening.id) == hovered_id {
+                    result = Some((DragType::Opening, opening.id, opening.pos));
                 }
             }
-            if response.dragged() {
-                if let Some(drag_data) = self.edit_mode.drag_data.clone() {
-                    used_dragged = true;
-                    (snap_line_horizontal, snap_line_vertical) =
-                        self.handle_room_drag(&drag_data, ctx);
+            if let Some((drag_type, id, pos)) = result {
+                self.edit_mode.drag_data = Some(DragData {
+                    id,
+                    drag_type,
+                    mouse_start_pos: self.mouse_pos_world,
+                    object_start_pos: pos,
+                });
+            }
+        }
+        if response.dragged_by(egui::PointerButton::Primary) {
+            if let Some(drag_data) = &self.edit_mode.drag_data {
+                used_dragged = true;
+
+                match drag_data.drag_type {
+                    DragType::RoomOperation => {
+                        let (new_pos, snap_x, snap_y) = self.handle_room_drag(drag_data, ctx);
+                        for room in &mut self.layout.rooms {
+                            if drag_data.id == room.id {
+                                room.pos = new_pos;
+                            } else {
+                                for operation in &mut room.operations {
+                                    if operation.id == drag_data.id {
+                                        operation.pos = new_pos - room.pos;
+                                    }
+                                }
+                            }
+                        }
+                        snap_line_x = snap_x;
+                        snap_line_y = snap_y;
+                    }
+                    DragType::Opening => {
+                        let delta = self.mouse_pos_world - drag_data.mouse_start_pos;
+                        let mut new_pos = drag_data.object_start_pos + delta;
+
+                        // Snap to grid
+                        new_pos = vec2(
+                            (new_pos.x * 10.0).round() / 10.0,
+                            (new_pos.y * 10.0).round() / 10.0,
+                        );
+
+                        for opening in &mut self.layout.openings {
+                            if opening.id == drag_data.id {
+                                opening.pos = new_pos;
+                            }
+                        }
+                    }
                 }
             }
-            if response.drag_released() {
-                self.edit_mode.drag_data = None;
-            }
+        }
+        if response.drag_released_by(egui::PointerButton::Primary) {
+            self.edit_mode.drag_data = None;
         }
 
         EditResponse {
             used_dragged,
             hovered_id,
             room_selected: self.edit_mode.selected_room,
-            snap_line_horizontal,
-            snap_line_vertical,
+            snap_line_x,
+            snap_line_y,
         }
     }
 
     fn handle_room_drag(
-        &mut self,
+        &self,
         drag_data: &DragData,
         ctx: &Context,
-    ) -> (Option<f64>, Option<f64>) {
-        let mut snap_line_horizontal = None;
-        let mut snap_line_vertical = None;
+    ) -> (Vec2, Option<f64>, Option<f64>) {
+        let mut snap_line_x = None;
+        let mut snap_line_y = None;
 
         let delta = self.mouse_pos_world - drag_data.mouse_start_pos;
         let mut new_pos = drag_data.object_start_pos + vec2(delta.x, delta.y);
@@ -323,7 +370,7 @@ impl HomeFlow {
         }
         new_pos.y = if let Some((snap_line, _, edge)) = closest_horizontal_snap_line {
             // Snap to other room
-            snap_line_horizontal = Some(snap_line);
+            snap_line_x = Some(snap_line);
             if edge == 0 {
                 snap_line + (bounds_max.y - bounds_min.y) / 2.0
             } else {
@@ -335,7 +382,7 @@ impl HomeFlow {
         };
         new_pos.x = if let Some((snap_line, _, edge)) = closest_vertical_snap_line {
             // Snap to other room
-            snap_line_vertical = Some(snap_line);
+            snap_line_y = Some(snap_line);
             if edge == 0 {
                 snap_line + (bounds_max.x - bounds_min.x) / 2.0
             } else {
@@ -362,20 +409,7 @@ impl HomeFlow {
                 ));
             });
 
-        // Set room or operations position to new_pos
-        for room in &mut self.layout.rooms {
-            if drag_data.id == room.id {
-                room.pos = new_pos;
-            } else {
-                for operation in &mut room.operations {
-                    if operation.id == drag_data.id {
-                        operation.pos = new_pos - room.pos;
-                    }
-                }
-            }
-        }
-
-        (snap_line_horizontal, snap_line_vertical)
+        (new_pos, snap_line_x, snap_line_y)
     }
 
     pub fn paint_edit_mode(
@@ -384,8 +418,8 @@ impl HomeFlow {
         edit_response: &EditResponse,
         ctx: &Context,
     ) {
-        if let Some(snap_line_horizontal) = edit_response.snap_line_horizontal {
-            let y_level = self.world_to_pixels(-1000.0, snap_line_horizontal).y;
+        if let Some(snap_line_x) = edit_response.snap_line_x {
+            let y_level = self.world_to_pixels(-1000.0, snap_line_x).y;
             painter.add(EShape::dashed_line(
                 &[
                     vec2_to_egui_pos(vec2(0.0, y_level)),
@@ -396,8 +430,8 @@ impl HomeFlow {
                 20.0,
             ));
         }
-        if let Some(snap_line_vertical) = edit_response.snap_line_vertical {
-            let x_level = self.world_to_pixels(snap_line_vertical, -1000.0).x;
+        if let Some(snap_line_y) = edit_response.snap_line_y {
+            let x_level = self.world_to_pixels(snap_line_y, -1000.0).x;
             painter.add(EShape::dashed_line(
                 &[
                     vec2_to_egui_pos(vec2(x_level, 0.0)),
