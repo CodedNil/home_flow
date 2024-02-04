@@ -2,7 +2,6 @@ use super::{
     layout::{Action, Furniture, Home, Operation, RenderOptions, Room, Walls},
     shape::{Material, Shape},
 };
-use anyhow::{anyhow, bail, Result};
 use egui::Color32;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::hash::{Hash, Hasher};
@@ -37,25 +36,6 @@ pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
         cos_theta * (point.x - pivot.x) - sin_theta * (point.y - pivot.y) + pivot.x,
         sin_theta * (point.x - pivot.x) + cos_theta * (point.y - pivot.y) + pivot.y,
     )
-}
-
-pub fn hex_to_rgba(hex: &str) -> Result<[u8; 4]> {
-    let hex = hex.trim_start_matches('#');
-    if hex.len() != 6 && hex.len() != 8 {
-        bail!("Invalid hex color");
-    }
-
-    let parse_color = |i: usize| -> Result<u8> {
-        u8::from_str_radix(&hex[i..i + 2], 16)
-            .map_err(|_| anyhow!("Invalid value for color component"))
-    };
-
-    let r = parse_color(0)?;
-    let g = parse_color(2)?;
-    let b = parse_color(4)?;
-    let a = if hex.len() == 8 { parse_color(6)? } else { 255 };
-
-    Ok([r, g, b, a])
 }
 
 fn color_to_string(color: Color32) -> String {
@@ -184,6 +164,16 @@ impl Operation {
             rotation,
         }
     }
+
+    pub const fn set_material(&self, material: Material) -> Self {
+        Self {
+            render_options: Some(RenderOptions {
+                material,
+                tint: None,
+            }),
+            ..*self
+        }
+    }
 }
 impl std::fmt::Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -213,12 +203,11 @@ impl Hash for Operation {
 }
 
 impl RenderOptions {
-    pub fn new(material: Material, tint: Option<&str>) -> Self {
-        let tint = tint.map(|tint| {
-            let color = hex_to_rgba(tint).unwrap_or([255, 255, 255, 255]);
-            Color32::from_rgba_premultiplied(color[0], color[1], color[2], color[3])
-        });
-        Self { material, tint }
+    pub const fn new(material: Material, tint: Color32) -> Self {
+        Self {
+            material,
+            tint: Some(tint),
+        }
     }
 }
 impl std::fmt::Display for RenderOptions {
@@ -228,6 +217,14 @@ impl std::fmt::Display for RenderOptions {
             string.push_str(format!(" - Tint: {}", color_to_string(tint)).as_str());
         }
         write!(f, "{string}")
+    }
+}
+impl From<Material> for RenderOptions {
+    fn from(material: Material) -> Self {
+        Self {
+            material,
+            tint: None,
+        }
     }
 }
 

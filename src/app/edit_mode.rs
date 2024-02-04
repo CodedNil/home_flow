@@ -134,15 +134,17 @@ impl HomeFlow {
                 room_hovered = Some(room.id);
                 operation_hovered = None;
             }
-            for operation in &room.operations {
-                if operation.shape.contains(
-                    vec2(self.mouse_pos_world.x, self.mouse_pos_world.y),
-                    room.pos + operation.pos,
-                    operation.size,
-                    operation.rotation,
-                ) {
-                    room_hovered = Some(room.id);
-                    operation_hovered = Some(operation.id);
+            if room_hovered == Some(room.id) {
+                for operation in &room.operations {
+                    if operation.shape.contains(
+                        vec2(self.mouse_pos_world.x, self.mouse_pos_world.y),
+                        room.pos + operation.pos,
+                        operation.size,
+                        operation.rotation,
+                    ) {
+                        room_hovered = Some(room.id);
+                        operation_hovered = Some(operation.id);
+                    }
                 }
             }
         }
@@ -470,7 +472,8 @@ impl HomeFlow {
                     match operation.action {
                         Action::Add => Color32::from_rgb(50, 200, 50),
                         Action::Subtract => Color32::from_rgb(200, 50, 50),
-                        Action::SubtractWall => Color32::from_rgb(200, 70, 50),
+                        Action::AddWall => Color32::from_rgb(50, 100, 50),
+                        Action::SubtractWall => Color32::from_rgb(160, 90, 50),
                     }
                     .gamma_multiply(0.6),
                 );

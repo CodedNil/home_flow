@@ -52,7 +52,11 @@ impl Home {
                 let room = &self.rooms[*index];
                 let polygons = room.polygons();
                 let (material_polygons, material_triangles) = room.material_polygons();
-                let wall_polygons = if room.walls == Walls::NONE {
+                let any_add = room
+                    .operations
+                    .iter()
+                    .any(|operation| operation.action == Action::AddWall);
+                let wall_polygons = if room.walls == Walls::NONE && !any_add {
                     EMPTY_MULTI_POLYGON
                 } else {
                     let bounds = room.bounds_with_walls();
@@ -194,7 +198,7 @@ impl Room {
                 Action::Subtract => {
                     polygons = polygons.difference(&operation_polygon);
                 }
-                Action::SubtractWall => {}
+                _ => {}
             }
         }
 
@@ -243,7 +247,7 @@ impl Room {
                         *poly = poly.difference(&operation_polygon);
                     }
                 }
-                Action::SubtractWall => {}
+                _ => {}
             }
         }
 
@@ -474,8 +478,23 @@ pub fn wall_polygons(
     let diff = polygon_outside.difference(&polygon_inside);
     new_polys = new_polys.union(&diff);
 
+    // Subtract operations that are SubtractWall
+    for operation in operations {
+        if operation.action == Action::SubtractWall {
+            let operation_polygon = create_multipolygon(&operation.shape.vertices(
+                room_pos + operation.pos,
+                operation.size,
+                operation.rotation,
+            ));
+            new_polys = new_polys.difference(&operation_polygon);
+        }
+    }
+
     // If walls arent on all sides, trim as needed
-    if walls == Walls::WALL {
+    let any_add = operations
+        .iter()
+        .any(|operation| operation.action == Action::AddWall);
+    if walls == Walls::WALL && !any_add {
         return new_polys;
     }
 
@@ -515,6 +534,7 @@ pub fn wall_polygons(
             center + vec2(right, -up),
         ],
     ];
+    let mut subtract_shape = EMPTY_MULTI_POLYGON;
     for index in 0..4 {
         let (wall_type, vertices) = match index {
             0 => (walls.left, vertices[0].clone()),
@@ -523,25 +543,38 @@ pub fn wall_polygons(
             _ => (walls.bottom, vertices[3].clone()),
         };
         if wall_type == WallType::None {
-            // Subtract the new polygon from wall polygons
-            let wall_polygon = create_multipolygon(&vertices);
-            new_polys = new_polys.difference(&wall_polygon);
+            subtract_shape = subtract_shape.union(&create_multipolygon(&vertices));
+        }
+    }
+    // Add corners
+    let directions = [(walls.left, -right), (walls.right, right)];
+    let verticals = [(walls.top, up), (walls.bottom, -up)];
+    for (wall_horizontal, horizontal_multiplier) in &directions {
+        for (wall_vertical, vertical_multiplier) in &verticals {
+            if *wall_horizontal == WallType::None && *wall_vertical == WallType::None {
+                subtract_shape = subtract_shape.union(&create_multipolygon(&[
+                    center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
+                    center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
+                    center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
+                    center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
+                ]));
+            }
         }
     }
 
-    // Subtract operations that are SubtractWall
+    // Add back operations that are AddWall
     for operation in operations {
-        if operation.action == Action::SubtractWall {
+        if operation.action == Action::AddWall {
             let operation_polygon = create_multipolygon(&operation.shape.vertices(
                 room_pos + operation.pos,
                 operation.size,
                 operation.rotation,
             ));
-            new_polys = new_polys.difference(&operation_polygon);
+            subtract_shape = subtract_shape.difference(&operation_polygon);
         }
     }
 
-    new_polys
+    new_polys.difference(&subtract_shape)
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, Hash, VariantArray)]
