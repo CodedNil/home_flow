@@ -1,18 +1,16 @@
 use super::HomeFlow;
 use crate::common::{
-    layout::{
-        self, Action, Furniture, Opening, OpeningType, Operation, RenderOptions, Room, Walls,
-    },
-    shape::{coord_to_vec2, Material, Shape, WallType},
+    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, Walls},
+    shape::{coord_to_vec2, Shape},
     utils::vec2_to_egui_pos,
 };
 use egui::{
-    Align2, Button, Checkbox, Color32, ComboBox, Context, DragValue, Key, Painter, Shape as EShape,
-    Stroke, Ui, Window,
+    Align2, Button, Checkbox, Color32, ComboBox, Context, CursorIcon, DragValue, Key, Painter,
+    PointerButton, Shape as EShape, Stroke, Ui, Window,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::time::Duration;
-use strum::VariantArray;
+use strum::IntoEnumIterator;
 use uuid::Uuid;
 
 #[derive(Default)]
@@ -25,14 +23,33 @@ pub struct EditDetails {
 
 struct DragData {
     id: Uuid,
+    object_type: ObjectType,
     drag_type: DragType,
     mouse_start_pos: Vec2,
     object_start_pos: Vec2,
+    bounds: (Vec2, Vec2),
+}
+
+#[derive(PartialEq)]
+enum ObjectType {
+    Room,
+    Operation,
+    Opening,
+    Furniture,
+}
+impl ObjectType {
+    const fn snap_to_grid(&self) -> bool {
+        matches!(self, Self::Room | Self::Operation)
+    }
+
+    const fn snap_to_rooms(&self) -> bool {
+        matches!(self, Self::Room | Self::Operation)
+    }
 }
 
 enum DragType {
-    RoomOperation,
-    Opening,
+    Move,
+    Resize,
 }
 
 pub struct EditResponse {
@@ -122,8 +139,8 @@ impl HomeFlow {
             self.edit_mode.enabled = true;
         }
         if ui.button("Refresn").clicked() {
-            self.layout = layout::Home::default();
-            self.layout_server = layout::Home::default();
+            self.layout = Home::default();
+            self.layout_server = Home::default();
         }
     }
 
@@ -158,6 +175,11 @@ impl HomeFlow {
                             hovered_id = Some(operation.id);
                         }
                     }
+                    for opening in &room.openings {
+                        if (self.mouse_pos_world - opening.pos).length() < 0.2 {
+                            hovered_id = Some(opening.id);
+                        }
+                    }
                 }
             }
         } else {
@@ -167,10 +189,15 @@ impl HomeFlow {
                     hovered_id = Some(room.id);
                 }
             }
-            // Hover over openings
-            for opening in &self.layout.openings {
-                if (self.mouse_pos_world - opening.pos).length() < 0.2 {
-                    hovered_id = Some(opening.id);
+            // Hover over furniture
+            for furniture in &self.layout.furniture {
+                if Shape::Rectangle.contains(
+                    self.mouse_pos_world,
+                    furniture.pos,
+                    furniture.size,
+                    furniture.rotation,
+                ) {
+                    hovered_id = Some(furniture.id);
                 }
             }
         }
@@ -192,6 +219,8 @@ impl HomeFlow {
             self.edit_mode.selected_room = None;
             self.edit_mode.drag_data = None;
         }
+        // Shift to disable snap
+        let snap_enabled = !ui.input(|i| i.modifiers.shift);
 
         // Apply edit changes
         let mut snap_line_x = None;
@@ -205,73 +234,109 @@ impl HomeFlow {
                 .find(|r| Some(r.id) == self.edit_mode.selected_room)
             {
                 if Some(room.id) == hovered_id {
-                    result = Some((DragType::RoomOperation, room.id, room.pos));
+                    result = Some((
+                        ObjectType::Room,
+                        room.id,
+                        room.pos,
+                        (-room.size / 2.0, room.size / 2.0),
+                    ));
                 }
                 for operation in &room.operations {
                     if Some(operation.id) == hovered_id {
                         result = Some((
-                            DragType::RoomOperation,
+                            ObjectType::Operation,
                             operation.id,
                             room.pos + operation.pos,
+                            (-operation.size / 2.0, operation.size / 2.0),
+                        ));
+                    }
+                }
+                for opening in &room.openings {
+                    if Some(opening.id) == hovered_id {
+                        result = Some((
+                            ObjectType::Opening,
+                            opening.id,
+                            opening.pos,
+                            (Vec2::ZERO, Vec2::ZERO),
                         ));
                     }
                 }
             }
-            for opening in &self.layout.openings {
-                if Some(opening.id) == hovered_id {
-                    result = Some((DragType::Opening, opening.id, opening.pos));
+            for furniture in &self.layout.furniture {
+                if Some(furniture.id) == hovered_id {
+                    result = Some((
+                        ObjectType::Furniture,
+                        furniture.id,
+                        furniture.pos,
+                        furniture.bounds(),
+                    ));
                 }
             }
-            if let Some((drag_type, id, pos)) = result {
+            if let Some((object_type, id, pos, bounds)) = result {
                 self.edit_mode.drag_data = Some(DragData {
                     id,
-                    drag_type,
+                    object_type,
+                    drag_type: DragType::Move,
                     mouse_start_pos: self.mouse_pos_world,
                     object_start_pos: pos,
+                    bounds,
                 });
             }
         }
-        if response.dragged_by(egui::PointerButton::Primary) {
+        if response.dragged_by(PointerButton::Primary) {
             if let Some(drag_data) = &self.edit_mode.drag_data {
                 used_dragged = true;
+                ctx.set_cursor_icon(CursorIcon::Grab);
 
-                match drag_data.drag_type {
-                    DragType::RoomOperation => {
-                        let (new_pos, snap_x, snap_y) = self.handle_room_drag(drag_data, ctx);
-                        for room in &mut self.layout.rooms {
-                            if drag_data.id == room.id {
-                                room.pos = new_pos;
-                            } else {
-                                for operation in &mut room.operations {
-                                    if operation.id == drag_data.id {
-                                        operation.pos = new_pos - room.pos;
-                                    }
-                                }
+                let (new_pos, snap_x, snap_y) = self.handle_drag(drag_data, snap_enabled);
+                Window::new("Dragging Info")
+                    .fixed_pos(vec2_to_egui_pos(
+                        self.world_to_pixels(self.mouse_pos_world.x, self.mouse_pos_world.y)
+                            + vec2(0.0, -60.0),
+                    ))
+                    .fixed_size([200.0, 0.0])
+                    .pivot(Align2::CENTER_CENTER)
+                    .title_bar(false)
+                    .resizable(false)
+                    .interactable(false)
+                    .show(ctx, |ui| {
+                        ui.label(format!("Pos: ({:.1}, {:.1})", new_pos.x, new_pos.y));
+                        let (bounds_min, bounds_max) = drag_data.bounds;
+                        if bounds_min.distance(bounds_max) > 0.0 {
+                            ui.label(format!(
+                                "Size: ({:.1}, {:.1})",
+                                bounds_max.x - bounds_min.x,
+                                bounds_max.y - bounds_min.y
+                            ));
+                        }
+                    });
+
+                for room in &mut self.layout.rooms {
+                    if drag_data.id == room.id {
+                        room.pos = new_pos;
+                    } else {
+                        for operation in &mut room.operations {
+                            if operation.id == drag_data.id {
+                                operation.pos = new_pos - room.pos;
                             }
                         }
-                        snap_line_x = snap_x;
-                        snap_line_y = snap_y;
-                    }
-                    DragType::Opening => {
-                        let delta = self.mouse_pos_world - drag_data.mouse_start_pos;
-                        let mut new_pos = drag_data.object_start_pos + delta;
-
-                        // Snap to grid
-                        new_pos = vec2(
-                            (new_pos.x * 10.0).round() / 10.0,
-                            (new_pos.y * 10.0).round() / 10.0,
-                        );
-
-                        for opening in &mut self.layout.openings {
+                        for opening in &mut room.openings {
                             if opening.id == drag_data.id {
                                 opening.pos = new_pos;
                             }
                         }
                     }
                 }
+                for furniture in &mut self.layout.furniture {
+                    if furniture.id == drag_data.id {
+                        furniture.pos = new_pos;
+                    }
+                }
+                snap_line_x = snap_x;
+                snap_line_y = snap_y;
             }
         }
-        if response.drag_released_by(egui::PointerButton::Primary) {
+        if response.drag_released_by(PointerButton::Primary) {
             self.edit_mode.drag_data = None;
         }
 
@@ -284,130 +349,101 @@ impl HomeFlow {
         }
     }
 
-    fn handle_room_drag(
-        &self,
-        drag_data: &DragData,
-        ctx: &Context,
-    ) -> (Vec2, Option<f64>, Option<f64>) {
+    fn handle_drag(&self, drag_data: &DragData, snap: bool) -> (Vec2, Option<f64>, Option<f64>) {
         let mut snap_line_x = None;
         let mut snap_line_y = None;
 
         let delta = self.mouse_pos_world - drag_data.mouse_start_pos;
         let mut new_pos = drag_data.object_start_pos + vec2(delta.x, delta.y);
 
-        // Find bounds from drag data
-        let (is_room, bounds_min, bounds_max) =
-            self.layout
-                .rooms
-                .iter()
-                .fold((false, vec2(0.0, 0.0), vec2(0.0, 0.0)), |acc, room| {
-                    if drag_data.id == room.id {
-                        let (min, max) = room.self_bounds();
-                        return (true, min - room.pos + new_pos, max - room.pos + new_pos);
-                    }
+        if snap && drag_data.object_type.snap_to_rooms() {
+            // Snap to other rooms
+            let mut closest_horizontal_snap_line = None;
+            let mut closest_vertical_snap_line = None;
+            let (bounds_min, bounds_max) = drag_data.bounds;
+            let (bounds_min, bounds_max) = (bounds_min + new_pos, bounds_max + new_pos);
+            let snap_threshold = 0.1;
 
-                    room.operations
-                        .iter()
-                        .find(|&operation| operation.id == drag_data.id)
-                        .map_or(acc, |operation| {
-                            let min = new_pos - operation.size / 2.0;
-                            let max = new_pos + operation.size / 2.0;
-                            (true, min, max)
-                        })
-                });
+            for other_room in &self.layout.rooms {
+                if other_room.id != drag_data.id {
+                    let (other_min, other_max) = other_room.self_bounds();
+                    // Horizontal snap
+                    for (index, &room_edge) in [bounds_min.y, bounds_max.y].iter().enumerate() {
+                        for &other_edge in &[other_min.y, other_max.y] {
+                            // Check if vertically within range
+                            if !((bounds_min.x < other_max.x + snap_threshold
+                                && bounds_min.x > other_min.x - snap_threshold)
+                                || (bounds_max.x < other_max.x + snap_threshold
+                                    && bounds_max.x > other_min.x - snap_threshold))
+                            {
+                                continue;
+                            }
 
-        // Snap to other rooms
-        let mut closest_horizontal_snap_line = None;
-        let mut closest_vertical_snap_line = None;
-        let snap_threshold = 0.1;
-
-        for other_room in &self.layout.rooms {
-            if !is_room || other_room.id != drag_data.id {
-                let (other_min, other_max) = other_room.self_bounds();
-                // Horizontal snap
-                for (index, &room_edge) in [bounds_min.y, bounds_max.y].iter().enumerate() {
-                    for &other_edge in &[other_min.y, other_max.y] {
-                        // Check if vertically within range
-                        if !((bounds_min.x < other_max.x + snap_threshold
-                            && bounds_min.x > other_min.x - snap_threshold)
-                            || (bounds_max.x < other_max.x + snap_threshold
-                                && bounds_max.x > other_min.x - snap_threshold))
-                        {
-                            continue;
-                        }
-
-                        let distance = (room_edge - other_edge).abs();
-                        if distance < snap_threshold
-                            && closest_horizontal_snap_line
-                                .map_or(true, |(_, dist, _)| distance < dist)
-                        {
-                            closest_horizontal_snap_line = Some((other_edge, distance, index));
+                            let distance = (room_edge - other_edge).abs();
+                            if distance < snap_threshold
+                                && closest_horizontal_snap_line
+                                    .map_or(true, |(_, dist, _)| distance < dist)
+                            {
+                                closest_horizontal_snap_line = Some((other_edge, distance, index));
+                            }
                         }
                     }
-                }
-                // Vertical snap
-                for (index, &room_edge) in [bounds_min.x, bounds_max.x].iter().enumerate() {
-                    for &other_edge in &[other_min.x, other_max.x] {
-                        // Check if horizontally within range
-                        if !((bounds_min.y < other_max.y + snap_threshold
-                            && bounds_min.y > other_min.y - snap_threshold)
-                            || (bounds_max.y < other_max.y + snap_threshold
-                                && bounds_max.y > other_min.y - snap_threshold))
-                        {
-                            continue;
-                        }
+                    // Vertical snap
+                    for (index, &room_edge) in [bounds_min.x, bounds_max.x].iter().enumerate() {
+                        for &other_edge in &[other_min.x, other_max.x] {
+                            // Check if horizontally within range
+                            if !((bounds_min.y < other_max.y + snap_threshold
+                                && bounds_min.y > other_min.y - snap_threshold)
+                                || (bounds_max.y < other_max.y + snap_threshold
+                                    && bounds_max.y > other_min.y - snap_threshold))
+                            {
+                                continue;
+                            }
 
-                        let distance = (room_edge - other_edge).abs();
-                        if distance < snap_threshold
-                            && closest_vertical_snap_line
-                                .map_or(true, |(_, dist, _)| distance < dist)
-                        {
-                            closest_vertical_snap_line = Some((other_edge, distance, index));
+                            let distance = (room_edge - other_edge).abs();
+                            if distance < snap_threshold
+                                && closest_vertical_snap_line
+                                    .map_or(true, |(_, dist, _)| distance < dist)
+                            {
+                                closest_vertical_snap_line = Some((other_edge, distance, index));
+                            }
                         }
                     }
                 }
             }
+            new_pos.y = if let Some((snap_line, _, edge)) = closest_horizontal_snap_line {
+                // Snap to other room
+                snap_line_x = Some(snap_line);
+                if edge == 0 {
+                    snap_line + (bounds_max.y - bounds_min.y) / 2.0
+                } else {
+                    snap_line - (bounds_max.y - bounds_min.y) / 2.0
+                }
+            } else if drag_data.object_type.snap_to_grid() {
+                // Snap to grid
+                (new_pos.y * 10.0).round() / 10.0
+            } else {
+                new_pos.y
+            };
+            new_pos.x = if let Some((snap_line, _, edge)) = closest_vertical_snap_line {
+                // Snap to other room
+                snap_line_y = Some(snap_line);
+                if edge == 0 {
+                    snap_line + (bounds_max.x - bounds_min.x) / 2.0
+                } else {
+                    snap_line - (bounds_max.x - bounds_min.x) / 2.0
+                }
+            } else if drag_data.object_type.snap_to_grid() {
+                // Snap to grid
+                (new_pos.x * 10.0).round() / 10.0
+            } else {
+                new_pos.x
+            };
+        } else if drag_data.object_type.snap_to_grid() {
+            // Snap to grid
+            new_pos.x = (new_pos.x * 10.0).round() / 10.0;
+            new_pos.y = (new_pos.y * 10.0).round() / 10.0;
         }
-        new_pos.y = if let Some((snap_line, _, edge)) = closest_horizontal_snap_line {
-            // Snap to other room
-            snap_line_x = Some(snap_line);
-            if edge == 0 {
-                snap_line + (bounds_max.y - bounds_min.y) / 2.0
-            } else {
-                snap_line - (bounds_max.y - bounds_min.y) / 2.0
-            }
-        } else {
-            // Snap to grid
-            (new_pos.y * 10.0).round() / 10.0
-        };
-        new_pos.x = if let Some((snap_line, _, edge)) = closest_vertical_snap_line {
-            // Snap to other room
-            snap_line_y = Some(snap_line);
-            if edge == 0 {
-                snap_line + (bounds_max.x - bounds_min.x) / 2.0
-            } else {
-                snap_line - (bounds_max.x - bounds_min.x) / 2.0
-            }
-        } else {
-            // Snap to grid
-            (new_pos.x * 10.0).round() / 10.0
-        };
-
-        Window::new("Dragging Info")
-            .fixed_pos(vec2_to_egui_pos(self.world_to_pixels(new_pos.x, new_pos.y)))
-            .fixed_size([200.0, 0.0])
-            .pivot(Align2::CENTER_CENTER)
-            .title_bar(false)
-            .resizable(false)
-            .interactable(false)
-            .show(ctx, |ui| {
-                ui.label(format!("Pos: ({:.1}, {:.1})", new_pos.x, new_pos.y));
-                ui.label(format!(
-                    "Size: ({:.1}, {:.1})",
-                    bounds_max.x - bounds_min.x,
-                    bounds_max.y - bounds_min.y
-                ));
-            });
 
         (new_pos, snap_line_x, snap_line_y)
     }
@@ -465,14 +501,8 @@ impl HomeFlow {
                                 RenderOptions::default(),
                                 Walls::WALL,
                                 vec![],
+                                vec![],
                             ));
-                        }
-                        if ui.button("Add Opening").clicked() {
-                            self.layout.openings.push(Opening {
-                                id: Uuid::new_v4(),
-                                opening_type: OpeningType::Door,
-                                pos: vec2(0.0, 0.0),
-                            });
                         }
                         if ui.button("Add Furniture").clicked() {
                             self.layout.furniture.push(Furniture {
@@ -486,22 +516,6 @@ impl HomeFlow {
                     });
                 });
             });
-
-        for opening in &self.layout.openings {
-            let selected = edit_response.hovered_id == Some(opening.id);
-            // Draw a circle for each opening
-            let pos = self.world_to_pixels(opening.pos.x, opening.pos.y);
-            painter.add(EShape::circle_filled(
-                vec2_to_egui_pos(pos),
-                if selected { 16.0 } else { 10.0 },
-                Color32::from_rgb(255, 255, 0).gamma_multiply(0.8),
-            ));
-            painter.add(EShape::circle_filled(
-                vec2_to_egui_pos(pos),
-                if selected { 6.0 } else { 2.0 },
-                Color32::from_rgb(0, 0, 0),
-            ));
-        }
 
         // Get hovered room or selected room if there isn't one
         let hovered_room = [edit_response.hovered_id, self.edit_mode.selected_room]
@@ -575,7 +589,41 @@ impl HomeFlow {
                 );
                 closed_dashed_line_with_offset(painter, &points, stroke, 35.0, self.time * 50.0);
             }
+
+            // Render openings
+            for opening in &room.openings {
+                let selected = edit_response.hovered_id == Some(opening.id);
+                // Draw a circle for each opening
+                let pos = self.world_to_pixels(opening.pos.x, opening.pos.y);
+                painter.add(EShape::circle_filled(
+                    vec2_to_egui_pos(pos),
+                    if selected { 16.0 } else { 10.0 },
+                    Color32::from_rgb(255, 255, 0).gamma_multiply(0.8),
+                ));
+                painter.add(EShape::circle_filled(
+                    vec2_to_egui_pos(pos),
+                    if selected { 6.0 } else { 2.0 },
+                    Color32::from_rgb(0, 0, 0),
+                ));
+            }
         }
+
+        // Render furniture
+        for furniture in &self.layout.furniture {
+            let selected = edit_response.hovered_id == Some(furniture.id);
+            let vertices =
+                Shape::Rectangle.vertices(furniture.pos, furniture.size, furniture.rotation);
+            let points = vertices
+                .iter()
+                .map(|v| vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)))
+                .collect::<Vec<_>>();
+            let stroke = Stroke::new(
+                if selected { 3.0 } else { 1.0 },
+                Color32::from_rgb(255, 255, 0).gamma_multiply(0.8),
+            );
+            painter.add(EShape::closed_line(points, stroke));
+        }
+
         if let Some(room_id) = &edit_response.room_selected {
             let room = self
                 .layout
@@ -657,8 +705,8 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
     ui.separator();
 
     egui::Grid::new("Room Edit Grid")
-        .num_columns(2)
-        .spacing([40.0, 4.0])
+        .num_columns(4)
+        .spacing([20.0, 4.0])
         .striped(true)
         .show(ui, |ui| {
             ui.label("Position ");
@@ -666,7 +714,6 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                 ui.add(DragValue::new(&mut room.pos.x).speed(0.1).fixed_decimals(2));
                 ui.add(DragValue::new(&mut room.pos.y).speed(0.1).fixed_decimals(2));
             });
-            ui.end_row();
 
             ui.label("Size ");
             ui.horizontal(|ui| {
@@ -691,16 +738,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                     2 => (&mut room.walls.right, "Right"),
                     _ => (&mut room.walls.bottom, "Bottom"),
                 };
-                combo_box_for_enum(
-                    ui,
-                    format!("{wall_side} Wall"),
-                    wall_type,
-                    WallType::VARIANTS,
-                    wall_side,
-                );
-                if index == 1 {
-                    ui.end_row();
-                }
+                combo_box_for_enum(ui, format!("{wall_side} Wall"), wall_type, wall_side);
             }
             ui.end_row();
         });
@@ -712,9 +750,98 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
     ui.separator();
 
     ui.collapsing("Operations", |ui| {
-        // List operations with buttons to delete and button to add, and drag to reorder
+        let mut operations_to_remove = vec![];
+        let mut operations_to_raise = vec![];
+        let mut operations_to_lower = vec![];
+        let num_operations = room.operations.len();
+        for (index, operation) in room.operations.iter_mut().enumerate() {
+            let color = match operation.action {
+                Action::Add => Color32::from_rgb(50, 200, 50),
+                Action::Subtract => Color32::from_rgb(200, 50, 50),
+                Action::AddWall => Color32::from_rgb(50, 100, 50),
+                Action::SubtractWall => Color32::from_rgb(160, 90, 50),
+            }
+            .gamma_multiply(0.5);
+            egui::Frame::fill(egui::Frame::central_panel(ui.style()), color).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{index}"));
+                    combo_box_for_enum(ui, format!("Operation {index}"), &mut operation.action, "");
+                    combo_box_for_enum(ui, format!("Shape {index}"), &mut operation.shape, "");
+
+                    if ui.add(Button::new("Delete")).clicked() {
+                        operations_to_remove.push(index);
+                    }
+
+                    if index > 0 && ui.add(Button::new("^")).clicked() {
+                        operations_to_raise.push(index);
+                    }
+                    if index < num_operations - 1 && ui.add(Button::new("v")).clicked() {
+                        operations_to_lower.push(index);
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Pos");
+                    ui.add(
+                        DragValue::new(&mut operation.pos.x)
+                            .speed(0.1)
+                            .fixed_decimals(2),
+                    );
+                    ui.add(
+                        DragValue::new(&mut operation.pos.y)
+                            .speed(0.1)
+                            .fixed_decimals(2),
+                    );
+                    ui.label("Size");
+                    ui.add(
+                        DragValue::new(&mut operation.size.x)
+                            .speed(0.1)
+                            .fixed_decimals(2),
+                    );
+                    ui.add(
+                        DragValue::new(&mut operation.size.y)
+                            .speed(0.1)
+                            .fixed_decimals(2),
+                    );
+                    ui.label("Rotation");
+                    if ui
+                        .add(
+                            DragValue::new(&mut operation.rotation)
+                                .speed(5)
+                                .fixed_decimals(0),
+                        )
+                        .changed()
+                    {
+                        operation.rotation = operation.rotation.rem_euclid(360.0);
+                    }
+                });
+
+                if operation.action == Action::Add {
+                    // Add tickbox to use parents material or custom
+                    if ui
+                        .add(Checkbox::new(
+                            &mut operation.render_options.is_none(),
+                            "Use Parent Material",
+                        ))
+                        .changed()
+                    {
+                        if operation.render_options.is_some() {
+                            operation.render_options = None;
+                        } else {
+                            operation.render_options = Some(RenderOptions::default());
+                        }
+                    }
+                    if let Some(render_options) = &mut operation.render_options {
+                        render_options_widgets(
+                            ui,
+                            render_options,
+                            format!("Materials Operation {index}"),
+                        );
+                    }
+                }
+            });
+        }
         ui.horizontal(|ui| {
-            ui.label("Operations");
             if ui.add(Button::new("Add")).clicked() {
                 room.operations.push(Operation {
                     id: Uuid::new_v4(),
@@ -727,108 +854,6 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                 });
             }
         });
-        if !room.operations.is_empty() {
-            ui.separator();
-        }
-        let mut operations_to_remove = vec![];
-        let mut operations_to_raise = vec![];
-        let mut operations_to_lower = vec![];
-        let num_operations = room.operations.len();
-        for (index, operation) in room.operations.iter_mut().enumerate() {
-            ui.horizontal(|ui| {
-                ui.label(format!("{index}"));
-                combo_box_for_enum(
-                    ui,
-                    format!("Operation {index}"),
-                    &mut operation.action,
-                    Action::VARIANTS,
-                    "",
-                );
-                combo_box_for_enum(
-                    ui,
-                    format!("Shape {index}"),
-                    &mut operation.shape,
-                    Shape::VARIANTS,
-                    "",
-                );
-
-                if ui.add(Button::new("Delete")).clicked() {
-                    operations_to_remove.push(index);
-                }
-
-                if index > 0 && ui.add(Button::new("^")).clicked() {
-                    operations_to_raise.push(index);
-                }
-                if index < num_operations - 1 && ui.add(Button::new("v")).clicked() {
-                    operations_to_lower.push(index);
-                }
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Pos");
-                ui.add(
-                    DragValue::new(&mut operation.pos.x)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                );
-                ui.add(
-                    DragValue::new(&mut operation.pos.y)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                );
-                ui.label("Size");
-                ui.add(
-                    DragValue::new(&mut operation.size.x)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                );
-                ui.add(
-                    DragValue::new(&mut operation.size.y)
-                        .speed(0.1)
-                        .fixed_decimals(2),
-                );
-                ui.label("Rotation");
-                if ui
-                    .add(
-                        DragValue::new(&mut operation.rotation)
-                            .speed(5)
-                            .fixed_decimals(0),
-                    )
-                    .changed()
-                {
-                    operation.rotation = operation.rotation.rem_euclid(360.0);
-                }
-            });
-
-            if operation.action == Action::Add {
-                // Add tickbox to use parents material or custom
-                if ui
-                    .add(Checkbox::new(
-                        &mut operation.render_options.is_none(),
-                        "Use Parent Material",
-                    ))
-                    .changed()
-                {
-                    if operation.render_options.is_some() {
-                        operation.render_options = None;
-                    } else {
-                        operation.render_options = Some(RenderOptions::default());
-                    }
-                }
-                if let Some(render_options) = &mut operation.render_options {
-                    render_options_widgets(
-                        ui,
-                        render_options,
-                        format!("Materials Operation {index}"),
-                    );
-                }
-            }
-
-            ui.separator();
-        }
-        if room.operations.is_empty() {
-            ui.separator();
-        }
         for index in operations_to_remove {
             room.operations.remove(index);
         }
@@ -849,7 +874,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
 
 fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions, id: String) {
     ui.horizontal(|ui| {
-        combo_box_for_enum(ui, id, &mut render_options.material, Material::VARIANTS, "");
+        combo_box_for_enum(ui, id, &mut render_options.material, "");
 
         // Tint boolean and then color picker
         if ui
@@ -868,13 +893,10 @@ fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions,
     });
 }
 
-fn combo_box_for_enum<T: ToString + PartialEq + Copy>(
-    ui: &mut egui::Ui,
-    id: impl std::hash::Hash,
-    selected: &mut T,
-    variants: &[T],
-    label: &str,
-) {
+fn combo_box_for_enum<T>(ui: &mut egui::Ui, id: impl std::hash::Hash, selected: &mut T, label: &str)
+where
+    T: ToString + PartialEq + Copy + IntoEnumIterator,
+{
     let display_label = if label.is_empty() {
         selected.to_string()
     } else {
@@ -884,8 +906,8 @@ fn combo_box_for_enum<T: ToString + PartialEq + Copy>(
     ComboBox::from_id_source(id)
         .selected_text(display_label)
         .show_ui(ui, |ui| {
-            for variant in variants {
-                ui.selectable_value(selected, *variant, variant.to_string());
+            for variant in T::iter() {
+                ui.selectable_value(selected, variant, variant.to_string());
             }
         });
 }

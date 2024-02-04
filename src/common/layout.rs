@@ -8,7 +8,7 @@ use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, hash::Hash};
-use strum_macros::{Display, VariantArray};
+use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
 const LAYOUT_VERSION: &str = "0.1";
@@ -19,7 +19,6 @@ pub struct Home {
     pub version: String,
     pub rooms: Vec<Room>,
     pub furniture: Vec<Furniture>,
-    pub openings: Vec<Opening>,
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<HomeRender>,
@@ -35,6 +34,7 @@ pub struct Room {
     pub size: Vec2,
     pub operations: Vec<Operation>,
     pub walls: Walls,
+    pub openings: Vec<Opening>,
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<RoomRender>,
@@ -87,9 +87,7 @@ pub struct RenderOptions {
     pub tint: Option<Color32>,
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default, Hash,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum Action {
     #[default]
     Add,
@@ -136,6 +134,7 @@ impl Home {
                         0.0,
                     )
                     .set_material(Material::Wood)],
+                    vec![],
                 ),
                 Room::new(
                     "Lounge",
@@ -143,6 +142,7 @@ impl Home {
                     vec2(6.1, 2.7),
                     Material::Carpet.into(),
                     Walls::WALL.top(WallType::None),
+                    vec![],
                     vec![],
                 ),
                 Room::new(
@@ -152,6 +152,7 @@ impl Home {
                     RenderOptions::new(Material::Marble, Color32::from_rgb(255, 250, 230)),
                     Walls::WALL.right(WallType::None).bottom(WallType::None),
                     vec![],
+                    vec![],
                 ),
                 Room::new(
                     "Storage1",
@@ -160,6 +161,7 @@ impl Home {
                     Material::Carpet.into(),
                     Walls::WALL,
                     vec![],
+                    vec![],
                 ),
                 Room::new(
                     "Storage2",
@@ -167,6 +169,7 @@ impl Home {
                     vec2(1.4, 1.0),
                     Material::Carpet.into(),
                     Walls::WALL,
+                    vec![],
                     vec![],
                 ),
                 Room::new(
@@ -182,6 +185,7 @@ impl Home {
                         vec2(1.6, 1.0),
                         0.0,
                     )],
+                    vec![],
                 ),
                 Room::new(
                     "Ensuite",
@@ -189,6 +193,7 @@ impl Home {
                     vec2(1.6, 2.7),
                     Material::Granite.into(),
                     Walls::WALL,
+                    vec![],
                     vec![],
                 ),
                 Room::new(
@@ -204,6 +209,7 @@ impl Home {
                         vec2(1.0, 1.0),
                         0.0,
                     )],
+                    vec![],
                 ),
                 Room::new(
                     "Bathroom",
@@ -212,10 +218,10 @@ impl Home {
                     Material::Granite.into(),
                     Walls::WALL,
                     vec![],
+                    vec![],
                 ),
             ],
             furniture: vec![],
-            openings: vec![],
             rendered_data: None,
         }
     }

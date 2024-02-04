@@ -1,5 +1,5 @@
 use super::{
-    layout::{Action, Home, HomeRender, Operation, Room, RoomRender, Triangles, Walls},
+    layout::{Action, Furniture, Home, HomeRender, Operation, Room, RoomRender, Triangles, Walls},
     utils::rotate_point,
 };
 use geo::BooleanOps;
@@ -13,8 +13,8 @@ use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
 };
-use strum::VariantArray;
-use strum_macros::{Display, VariantArray};
+use strum::IntoEnumIterator;
+use strum_macros::{Display, EnumIter};
 
 impl Home {
     pub fn render(&mut self) {
@@ -283,9 +283,38 @@ impl Operation {
     }
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, VariantArray, Default,
-)]
+impl Furniture {
+    pub fn bounds(&self) -> (Vec2, Vec2) {
+        let (mut min, mut max) = (self.pos, self.pos);
+
+        let corners = [
+            self.pos - self.size / 2.0,
+            vec2(
+                self.pos.x + self.size.x / 2.0,
+                self.pos.y - self.size.y / 2.0,
+            ),
+            self.pos + self.size / 2.0,
+            vec2(
+                self.pos.x - self.size.x / 2.0,
+                self.pos.y + self.size.y / 2.0,
+            ),
+        ];
+
+        let rotated_corners: Vec<_> = corners
+            .iter()
+            .map(|&corner| rotate_point(corner, self.pos, -self.rotation))
+            .collect();
+
+        for &corner in &rotated_corners {
+            min = min.min(corner);
+            max = max.max(corner);
+        }
+
+        (min, max)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, EnumIter, Default)]
 pub enum Material {
     Wall,
     #[default]
@@ -311,9 +340,9 @@ impl Material {
 
 pub static TEXTURES: Lazy<HashMap<Material, RgbaImage>> = Lazy::new(|| {
     let mut m = HashMap::new();
-    for variant in Material::VARIANTS {
+    for variant in Material::iter() {
         m.insert(
-            *variant,
+            variant,
             image::load_from_memory(variant.get_image())
                 .unwrap()
                 .into_rgba8(),
@@ -379,9 +408,7 @@ pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
     )
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, VariantArray, Default, Hash,
-)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum Shape {
     #[default]
     Rectangle,
@@ -594,7 +621,7 @@ pub fn wall_polygons(
     new_polys.difference(&subtract_shape)
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, Hash, VariantArray)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
 pub enum WallType {
     None,
     Wall,

@@ -1,5 +1,5 @@
 use super::{
-    layout::{Action, Furniture, Home, Operation, RenderOptions, Room, Walls},
+    layout::{Action, Furniture, Home, Opening, Operation, RenderOptions, Room, Walls},
     shape::{Material, Shape},
 };
 use egui::Color32;
@@ -73,6 +73,7 @@ impl Room {
         render_options: RenderOptions,
         walls: Walls,
         operations: Vec<Operation>,
+        openings: Vec<Opening>,
     ) -> Self {
         Self {
             id: uuid::Uuid::new_v4(),
@@ -82,6 +83,7 @@ impl Room {
             size,
             walls,
             operations,
+            openings,
             rendered_data: None,
         }
     }
