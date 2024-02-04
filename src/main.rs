@@ -19,7 +19,7 @@ mod common;
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() {
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    simple_logger::SimpleLogger::new().init().unwrap();
 
     // Set up router
     let app = axum::Router::new()
