@@ -197,6 +197,15 @@ impl Home {
                     vec![],
                 ),
                 Room::new(
+                    "Boiler Room",
+                    vec2(1.5, -0.55),
+                    vec2(0.8, 1.0),
+                    Material::Carpet.into(),
+                    Walls::WALL,
+                    vec![],
+                    vec![],
+                ),
+                Room::new(
                     "Bedroom Two",
                     vec2(4.2, 1.95),
                     vec2(3.2, 2.2),

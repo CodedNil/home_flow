@@ -202,10 +202,8 @@ impl HomeFlow {
             }
         }
         // Double click to select room
-        if response.double_clicked()
-            && (self.layout.rooms.iter().any(|r| Some(r.id) == hovered_id) || hovered_id.is_none())
-        {
-            self.edit_mode.selected_room = self.layout.rooms.iter().find_map(|room| {
+        if response.double_clicked() {
+            self.edit_mode.selected_room = self.layout.rooms.iter().rev().find_map(|room| {
                 if room.contains(self.mouse_pos_world) {
                     Some(room.id)
                 } else {
