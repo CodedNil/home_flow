@@ -1,87 +1,67 @@
 [package]
 name = "home_flow"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
-version = "0.1.0"
 
 [dependencies]
-anyhow = "1.0.79"
-derivative = "2.2.0"
-diff = "0.1.13"
-earcutr = "0.4.3"
-egui-notify = "0.12.0"
-egui_plot = "0.25.0"
-ehttp = "0.4.0"
-geo = "0.27.0"
 log = "0.4.20"
-once_cell = "1.19.0"
-parking_lot = "0.12.1"
-rayon = "1.8.1"
+anyhow = "1.0.79"
+uuid = { version = "1.7.0", features = ["v4", "fast-rng", "js", "serde"] }
+serde = { version = "1.0.196", features = ["derive"] }
 serde_json = "1.0.113"
+once_cell = "1.19.0"
+rayon = "1.8.1"
+parking_lot = "0.12.1"
+glam = { version = "0.25.0", features = ["serde"] }
+
 strum = "0.26.1"
 strum_macros = "0.26.1"
+derivative = "2.2.0"
+diff = "0.1.13"
 
-[dependencies.eframe]
-git = "https://github.com/emilk/egui.git"
-rev = "9ae890dd1e217d5fd18760d6dd8860ea58bf165f"
-features = ["default_fonts", "glow", "persistence"]
-optional = true
-default-features = false
+# egui = { version = "0.25.0", features = ["serde"] }
+egui = { git = "https://github.com/emilk/egui.git", rev = "9ae890dd1e217d5fd18760d6dd8860ea58bf165f", features = [
+    "serde",
+] }
+egui_plot = "0.25.0"
+ehttp = "0.4.0"
+egui-notify = "0.12.0"
+image = { version = "0.24", features = ["png"] }
 
-[dependencies.egui]
-git = "https://github.com/emilk/egui.git"
-rev = "9ae890dd1e217d5fd18760d6dd8860ea58bf165f"
-features = ["serde"]
+geo = "0.27.0"
+geo-types = "0.7.12"
+geo-buffer = { git = "https://github.com/1011-git/geo-buffer.git", rev = "899c4dba1e0d8fdd99bd8ae1ce6efcaf482176a3" }
+earcutr = "0.4.3"
 
-[dependencies.geo-buffer]
-git = "https://github.com/1011-git/geo-buffer.git"
-rev = "899c4dba1e0d8fdd99bd8ae1ce6efcaf482176a3"
-features = []
+# GUI dependencies
+# eframe = { version = "0.25.0", default-features = false, features = [
+#     "default_fonts",
+#     "glow",
+#     "persistence",
+# ], optional = true }
+eframe = { git = "https://github.com/emilk/egui.git", rev = "9ae890dd1e217d5fd18760d6dd8860ea58bf165f", default-features = false, features = [
+    "default_fonts",
+    "glow",
+    "persistence",
+], optional = true }
 
-[dependencies.geo-types]
-version = "0.7.12"
-features = []
-default-features = false
-
-[dependencies.glam]
-version = "0.25.0"
-features = ["serde"]
-
-[dependencies.image]
-version = "0.24"
-features = ["png"]
-
-[dependencies.serde]
-version = "1.0.196"
-features = ["derive"]
-
-[dependencies.uuid]
-version = "1.7.0"
-features = ["v4", "fast-rng", "js", "serde"]
-
-[target."cfg(not(target_arch = \"wasm32\"))".dependencies]
-axum = "0.7.4"
-chrono = "0.4.33"
-env_logger = "0.11.1"
-
-[target."cfg(not(target_arch = \"wasm32\"))".dependencies.tokio]
-version = "1.36.0"
-features = ["full"]
-
-[target."cfg(not(target_arch = \"wasm32\"))".dependencies.tower-http]
-version = "0.5.1"
-features = ["fs", "compression-br", "compression-deflate", "compression-gzip"]
-
-[target."cfg(not(target_arch = \"wasm32\"))".dev-dependencies]
-
-[target."cfg(not(target_arch = \"wasm32\"))".build-dependencies]
-
-[target."cfg(target_arch = \"wasm32\")".dependencies]
+# WebAssembly dependencies
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4.40"
 
-[target."cfg(target_arch = \"wasm32\")".dev-dependencies]
-
-[target."cfg(target_arch = \"wasm32\")".build-dependencies]
+# Server dependencies
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11.1"
+axum = "0.7.4"
+tokio = { version = "1.36.0", features = ["full"] }
+tower-http = { version = "0.5.1", features = [
+    "fs",
+    "compression-br",
+    "compression-deflate",
+    "compression-gzip",
+] }
+chrono = "0.4.33"
 
 [features]
 default = ["gui"]
@@ -90,8 +70,6 @@ gui = ["eframe"]
 [profile.release]
 lto = true
 codegen-units = 1
-
-[profile.release.package]
 
 [profile.dev]
 opt-level = 1
