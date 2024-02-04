@@ -337,7 +337,7 @@ impl eframe::App for HomeFlow {
                 self.mouse_pos = mouse_pos;
                 self.mouse_pos_world = self.pixels_to_world(mouse_pos.x, mouse_pos.y);
 
-                let edit_mode_response = self.run_edit_mode(&response, ctx);
+                let edit_mode_response = self.run_edit_mode(&response, ctx, ui);
                 if !edit_mode_response.used_dragged {
                     self.handle_pan_zoom(&response, ui);
                 }

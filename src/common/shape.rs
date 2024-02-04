@@ -165,17 +165,27 @@ impl Room {
         (min, max)
     }
 
-    pub fn contains_full(&self, x: f64, y: f64) -> bool {
-        let point = vec2(x, y);
+    pub fn contains(&self, point: Vec2) -> bool {
         let mut inside = Shape::Rectangle.contains(point, self.pos, self.size, 0.0);
         for operation in &self.operations {
-            if operation.shape.contains(
+            let op_contains = operation.shape.contains(
                 point,
                 self.pos + operation.pos,
                 operation.size,
                 operation.rotation,
-            ) {
-                inside = true;
+            );
+            match operation.action {
+                Action::Add => {
+                    if op_contains {
+                        inside = true;
+                    }
+                }
+                Action::Subtract => {
+                    if op_contains {
+                        inside = false;
+                    }
+                }
+                _ => {}
             }
         }
         inside
@@ -263,6 +273,13 @@ impl Room {
         }
 
         (polygons, triangles)
+    }
+}
+
+impl Operation {
+    pub fn contains(&self, room_pos: Vec2, point: Vec2) -> bool {
+        self.shape
+            .contains(point, room_pos + self.pos, self.size, self.rotation)
     }
 }
 
