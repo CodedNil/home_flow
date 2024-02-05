@@ -55,6 +55,16 @@ enum ManipulationType {
     ResizeBottom,
 }
 
+impl ManipulationType {
+    const fn sign(self) -> f64 {
+        match self {
+            Self::Move => 0.0,
+            Self::ResizeLeft | Self::ResizeTop => -1.0,
+            Self::ResizeRight | Self::ResizeBottom => 1.0,
+        }
+    }
+}
+
 pub struct EditResponse {
     pub used_dragged: bool,
     hovered_id: Option<Uuid>,
@@ -250,19 +260,25 @@ impl HomeFlow {
             ) {
                 let (min, max) = hovered_bounds.unwrap();
                 let (min, max) = (hovered_pos.unwrap() + min, hovered_pos.unwrap() + max);
+                let size = max - min;
+                // Min and max for y are swapped because of the coordinate system
                 let (min, max) = (
-                    self.world_to_pixels(min.x, min.y),
-                    self.world_to_pixels(max.x, max.y),
+                    self.world_to_pixels(min.x, max.y),
+                    self.world_to_pixels(max.x, min.y),
                 );
-                let threshold = 2.0;
+                let threshold = 20.0;
                 if self.mouse_pos.x < min.x + threshold {
                     manipulation_type = ManipulationType::ResizeLeft;
+                    hovered_pos = Some(hovered_pos.unwrap() - vec2(size.x / 2.0, 0.0));
                 } else if self.mouse_pos.x > max.x - threshold {
                     manipulation_type = ManipulationType::ResizeRight;
+                    hovered_pos = Some(hovered_pos.unwrap() + vec2(size.x / 2.0, 0.0));
                 } else if self.mouse_pos.y < min.y + threshold {
                     manipulation_type = ManipulationType::ResizeBottom;
+                    hovered_pos = Some(hovered_pos.unwrap() + vec2(0.0, size.y / 2.0));
                 } else if self.mouse_pos.y > max.y - threshold {
                     manipulation_type = ManipulationType::ResizeTop;
+                    hovered_pos = Some(hovered_pos.unwrap() - vec2(0.0, size.y / 2.0));
                 }
             }
         }
@@ -337,13 +353,45 @@ impl HomeFlow {
                         }
                     });
 
+                let delta = new_pos - drag_data.object_start_pos;
+                let start_size = drag_data.bounds.1 - drag_data.bounds.0;
+                let sign = drag_data.manipulation_type.sign();
                 for room in &mut self.layout.rooms {
                     if drag_data.id == room.id {
-                        room.pos = new_pos;
+                        match drag_data.manipulation_type {
+                            ManipulationType::Move => {
+                                room.pos = new_pos;
+                            }
+                            ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
+                                room.size.x = start_size.x + delta.x * sign;
+                                room.pos.x = new_pos.x - (room.size.x / 2.0) * sign;
+                            }
+                            ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
+                                room.size.y = start_size.y + delta.y * sign;
+                                room.pos.y = new_pos.y - (room.size.y / 2.0) * sign;
+                            }
+                        }
                     } else {
                         for operation in &mut room.operations {
                             if operation.id == drag_data.id {
-                                operation.pos = new_pos - room.pos;
+                                let new_pos = new_pos - room.pos;
+                                match drag_data.manipulation_type {
+                                    ManipulationType::Move => {
+                                        operation.pos = new_pos;
+                                    }
+                                    ManipulationType::ResizeLeft
+                                    | ManipulationType::ResizeRight => {
+                                        operation.size.x = start_size.x + delta.x * sign;
+                                        operation.pos.x =
+                                            new_pos.x - (operation.size.x / 2.0) * sign;
+                                    }
+                                    ManipulationType::ResizeTop
+                                    | ManipulationType::ResizeBottom => {
+                                        operation.size.y = start_size.y + delta.y * sign;
+                                        operation.pos.y =
+                                            new_pos.y - (operation.size.y / 2.0) * sign;
+                                    }
+                                }
                             }
                         }
                         for opening in &mut room.openings {
@@ -356,7 +404,19 @@ impl HomeFlow {
                 }
                 for furniture in &mut self.layout.furniture {
                     if furniture.id == drag_data.id {
-                        furniture.pos = new_pos;
+                        match drag_data.manipulation_type {
+                            ManipulationType::Move => {
+                                furniture.pos = new_pos;
+                            }
+                            ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
+                                furniture.size.x = start_size.x + delta.x * sign;
+                                furniture.pos.x = new_pos.x - (furniture.size.x / 2.0) * sign;
+                            }
+                            ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
+                                furniture.size.y = start_size.y + delta.y * sign;
+                                furniture.pos.y = new_pos.y - (furniture.size.y / 2.0) * sign;
+                            }
+                        }
                     }
                 }
                 snap_line_x = snap_x;
@@ -442,8 +502,26 @@ impl HomeFlow {
         {
             // Snap to other rooms
             let mut closest_horizontal_snap_line = None;
-            let mut closest_vertical_snap_line = None;
-            let (bounds_min, bounds_max) = drag_data.bounds;
+            let mut closest_vertical_snap_line: Option<(f64, f64, usize)> = None;
+            // If its a resize operation or object type is opening, use ZERO bounds
+            let (bounds_min, bounds_max) =
+                if !matches!(drag_data.manipulation_type, ManipulationType::Move)
+                    || drag_data.object_type == ObjectType::Opening
+                {
+                    match drag_data.manipulation_type {
+                        ManipulationType::ResizeLeft | ManipulationType::ResizeRight => (
+                            vec2(0.0, drag_data.bounds.0.y),
+                            vec2(0.0, drag_data.bounds.1.y),
+                        ),
+                        ManipulationType::ResizeTop | ManipulationType::ResizeBottom => (
+                            vec2(drag_data.bounds.0.x, 0.0),
+                            vec2(drag_data.bounds.1.x, 0.0),
+                        ),
+                        ManipulationType::Move => (Vec2::ZERO, Vec2::ZERO),
+                    }
+                } else {
+                    drag_data.bounds
+                };
             let (bounds_min, bounds_max) = (bounds_min + new_pos, bounds_max + new_pos);
             let snap_threshold = 0.1;
 

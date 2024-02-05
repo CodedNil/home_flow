@@ -9,7 +9,7 @@ use egui::{
     TextureOptions,
 };
 use glam::dvec2 as vec2;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
 const DOOR_COLOR: Color32 = Color32::from_rgb(200, 130, 40);
@@ -143,7 +143,6 @@ impl HomeFlow {
                 }
             }
         }
-        for room in &self.layout.rooms {}
 
         // Render walls
         let rendered_data = self.layout.rendered_data.as_ref().unwrap();
