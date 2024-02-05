@@ -18,6 +18,8 @@ use std::{
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
+pub const WALL_WIDTH: f64 = 0.1;
+
 impl Home {
     pub fn render(&mut self) {
         let mut hasher = DefaultHasher::new();
@@ -61,17 +63,7 @@ impl Home {
                 let wall_polygons = if room.walls == Walls::NONE && !any_add {
                     EMPTY_MULTI_POLYGON
                 } else {
-                    let bounds = room.bounds_with_walls();
-                    let center = (bounds.0 + bounds.1) / 2.0;
-                    let size = bounds.1 - bounds.0;
-                    wall_polygons(
-                        &polygons,
-                        center,
-                        size,
-                        room.walls,
-                        room.pos,
-                        &room.operations,
-                    )
+                    room.wall_polygons(&polygons)
                 };
                 (
                     *id,
@@ -102,6 +94,17 @@ impl Home {
             if let Some(rendered_data) = &room.rendered_data {
                 wall_polygons = wall_polygons.difference(&rendered_data.polygons);
                 wall_polygons = wall_polygons.union(&rendered_data.wall_polygons);
+            }
+        }
+        // Subtract doors and windows
+        for room in &self.rooms {
+            for opening in &room.openings {
+                let operation_polygon = create_multipolygon(&Shape::Rectangle.vertices(
+                    room.pos + opening.pos,
+                    vec2(opening.width, WALL_WIDTH * 1.01),
+                    opening.rotation,
+                ));
+                wall_polygons = wall_polygons.difference(&operation_polygon);
             }
         }
 
@@ -274,6 +277,131 @@ impl Room {
         }
 
         (polygons, triangles)
+    }
+
+    pub fn wall_polygons(&self, polygons: &MultiPolygon) -> MultiPolygon {
+        let bounds = self.bounds_with_walls();
+        let center = (bounds.0 + bounds.1) / 2.0;
+        let size = bounds.1 - bounds.0;
+
+        // Filter out inner polygons
+        let mut new_polygons = MultiPolygon(vec![]);
+        for polygon in polygons {
+            new_polygons = new_polygons.union(&MultiPolygon::new(vec![Polygon::new(
+                polygon.exterior().clone(),
+                vec![],
+            )]));
+        }
+
+        let width_half = WALL_WIDTH / 2.0;
+        let mut new_polys = MultiPolygon(vec![]);
+
+        let polygon_outside = geo_buffer::buffer_multi_polygon(&new_polygons, width_half);
+        let polygon_inside = geo_buffer::buffer_multi_polygon(&new_polygons, -width_half);
+
+        let diff = polygon_outside.difference(&polygon_inside);
+        new_polys = new_polys.union(&diff);
+
+        // Subtract operations that are SubtractWall
+        for operation in &self.operations {
+            if operation.action == Action::SubtractWall {
+                let operation_polygon = create_multipolygon(&operation.shape.vertices(
+                    self.pos + operation.pos,
+                    operation.size,
+                    operation.rotation,
+                ));
+                new_polys = new_polys.difference(&operation_polygon);
+            }
+        }
+
+        // If walls arent on all sides, trim as needed
+        let any_add = self
+            .operations
+            .iter()
+            .any(|operation| operation.action == Action::AddWall);
+        if self.walls == Walls::WALL && !any_add {
+            return new_polys;
+        }
+
+        let up = size.y * 0.5 - width_half * 3.0;
+        let right = size.x * 0.5 - width_half * 3.0;
+        let vertices = vec![
+            // Left
+            vec![
+                center,
+                center + vec2(-right, up),
+                center + vec2(-right * 4.0, up),
+                center + vec2(-right * 4.0, -up),
+                center + vec2(-right, -up),
+            ],
+            // Top
+            vec![
+                center,
+                center + vec2(-right, up),
+                center + vec2(-right, up * 4.0),
+                center + vec2(right, up * 4.0),
+                center + vec2(right, up),
+            ],
+            // Right
+            vec![
+                center,
+                center + vec2(right, up),
+                center + vec2(right * 4.0, up),
+                center + vec2(right * 4.0, -up),
+                center + vec2(right, -up),
+            ],
+            // Bottom
+            vec![
+                center,
+                center + vec2(-right, -up),
+                center + vec2(-right, -up * 4.0),
+                center + vec2(right, -up * 4.0),
+                center + vec2(right, -up),
+            ],
+        ];
+        let mut subtract_shape = EMPTY_MULTI_POLYGON;
+        for index in 0..4 {
+            let (is_wall, vertices) = match index {
+                0 => (self.walls.left, vertices[0].clone()),
+                1 => (self.walls.top, vertices[1].clone()),
+                2 => (self.walls.right, vertices[2].clone()),
+                _ => (self.walls.bottom, vertices[3].clone()),
+            };
+            if !is_wall {
+                subtract_shape = subtract_shape.union(&create_multipolygon(&vertices));
+            }
+        }
+        // Add corners
+        let directions = [(self.walls.left, -right), (self.walls.right, right)];
+        let verticals = [(self.walls.top, up), (self.walls.bottom, -up)];
+        for (wall_horizontal, horizontal_multiplier) in &directions {
+            for (wall_vertical, vertical_multiplier) in &verticals {
+                if !wall_horizontal && !wall_vertical {
+                    subtract_shape = subtract_shape.union(&create_multipolygon(&[
+                        center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
+                        center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
+                        center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
+                        center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
+                    ]));
+                }
+            }
+        }
+
+        // Add back operations that are AddWall
+        for operation in &self.operations {
+            if operation.action == Action::AddWall {
+                let operation_polygon = create_multipolygon(&operation.shape.vertices(
+                    self.pos + operation.pos,
+                    operation.size,
+                    operation.rotation,
+                ));
+                subtract_shape = subtract_shape.difference(&operation_polygon);
+            }
+        }
+
+        new_polys = new_polys.difference(&subtract_shape);
+
+        new_polys
     }
 }
 
@@ -488,133 +616,6 @@ impl Shape {
         }
     }
 }
-
-pub fn wall_polygons(
-    polygons: &MultiPolygon,
-    center: Vec2,
-    size: Vec2,
-    walls: Walls,
-    room_pos: Vec2,
-    operations: &Vec<Operation>,
-) -> MultiPolygon {
-    // Filter out inner polygons
-    let mut new_polygons = MultiPolygon(vec![]);
-    for polygon in polygons {
-        new_polygons = new_polygons.union(&MultiPolygon::new(vec![Polygon::new(
-            polygon.exterior().clone(),
-            vec![],
-        )]));
-    }
-
-    let width_half = WALL_WIDTH / 2.0;
-    let mut new_polys = MultiPolygon(vec![]);
-
-    let polygon_outside = geo_buffer::buffer_multi_polygon(&new_polygons, width_half);
-    let polygon_inside = geo_buffer::buffer_multi_polygon(&new_polygons, -width_half);
-
-    let diff = polygon_outside.difference(&polygon_inside);
-    new_polys = new_polys.union(&diff);
-
-    // Subtract operations that are SubtractWall
-    for operation in operations {
-        if operation.action == Action::SubtractWall {
-            let operation_polygon = create_multipolygon(&operation.shape.vertices(
-                room_pos + operation.pos,
-                operation.size,
-                operation.rotation,
-            ));
-            new_polys = new_polys.difference(&operation_polygon);
-        }
-    }
-
-    // If walls arent on all sides, trim as needed
-    let any_add = operations
-        .iter()
-        .any(|operation| operation.action == Action::AddWall);
-    if walls == Walls::WALL && !any_add {
-        return new_polys;
-    }
-
-    let up = size.y * 0.5 - width_half * 3.0;
-    let right = size.x * 0.5 - width_half * 3.0;
-    let vertices = vec![
-        // Left
-        vec![
-            center,
-            center + vec2(-right, up),
-            center + vec2(-right * 4.0, up),
-            center + vec2(-right * 4.0, -up),
-            center + vec2(-right, -up),
-        ],
-        // Top
-        vec![
-            center,
-            center + vec2(-right, up),
-            center + vec2(-right, up * 4.0),
-            center + vec2(right, up * 4.0),
-            center + vec2(right, up),
-        ],
-        // Right
-        vec![
-            center,
-            center + vec2(right, up),
-            center + vec2(right * 4.0, up),
-            center + vec2(right * 4.0, -up),
-            center + vec2(right, -up),
-        ],
-        // Bottom
-        vec![
-            center,
-            center + vec2(-right, -up),
-            center + vec2(-right, -up * 4.0),
-            center + vec2(right, -up * 4.0),
-            center + vec2(right, -up),
-        ],
-    ];
-    let mut subtract_shape = EMPTY_MULTI_POLYGON;
-    for index in 0..4 {
-        let (is_wall, vertices) = match index {
-            0 => (walls.left, vertices[0].clone()),
-            1 => (walls.top, vertices[1].clone()),
-            2 => (walls.right, vertices[2].clone()),
-            _ => (walls.bottom, vertices[3].clone()),
-        };
-        if !is_wall {
-            subtract_shape = subtract_shape.union(&create_multipolygon(&vertices));
-        }
-    }
-    // Add corners
-    let directions = [(walls.left, -right), (walls.right, right)];
-    let verticals = [(walls.top, up), (walls.bottom, -up)];
-    for (wall_horizontal, horizontal_multiplier) in &directions {
-        for (wall_vertical, vertical_multiplier) in &verticals {
-            if !wall_horizontal && !wall_vertical {
-                subtract_shape = subtract_shape.union(&create_multipolygon(&[
-                    center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
-                    center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
-                    center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
-                    center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
-                ]));
-            }
-        }
-    }
-
-    // Add back operations that are AddWall
-    for operation in operations {
-        if operation.action == Action::AddWall {
-            let operation_polygon = create_multipolygon(&operation.shape.vertices(
-                room_pos + operation.pos,
-                operation.size,
-                operation.rotation,
-            ));
-            subtract_shape = subtract_shape.difference(&operation_polygon);
-        }
-    }
-
-    new_polys.difference(&subtract_shape)
-}
-
-pub const WALL_WIDTH: f64 = 0.1;
 
 #[allow(dead_code)]
 impl Walls {

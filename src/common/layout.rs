@@ -57,8 +57,10 @@ pub struct Furniture {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Opening {
     pub id: Uuid,
-    pub pos: Vec2,
     pub opening_type: OpeningType,
+    pub pos: Vec2,
+    pub rotation: f64,
+    pub width: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -127,19 +129,18 @@ impl Home {
             rooms: vec![
                 Room::new(
                     "Hall",
-                    vec2(0.525, 0.5),
-                    vec2(5.65, 1.10),
+                    vec2(0.65, 0.5),
+                    vec2(5.9, 1.10),
                     Material::Carpet.into(),
                     Walls::NONE.top(true),
                     vec![Operation::new(
                         Action::Add,
                         Shape::Rectangle,
-                        vec2(-0.875, 1.55),
+                        vec2(-1.0, 1.55),
                         vec2(1.1, 2.0),
-                        0.0,
                     )
                     .set_material(Material::Wood)],
-                    vec![],
+                    vec![Opening::new(OpeningType::Door, vec2(-1.0, 2.55))],
                 ),
                 Room::new(
                     "Lounge",
@@ -166,7 +167,7 @@ impl Home {
                     Material::Carpet.into(),
                     Walls::WALL,
                     vec![],
-                    vec![],
+                    vec![Opening::new(OpeningType::Door, vec2(0.7, 0.0)).rotate(-90.0)],
                 ),
                 Room::new(
                     "Storage2",
@@ -175,7 +176,7 @@ impl Home {
                     Material::Carpet.into(),
                     Walls::WALL,
                     vec![],
-                    vec![],
+                    vec![Opening::new(OpeningType::Door, vec2(0.7, 0.0)).rotate(-90.0)],
                 ),
                 Room::new(
                     "Master Bedroom",
@@ -186,11 +187,10 @@ impl Home {
                     vec![Operation::new(
                         Action::Subtract,
                         Shape::Rectangle,
-                        vec2(-1.3, 1.4),
-                        vec2(1.6, 1.0),
-                        0.0,
+                        vec2(-1.1, 1.4),
+                        vec2(1.7, 1.0),
                     )],
-                    vec![],
+                    vec![Opening::new(OpeningType::Door, vec2(-0.25, 1.35)).rotate(90.0)],
                 ),
                 Room::new(
                     "Ensuite",
@@ -199,7 +199,7 @@ impl Home {
                     Material::Granite.into(),
                     Walls::WALL,
                     vec![],
-                    vec![],
+                    vec![Opening::new(OpeningType::Door, vec2(0.8, -0.85)).rotate(-90.0)],
                 ),
                 Room::new(
                     "Boiler Room",
@@ -208,7 +208,9 @@ impl Home {
                     Material::Carpet.into(),
                     Walls::WALL,
                     vec![],
-                    vec![],
+                    vec![Opening::new(OpeningType::Door, vec2(0.0, 0.5))
+                        .rotate(-180.0)
+                        .width(0.6)],
                 ),
                 Room::new(
                     "Bedroom Two",
@@ -219,11 +221,10 @@ impl Home {
                     vec![Operation::new(
                         Action::Subtract,
                         Shape::Rectangle,
-                        vec2(-1.35, -1.4),
+                        vec2(-1.1, -1.4),
                         vec2(1.0, 1.0),
-                        0.0,
                     )],
-                    vec![],
+                    vec![Opening::new(OpeningType::Door, vec2(-1.1, -0.9))],
                 ),
                 Room::new(
                     "Bathroom",
@@ -232,7 +233,7 @@ impl Home {
                     Material::Granite.into(),
                     Walls::WALL,
                     vec![],
-                    vec![],
+                    vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0))],
                 ),
             ],
             furniture: vec![],

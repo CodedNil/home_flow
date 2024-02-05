@@ -91,6 +91,7 @@ impl Hash for Room {
         hash_vec2(self.size, state);
         self.walls.hash(state);
         self.operations.hash(state);
+        self.openings.hash(state);
         self.render_options.hash(state);
     }
 }
@@ -123,12 +124,45 @@ impl std::fmt::Display for Room {
 }
 
 impl Opening {
-    pub fn new(pos: Vec2, opening_type: OpeningType) -> Self {
+    pub fn new(opening_type: OpeningType, pos: Vec2) -> Self {
         Self {
             id: uuid::Uuid::new_v4(),
-            pos,
             opening_type,
+            pos,
+            rotation: 0.0,
+            width: 0.8,
         }
+    }
+
+    pub const fn rotate(&self, angle: f64) -> Self {
+        Self {
+            rotation: angle,
+            ..*self
+        }
+    }
+
+    pub const fn width(&self, width: f64) -> Self {
+        Self { width, ..*self }
+    }
+}
+impl std::fmt::Display for Opening {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = format!(
+            "Opening: {} - {}m @ {}m",
+            self.opening_type, self.width, self.pos
+        );
+        if self.rotation != 0.0 {
+            string.push_str(format!(" - {}°", self.rotation).as_str());
+        }
+        write!(f, "{string}")
+    }
+}
+impl Hash for Opening {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.opening_type.hash(state);
+        hash_vec2(self.pos, state);
+        self.rotation.to_bits().hash(state);
+        self.width.to_bits().hash(state);
     }
 }
 
@@ -173,7 +207,7 @@ impl Hash for Furniture {
 }
 
 impl Operation {
-    pub fn new(action: Action, shape: Shape, pos: Vec2, size: Vec2, rotation: f64) -> Self {
+    pub fn new(action: Action, shape: Shape, pos: Vec2, size: Vec2) -> Self {
         Self {
             id: uuid::Uuid::new_v4(),
             action,
@@ -181,7 +215,7 @@ impl Operation {
             render_options: None,
             pos,
             size,
-            rotation,
+            rotation: 0.0,
         }
     }
 

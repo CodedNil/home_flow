@@ -43,14 +43,6 @@ impl ObjectType {
     const fn snap_to_grid(self) -> bool {
         matches!(self, Self::Room | Self::Operation)
     }
-
-    const fn snap_to_rooms(self) -> bool {
-        matches!(self, Self::Room | Self::Operation)
-    }
-
-    const fn snap_to_walls(self) -> bool {
-        matches!(self, Self::Opening)
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -320,7 +312,8 @@ impl HomeFlow {
                 used_dragged = true;
                 ctx.set_cursor_icon(CursorIcon::Grab);
 
-                let (new_pos, snap_x, snap_y) = self.handle_drag(drag_data, snap_enabled);
+                let (new_pos, new_rotation, snap_x, snap_y) =
+                    self.handle_drag(drag_data, snap_enabled);
                 Window::new("Dragging Info")
                     .fixed_pos(vec2_to_egui_pos(
                         self.world_to_pixels(self.mouse_pos_world.x, self.mouse_pos_world.y)
@@ -355,6 +348,7 @@ impl HomeFlow {
                         for opening in &mut room.openings {
                             if opening.id == drag_data.id {
                                 opening.pos = new_pos - room.pos;
+                                opening.rotation = new_rotation;
                             }
                         }
                     }
@@ -381,14 +375,70 @@ impl HomeFlow {
         }
     }
 
-    fn handle_drag(&self, drag_data: &DragData, snap: bool) -> (Vec2, Option<f64>, Option<f64>) {
+    fn handle_drag(
+        &self,
+        drag_data: &DragData,
+        snap: bool,
+    ) -> (Vec2, f64, Option<f64>, Option<f64>) {
         let mut snap_line_x = None;
         let mut snap_line_y = None;
 
         let delta = self.mouse_pos_world - drag_data.mouse_start_pos;
         let mut new_pos = drag_data.object_start_pos + vec2(delta.x, delta.y);
+        let mut new_rotation = 0.0;
 
-        if snap && drag_data.object_type.snap_to_rooms() {
+        if snap && drag_data.object_type == ObjectType::Opening {
+            // Find the room the object is part of
+            let mut found_room = None;
+            for room in &self.layout.rooms {
+                for opening in &room.openings {
+                    if opening.id == drag_data.id {
+                        found_room = Some(room);
+                        break;
+                    }
+                }
+            }
+            if let Some(room) = found_room {
+                let mut closest_distance = f64::INFINITY;
+                let mut closest_point = None;
+                let mut closest_rotation = None;
+
+                for poly in &room.rendered_data.as_ref().unwrap().polygons {
+                    let points: Vec<_> = poly.exterior().points().collect();
+
+                    // Iterate over pairs of consecutive points to represent the edges of the polygon
+                    for i in 0..points.len() {
+                        let p1 = coord_to_vec2(points[i]);
+                        let p2 = coord_to_vec2(points[(i + 1) % points.len()]);
+
+                        // Calculate the closest point on the line segment from p1 to p2 to new_pos
+                        let line_vec = p2 - p1;
+                        let t = ((new_pos - p1).dot(line_vec)) / line_vec.length_squared();
+                        let t_clamped = t.clamp(0.0, 1.0); // Clamp t to the [0, 1] interval to stay within the segment
+                        let closest_point_on_segment = p1 + line_vec * t_clamped;
+
+                        // Calculate the distance from new_pos to this closest point on the segment
+                        let distance = (closest_point_on_segment - new_pos).length();
+                        if distance < closest_distance {
+                            closest_distance = distance;
+                            closest_point = Some(closest_point_on_segment);
+                            closest_rotation = Some(-line_vec.y.atan2(line_vec.x).to_degrees());
+                        }
+                    }
+                }
+
+                let snap_threshold = 0.25;
+                if closest_distance < snap_threshold {
+                    new_pos = closest_point.unwrap();
+                    new_rotation = closest_rotation.unwrap();
+                }
+            }
+        } else if snap
+            && matches!(
+                drag_data.object_type,
+                ObjectType::Room | ObjectType::Operation
+            )
+        {
             // Snap to other rooms
             let mut closest_horizontal_snap_line = None;
             let mut closest_vertical_snap_line = None;
@@ -477,7 +527,7 @@ impl HomeFlow {
             new_pos.y = (new_pos.y * 10.0).round() / 10.0;
         }
 
-        (new_pos, snap_line_x, snap_line_y)
+        (new_pos, new_rotation, snap_line_x, snap_line_y)
     }
 
     pub fn paint_edit_mode(
@@ -643,6 +693,14 @@ impl HomeFlow {
                     if selected { 6.0 } else { 2.0 },
                     Color32::from_rgb(0, 0, 0),
                 ));
+                // Add a line along its rotation
+                let rot_dir = vec2(
+                    opening.rotation.to_radians().cos(),
+                    opening.rotation.to_radians().sin(),
+                ) * (opening.width / 2.0 * self.zoom);
+                let start = vec2_to_egui_pos(pos - rot_dir);
+                let end = vec2_to_egui_pos(pos + rot_dir);
+                painter.line_segment([start, end], Stroke::new(6.0, color));
             }
         }
 
@@ -789,7 +847,6 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
                     Shape::Rectangle,
                     Vec2::ZERO,
                     vec2(1.0, 1.0),
-                    0.0,
                 ));
             }
         });
@@ -894,7 +951,7 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
             ui.label("Openings");
             if ui.add(Button::new("Add")).clicked() {
                 room.openings
-                    .push(Opening::new(Vec2::ZERO, OpeningType::Door));
+                    .push(Opening::new(OpeningType::Door, Vec2::ZERO));
             }
         });
     })
@@ -905,13 +962,33 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
         let num_openings = room.openings.len();
         for (index, opening) in room.openings.iter_mut().enumerate() {
             ui.horizontal(|ui| {
-                ui.label("Pos");
-                edit_vec2(ui, &mut opening.pos, 0.1, 2);
                 combo_box_for_enum(
                     ui,
                     format!("Opening {}", opening.id),
                     &mut opening.opening_type,
                     "",
+                );
+                ui.label("Pos");
+                edit_vec2(ui, &mut opening.pos, 0.1, 2);
+                ui.label("Rotation");
+                if ui
+                    .add(
+                        DragValue::new(&mut opening.rotation)
+                            .speed(5)
+                            .fixed_decimals(0)
+                            .suffix("°"),
+                    )
+                    .changed()
+                {
+                    opening.rotation = opening.rotation.rem_euclid(360.0);
+                }
+                ui.label("Width");
+                ui.add(
+                    DragValue::new(&mut opening.width)
+                        .speed(0.1)
+                        .fixed_decimals(1)
+                        .clamp_range(0.1..=5.0)
+                        .suffix("m"),
                 );
                 if ui.add(Button::new("Delete")).clicked() {
                     openings_to_remove.push(opening.id);
