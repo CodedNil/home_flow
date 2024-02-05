@@ -228,7 +228,7 @@ impl HomeFlow {
                     hovered_id = Some(furniture.id);
                     hovered_type = Some(ObjectType::Furniture);
                     hovered_pos = Some(furniture.pos);
-                    hovered_bounds = Some(furniture.bounds());
+                    hovered_bounds = Some((-furniture.size / 2.0, furniture.size / 2.0));
                 }
             }
         }

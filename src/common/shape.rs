@@ -1,7 +1,5 @@
 use super::{
-    layout::{
-        Action, Furniture, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles, Walls,
-    },
+    layout::{Action, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles, Walls},
     utils::rotate_point,
 };
 use geo::BooleanOps;
@@ -409,37 +407,6 @@ impl Operation {
     pub fn contains(&self, room_pos: Vec2, point: Vec2) -> bool {
         self.shape
             .contains(point, room_pos + self.pos, self.size, self.rotation)
-    }
-}
-
-impl Furniture {
-    pub fn bounds(&self) -> (Vec2, Vec2) {
-        let (mut min, mut max) = (self.pos, self.pos);
-
-        let corners = [
-            self.pos - self.size / 2.0,
-            vec2(
-                self.pos.x + self.size.x / 2.0,
-                self.pos.y - self.size.y / 2.0,
-            ),
-            self.pos + self.size / 2.0,
-            vec2(
-                self.pos.x - self.size.x / 2.0,
-                self.pos.y + self.size.y / 2.0,
-            ),
-        ];
-
-        let rotated_corners: Vec<_> = corners
-            .iter()
-            .map(|&corner| rotate_point(corner, self.pos, -self.rotation))
-            .collect();
-
-        for &corner in &rotated_corners {
-            min = min.min(corner);
-            max = max.max(corner);
-        }
-
-        (min, max)
     }
 }
 
