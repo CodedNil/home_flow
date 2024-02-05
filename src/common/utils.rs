@@ -49,6 +49,7 @@ fn color_to_string(color: Color32) -> String {
 impl Hash for Home {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.version.hash(state);
+        self.materials.hash(state);
         self.rooms.hash(state);
         self.furniture.hash(state);
     }
@@ -56,8 +57,16 @@ impl Hash for Home {
 impl std::fmt::Display for Home {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = String::new();
+        for material in &self.materials {
+            string.push_str(format!("{material}\n").as_str());
+        }
+        string.push('\n');
         for room in &self.rooms {
             string.push_str(format!("{room}\n").as_str());
+        }
+        string.push('\n');
+        for furniture in &self.furniture {
+            string.push_str(format!("{furniture}\n").as_str());
         }
         write!(f, "{string}")
     }
@@ -101,23 +110,24 @@ impl Room {
 }
 impl Hash for Room {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        self.material.hash(state);
         hash_vec2(self.pos, state);
         hash_vec2(self.size, state);
-        self.walls.hash(state);
         self.operations.hash(state);
+        self.walls.hash(state);
         self.openings.hash(state);
-        self.material.hash(state);
+        self.outline.hash(state);
     }
 }
 impl std::fmt::Display for Room {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!(
-            "Room: {} - {}x{}m @ {}x{}m\n",
-            self.name, self.size.x, self.size.y, self.pos.x, self.pos.y
+            "Room: {} - {}m @ {}m {}\n",
+            self.name, self.size, self.pos, self.material
         );
         for operation in &self.operations {
             let op_string = operation.to_string().replace('\n', "\n        ");
-            string.push_str(format!("    Operation: {op_string}\n").as_str());
+            string.push_str(format!("    {op_string}\n").as_str());
         }
 
         // Walls
@@ -132,6 +142,18 @@ impl std::fmt::Display for Room {
             string.push_str(format!("[{wall_side}: {is_wall}] ").as_str());
         }
         string.push('\n');
+
+        // Openings
+        for opening in &self.openings {
+            let opening_string = opening.to_string().replace('\n', "\n        ");
+            string.push_str(format!("    {opening_string}\n").as_str());
+        }
+
+        // Outline
+        if let Some(outline) = &self.outline {
+            let outline_string = outline.to_string().replace('\n', "\n        ");
+            string.push_str(format!("    {outline_string}\n").as_str());
+        }
 
         write!(f, "{string}")
     }
@@ -162,12 +184,9 @@ impl Opening {
 }
 impl std::fmt::Display for Opening {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!(
-            "Opening: {} - {}m @ {}m",
-            self.opening_type, self.width, self.pos
-        );
+        let mut string = format!("{}: {}m @ {}m", self.opening_type, self.width, self.pos);
         if self.rotation != 0.0 {
-            string.push_str(format!(" - {}°", self.rotation).as_str());
+            string.push_str(format!(" {}°", self.rotation).as_str());
         }
         write!(f, "{string}")
     }
@@ -194,12 +213,9 @@ impl Furniture {
 }
 impl std::fmt::Display for Furniture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!(
-            "Furniture: {}x{}m @ {}x{}m",
-            self.size.x, self.size.y, self.pos.x, self.pos.y
-        );
+        let mut string = format!("Furniture: {}m @ {}m", self.size, self.pos);
         if self.rotation != 0.0 {
-            string.push_str(format!(" - {}°", self.rotation).as_str());
+            string.push_str(format!(" {}°", self.rotation).as_str());
         }
         string.push('\n');
 
@@ -244,11 +260,11 @@ impl Operation {
 impl std::fmt::Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!(
-            "Operation: {} {} - {}x{}m @ {}x{}m",
-            self.action, self.shape, self.size.x, self.size.y, self.pos.x, self.pos.y
+            "Operation: {} {} - {}m @ {}m",
+            self.action, self.shape, self.size, self.pos
         );
         if self.rotation != 0.0 {
-            string.push_str(format!(" - {}°", self.rotation).as_str());
+            string.push_str(format!(" {}°", self.rotation).as_str());
         }
         if let Some(material) = &self.material {
             string.push_str(format!("\nMaterial: {material}").as_str());
@@ -259,12 +275,12 @@ impl std::fmt::Display for Operation {
 }
 impl Hash for Operation {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        hash_vec2(self.pos, state);
-        hash_vec2(self.size, state);
-        self.rotation.to_bits().hash(state);
         self.action.hash(state);
         self.shape.hash(state);
         self.material.hash(state);
+        hash_vec2(self.pos, state);
+        hash_vec2(self.size, state);
+        self.rotation.to_bits().hash(state);
     }
 }
 
@@ -283,7 +299,7 @@ impl Outline {
 impl std::fmt::Display for Outline {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let string = format!(
-            "Outline: Thickness: {} - Color: {}",
+            "Outline: {}m {}",
             self.thickness,
             color_to_string(self.color)
         );
@@ -308,12 +324,9 @@ impl GlobalMaterial {
 }
 impl std::fmt::Display for GlobalMaterial {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!(
-            "GlobalMaterial: {} - Material: {}",
-            self.name, self.material
-        );
+        let mut string = format!("Global Material: {}; {}", self.name, self.material);
         if let Some(tint) = self.tint {
-            string.push_str(format!(" - Tint: {}", color_to_string(tint)).as_str());
+            string.push_str(format!(" {}", color_to_string(tint)).as_str());
         }
         write!(f, "{string}")
     }
