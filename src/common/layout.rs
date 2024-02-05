@@ -62,6 +62,8 @@ pub struct Opening {
     pub pos: Vec2,
     pub rotation: f64,
     pub width: f64,
+    #[serde(skip)]
+    pub open_amount: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -156,7 +158,10 @@ impl Home {
                     Material::Carpet.into(),
                     Walls::WALL.top(false),
                     vec![],
-                    vec![],
+                    vec![
+                        Opening::new(OpeningType::Window, vec2(-1.0, -1.35)).width(1.6),
+                        Opening::new(OpeningType::Window, vec2(2.1, -1.35)),
+                    ],
                 ),
                 Room::new(
                     "Kitchen",
@@ -165,7 +170,7 @@ impl Home {
                     RenderOptions::new(Material::Marble, Color32::from_rgb(255, 250, 230)),
                     Walls::WALL.right(false).bottom(false),
                     vec![],
-                    vec![],
+                    vec![Opening::new(OpeningType::Window, vec2(0.0, 1.55))],
                 ),
                 Room::new(
                     "Storage1",
@@ -197,7 +202,10 @@ impl Home {
                         vec2(-1.1, 1.4),
                         vec2(1.7, 1.0),
                     )],
-                    vec![Opening::new(OpeningType::Door, vec2(-0.25, 1.35)).rotate(90.0)],
+                    vec![
+                        Opening::new(OpeningType::Door, vec2(-0.25, 1.35)).rotate(90.0),
+                        Opening::new(OpeningType::Window, vec2(0.0, -1.8)),
+                    ],
                 ),
                 Room::new(
                     "Ensuite",
@@ -206,7 +214,10 @@ impl Home {
                     Material::Granite.into(),
                     Walls::WALL,
                     vec![],
-                    vec![Opening::new(OpeningType::Door, vec2(0.8, -0.85)).rotate(-90.0)],
+                    vec![
+                        Opening::new(OpeningType::Door, vec2(0.8, -0.85)).rotate(-90.0),
+                        Opening::new(OpeningType::Window, vec2(0.0, -1.35)),
+                    ],
                 ),
                 Room::new(
                     "Boiler Room",
@@ -215,9 +226,7 @@ impl Home {
                     Material::Carpet.into(),
                     Walls::WALL,
                     vec![],
-                    vec![Opening::new(OpeningType::Door, vec2(0.0, 0.5))
-                        .rotate(-180.0)
-                        .width(0.6)],
+                    vec![Opening::new(OpeningType::Door, vec2(0.0, 0.5)).width(0.6)],
                 ),
                 Room::new(
                     "Bedroom Two",
@@ -231,7 +240,10 @@ impl Home {
                         vec2(-1.1, -1.4),
                         vec2(1.0, 1.0),
                     )],
-                    vec![Opening::new(OpeningType::Door, vec2(-1.1, -0.9))],
+                    vec![
+                        Opening::new(OpeningType::Door, vec2(-1.1, -0.9)).rotate(180.0),
+                        Opening::new(OpeningType::Window, vec2(1.6, 0.0)).rotate(-90.0),
+                    ],
                 ),
                 Room::new(
                     "Bathroom",
@@ -240,7 +252,7 @@ impl Home {
                     Material::Granite.into(),
                     Walls::WALL,
                     vec![],
-                    vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0))],
+                    vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0)).rotate(180.0)],
                 ),
             ],
             furniture: vec![],

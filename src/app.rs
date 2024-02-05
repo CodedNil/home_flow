@@ -17,6 +17,7 @@ mod render;
 
 pub struct HomeFlow {
     time: f64,
+    frame_time: f64,
 
     translation: Vec2,
     zoom: f64, // Zoom is meter to pixels
@@ -48,6 +49,7 @@ impl Default for HomeFlow {
     fn default() -> Self {
         Self {
             time: 0.0,
+            frame_time: 0.0,
             translation: Vec2::ZERO,
             zoom: 100.0,
             canvas_center: Vec2::ZERO,
@@ -258,7 +260,8 @@ impl eframe::App for HomeFlow {
                 ..Default::default()
             })
             .show(ctx, |ui| {
-                self.time += ui.input(|i| i.unstable_dt) as f64;
+                self.time = ctx.input(|i| i.time);
+                self.frame_time = ui.input(|i| i.unstable_dt) as f64;
 
                 let (response, painter) =
                     ui.allocate_painter(ui.available_size(), Sense::click_and_drag());

@@ -2,7 +2,7 @@ use super::HomeFlow;
 use crate::common::{
     layout::{OpeningType, Shape},
     shape::{TEXTURES, WALL_WIDTH},
-    utils::vec2_to_egui_pos,
+    utils::{rotate_point, vec2_to_egui_pos},
 };
 use egui::{
     epaint::Vertex, Color32, ColorImage, Mesh, Painter, Rect, Shape as EShape, Stroke, TextureId,
@@ -12,6 +12,8 @@ use glam::dvec2 as vec2;
 use std::collections::{HashMap, HashSet};
 
 const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
+const DOOR_COLOR: Color32 = Color32::from_rgb(200, 130, 40);
+const WINDOW_COLOR: Color32 = Color32::from_rgb(80, 140, 240);
 
 impl HomeFlow {
     pub fn render_grid(&self, painter: &Painter, visible_rect: &Rect) {
@@ -159,33 +161,55 @@ impl HomeFlow {
             }));
         }
 
+        // Open the opening if mouse is nearby
+        for room in &mut self.layout.rooms {
+            for opening in &mut room.openings {
+                if opening.opening_type != OpeningType::Door {
+                    continue;
+                }
+                let mouse_distance = self.mouse_pos_world.distance(room.pos + opening.pos);
+                let target = if mouse_distance < opening.width / 2.0 {
+                    1.0
+                } else {
+                    0.0
+                };
+
+                // Linearly interpolate open_amount towards the target value.
+                opening.open_amount += (target - opening.open_amount) * (self.frame_time * 5.0);
+                opening.open_amount = opening.open_amount.clamp(0.0, 1.0);
+            }
+        }
         // Render openings
         for room in &self.layout.rooms {
             for opening in &room.openings {
-                let length = match opening.opening_type {
-                    OpeningType::Door => WALL_WIDTH * 0.8,
-                    OpeningType::Window => WALL_WIDTH * 0.5,
-                };
                 let color = match opening.opening_type {
-                    OpeningType::Door => Color32::from_rgb(100, 100, 100),
-                    OpeningType::Window => Color32::from_rgb(50, 100, 200),
+                    OpeningType::Door => DOOR_COLOR,
+                    OpeningType::Window => WINDOW_COLOR,
                 };
+                let rot_dir = vec2(
+                    opening.rotation.to_radians().cos(),
+                    opening.rotation.to_radians().sin(),
+                );
+                let hinge_pos = room.pos + opening.pos + rot_dir * (opening.width) / 2.0;
+
                 let vertices = Shape::Rectangle
                     .vertices(
                         room.pos + opening.pos,
-                        vec2(opening.width, length),
+                        vec2(opening.width, WALL_WIDTH * 0.8),
                         opening.rotation,
                     )
                     .iter()
-                    .map(|v| Vertex {
-                        pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
-                        uv: egui::Pos2::default(),
-                        color,
+                    .map(|v| {
+                        let rotated = rotate_point(*v, hinge_pos, opening.open_amount * 40.0);
+                        Vertex {
+                            pos: vec2_to_egui_pos(self.world_to_pixels(rotated.x, rotated.y)),
+                            uv: egui::Pos2::default(),
+                            color,
+                        }
                     })
                     .collect();
-                let indices = vec![0, 1, 2, 2, 3, 0];
                 painter.add(EShape::mesh(Mesh {
-                    indices,
+                    indices: vec![0, 1, 2, 2, 3, 0],
                     vertices,
                     texture_id: TextureId::Managed(0),
                 }));

@@ -133,6 +133,7 @@ impl Opening {
             pos,
             rotation: 0.0,
             width: 0.8,
+            open_amount: 0.0,
         }
     }
 
