@@ -311,7 +311,8 @@ impl HomeFlow {
         let can_drag = self.edit_mode.selected_room.is_some()
             || matches!(hovered_type, Some(ObjectType::Furniture));
         if let Some(hovered_id) = hovered_id {
-            if response.drag_started_by(egui::PointerButton::Primary) && can_drag {
+            let mouse_down = ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
+            if mouse_down && self.edit_mode.drag_data.is_none() && can_drag {
                 self.edit_mode.drag_data = Some(DragData {
                     id: hovered_id,
                     object_type: hovered_type.unwrap(),
@@ -527,7 +528,15 @@ impl HomeFlow {
 
             for other_room in &self.layout.rooms {
                 if other_room.id != drag_data.id {
-                    let (other_min, other_max) = other_room.bounds();
+                    let operation_exists = other_room
+                        .operations
+                        .iter()
+                        .any(|ops| ops.id == drag_data.id);
+                    let (other_min, other_max) = if operation_exists {
+                        other_room.self_bounds()
+                    } else {
+                        other_room.bounds()
+                    };
                     // Horizontal snap
                     for (index, &room_edge) in [bounds_min.y, bounds_max.y].iter().enumerate() {
                         for &other_edge in &[other_min.y, other_max.y] {
@@ -786,17 +795,17 @@ impl HomeFlow {
         // Render furniture
         for furniture in &self.layout.furniture {
             let selected = edit_response.hovered_id == Some(furniture.id);
-            let vertices =
-                Shape::Rectangle.vertices(furniture.pos, furniture.size, furniture.rotation);
-            let points = vertices
-                .iter()
-                .map(|v| vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)))
-                .collect::<Vec<_>>();
-            let stroke = Stroke::new(
-                if selected { 3.0 } else { 1.0 },
-                Color32::from_rgb(255, 255, 0).gamma_multiply(0.8),
-            );
-            painter.add(EShape::closed_line(points, stroke));
+            painter.add(EShape::closed_line(
+                Shape::Rectangle
+                    .vertices(furniture.pos, furniture.size, furniture.rotation)
+                    .iter()
+                    .map(|v| vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)))
+                    .collect(),
+                Stroke::new(
+                    if selected { 8.0 } else { 4.0 },
+                    Color32::from_rgb(150, 0, 50).gamma_multiply(0.8),
+                ),
+            ));
         }
 
         if let Some(room_id) = &edit_response.room_selected {
