@@ -14,6 +14,21 @@ pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
     vec.y.to_bits().hash(state);
 }
 
+fn format_float(n: f64) -> String {
+    if n.fract().abs() < f64::EPSILON {
+        format!("{}", n.trunc())
+    } else {
+        format!("{n:.3}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
+pub fn display_vec2(vec: Vec2) -> String {
+    format!("[{}x{}]", format_float(vec.x), format_float(vec.y))
+}
+
 pub const fn vec2_to_egui_pos(vec: Vec2) -> egui::Pos2 {
     egui::pos2(vec.x as f32, vec.y as f32)
 }
@@ -123,7 +138,10 @@ impl std::fmt::Display for Room {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!(
             "Room: {} - {}m @ {}m {}\n",
-            self.name, self.size, self.pos, self.material
+            self.name,
+            display_vec2(self.size),
+            display_vec2(self.pos),
+            self.material
         );
         for operation in &self.operations {
             let op_string = operation.to_string().replace('\n', "\n        ");
@@ -184,7 +202,12 @@ impl Opening {
 }
 impl std::fmt::Display for Opening {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!("{}: {}m @ {}m", self.opening_type, self.width, self.pos);
+        let mut string = format!(
+            "{}: {}m @ {}m",
+            self.opening_type,
+            self.width,
+            display_vec2(self.pos)
+        );
         if self.rotation != 0.0 {
             string.push_str(format!(" {}°", self.rotation).as_str());
         }
@@ -213,7 +236,11 @@ impl Furniture {
 }
 impl std::fmt::Display for Furniture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!("Furniture: {}m @ {}m", self.size, self.pos);
+        let mut string = format!(
+            "Furniture: {}m @ {}m",
+            display_vec2(self.size),
+            display_vec2(self.pos)
+        );
         if self.rotation != 0.0 {
             string.push_str(format!(" {}°", self.rotation).as_str());
         }
@@ -261,7 +288,10 @@ impl std::fmt::Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!(
             "Operation: {} {} - {}m @ {}m",
-            self.action, self.shape, self.size, self.pos
+            self.action,
+            self.shape,
+            display_vec2(self.size),
+            display_vec2(self.pos)
         );
         if self.rotation != 0.0 {
             string.push_str(format!(" {}°", self.rotation).as_str());

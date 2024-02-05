@@ -41,8 +41,11 @@ enum ObjectType {
     Furniture,
 }
 impl ObjectType {
-    const fn snap_to_grid(self) -> bool {
-        matches!(self, Self::Room | Self::Operation)
+    const fn snap_to_grid(self) -> f64 {
+        match self {
+            Self::Room | Self::Operation => 10.0,
+            _ => 100.0,
+        }
     }
 }
 
@@ -450,6 +453,7 @@ impl HomeFlow {
         let mut new_pos = drag_data.object_start_pos + vec2(delta.x, delta.y);
         let mut new_rotation = 0.0;
 
+        let snap_amount = drag_data.object_type.snap_to_grid();
         if snap && drag_data.object_type == ObjectType::Opening {
             // Find the room the object is part of
             let mut found_room = None;
@@ -590,11 +594,9 @@ impl HomeFlow {
                 } else {
                     snap_line - (bounds_max.y - bounds_min.y) / 2.0
                 }
-            } else if drag_data.object_type.snap_to_grid() {
-                // Snap to grid
-                (new_pos.y * 10.0).round() / 10.0
             } else {
-                new_pos.y
+                // Snap to grid
+                (new_pos.y * snap_amount).round() / snap_amount
             };
             new_pos.x = if let Some((snap_line, _, edge)) = closest_vertical_snap_line {
                 // Snap to other room
@@ -604,16 +606,14 @@ impl HomeFlow {
                 } else {
                     snap_line - (bounds_max.x - bounds_min.x) / 2.0
                 }
-            } else if drag_data.object_type.snap_to_grid() {
-                // Snap to grid
-                (new_pos.x * 10.0).round() / 10.0
             } else {
-                new_pos.x
+                // Snap to grid
+                (new_pos.x * snap_amount).round() / snap_amount
             };
-        } else if drag_data.object_type.snap_to_grid() {
+        } else {
             // Snap to grid
-            new_pos.x = (new_pos.x * 10.0).round() / 10.0;
-            new_pos.y = (new_pos.y * 10.0).round() / 10.0;
+            new_pos.x = (new_pos.x * snap_amount).round() / snap_amount;
+            new_pos.y = (new_pos.y * snap_amount).round() / snap_amount;
         }
 
         (new_pos, new_rotation, snap_line_x, snap_line_y)
