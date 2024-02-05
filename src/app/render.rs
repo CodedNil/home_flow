@@ -84,42 +84,29 @@ impl HomeFlow {
     pub fn render_layout(&mut self, painter: &Painter, ctx: &egui::Context) {
         self.layout.render();
 
-        // Get texture_ids for each material
-        let mut texture_ids = HashMap::new();
-        for room in &self.layout.rooms {
-            for material in room
-                .rendered_data
-                .as_ref()
-                .unwrap()
-                .material_polygons
-                .keys()
-            {
-                let texture = self
-                    .textures
-                    .entry(material.to_string())
-                    .or_insert_with(|| {
-                        let texture = TEXTURES.get(material).unwrap();
-                        let canvas_size = texture.dimensions();
-                        let egui_image = ColorImage::from_rgba_unmultiplied(
-                            [canvas_size.0 as usize, canvas_size.1 as usize],
-                            texture,
-                        );
-                        ctx.load_texture(
-                            material.to_string(),
-                            egui_image,
-                            TextureOptions::NEAREST_REPEAT,
-                        )
-                    });
-                texture_ids.insert(material, texture.id());
-            }
-        }
-
         // Render rooms
         for room in &self.layout.rooms {
             let rendered_data = room.rendered_data.as_ref().unwrap();
             for (material, multi_triangles) in &rendered_data.material_triangles {
                 for triangles in multi_triangles {
-                    let texture_id = *texture_ids.get(material).unwrap();
+                    let texture_id = self
+                        .textures
+                        .entry(material.to_string())
+                        .or_insert_with(|| {
+                            let texture = TEXTURES.get(material).unwrap();
+                            let canvas_size = texture.dimensions();
+                            let egui_image = ColorImage::from_rgba_unmultiplied(
+                                [canvas_size.0 as usize, canvas_size.1 as usize],
+                                texture,
+                            );
+                            ctx.load_texture(
+                                material.to_string(),
+                                egui_image,
+                                TextureOptions::NEAREST_REPEAT,
+                            )
+                        })
+                        .id();
+
                     let color = room.render_options.tint.unwrap_or(Color32::WHITE);
                     let vertices = triangles
                         .vertices
@@ -140,7 +127,23 @@ impl HomeFlow {
                     }));
                 }
             }
+            // Render outline line around each of the rooms polygons
+            if let Some(outline) = &room.outline {
+                let rendered_data = room.rendered_data.as_ref().unwrap();
+                for polygon in &rendered_data.polygons {
+                    let vertices = polygon
+                        .exterior()
+                        .points()
+                        .map(|v| vec2_to_egui_pos(self.world_to_pixels(v.x(), v.y())))
+                        .collect();
+                    painter.add(EShape::closed_line(
+                        vertices,
+                        Stroke::new((outline.thickness * self.zoom) as f32, outline.color),
+                    ));
+                }
+            }
         }
+        for room in &self.layout.rooms {}
 
         // Render walls
         let rendered_data = self.layout.rendered_data.as_ref().unwrap();

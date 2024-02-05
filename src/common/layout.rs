@@ -89,7 +89,7 @@ pub struct RenderOptions {
     pub tint: Option<Color32>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Outline {
     pub thickness: f64,
     pub color: Color32,
@@ -171,7 +171,8 @@ impl Home {
                     Walls::WALL.right(false).bottom(false),
                     vec![],
                     vec![Opening::new(OpeningType::Window, vec2(0.0, 1.55))],
-                ),
+                )
+                .outline(Outline::new(0.05, Color32::from_rgb(200, 170, 150))),
                 Room::new(
                     "Storage1",
                     vec2(-1.6, 2.55),

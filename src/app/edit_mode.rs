@@ -1,7 +1,8 @@
 use super::HomeFlow;
 use crate::common::{
     layout::{
-        Action, Furniture, Home, Opening, OpeningType, Operation, RenderOptions, Room, Shape, Walls,
+        Action, Furniture, Home, Opening, OpeningType, Operation, Outline, RenderOptions, Room,
+        Shape, Walls,
     },
     shape::coord_to_vec2,
     utils::vec2_to_egui_pos,
@@ -831,6 +832,33 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
         &mut room.render_options,
         format!("Materials {}", room.id),
     );
+
+    ui.horizontal(|ui| {
+        let mut show_outline = room.outline.is_some();
+        if ui
+            .add(Checkbox::new(&mut show_outline, "Show Outline"))
+            .changed()
+        {
+            if show_outline {
+                room.outline = Some(Outline::default());
+            } else {
+                room.outline = None;
+            }
+        }
+        if let Some(outline) = &mut room.outline {
+            ui.label("Thickness");
+            ui.add(
+                DragValue::new(&mut outline.thickness)
+                    .speed(0.1)
+                    .fixed_decimals(2)
+                    .clamp_range(0.01..=5.0)
+                    .suffix("m"),
+            );
+            ui.label("Color");
+            ui.color_edit_button_srgba(&mut outline.color);
+        }
+    });
+
     ui.separator();
 
     CollapsingState::load_with_default_open(

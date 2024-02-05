@@ -86,6 +86,18 @@ impl Room {
             rendered_data: None,
         }
     }
+
+    pub fn outline(&self, outline: Outline) -> Self {
+        Self {
+            outline: Some(outline),
+            name: self.name.clone(),
+            render_options: self.render_options.clone(),
+            operations: self.operations.clone(),
+            openings: self.openings.clone(),
+            rendered_data: None,
+            ..*self
+        }
+    }
 }
 impl Hash for Room {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -285,6 +297,18 @@ impl From<Material> for RenderOptions {
     }
 }
 
+impl Outline {
+    pub const fn new(thickness: f64, color: Color32) -> Self {
+        Self { thickness, color }
+    }
+
+    pub const fn default() -> Self {
+        Self {
+            thickness: 0.05,
+            color: Color32::WHITE,
+        }
+    }
+}
 impl std::fmt::Display for Outline {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let string = format!(
