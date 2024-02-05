@@ -89,11 +89,12 @@ impl HomeFlow {
             let rendered_data = room.rendered_data.as_ref().unwrap();
             for (material, multi_triangles) in &rendered_data.material_triangles {
                 for triangles in multi_triangles {
+                    let global_material = self.layout.get_global_material(material);
                     let texture_id = self
                         .textures
                         .entry(material.to_string())
                         .or_insert_with(|| {
-                            let texture = TEXTURES.get(material).unwrap();
+                            let texture = TEXTURES.get(&global_material.material).unwrap();
                             let canvas_size = texture.dimensions();
                             let egui_image = ColorImage::from_rgba_unmultiplied(
                                 [canvas_size.0 as usize, canvas_size.1 as usize],
@@ -107,7 +108,7 @@ impl HomeFlow {
                         })
                         .id();
 
-                    let color = room.render_options.tint.unwrap_or(Color32::WHITE);
+                    let color = global_material.tint.unwrap_or(Color32::WHITE);
                     let vertices = triangles
                         .vertices
                         .iter()

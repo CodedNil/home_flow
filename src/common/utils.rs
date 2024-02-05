@@ -1,6 +1,6 @@
 use super::{
     layout::{
-        Action, Furniture, Home, Opening, OpeningType, Operation, Outline, RenderOptions, Room,
+        Action, Furniture, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room,
         Shape, Walls,
     },
     shape::Material,
@@ -68,7 +68,7 @@ impl Room {
         name: &str,
         pos: Vec2,
         size: Vec2,
-        render_options: RenderOptions,
+        material: &str,
         walls: Walls,
         operations: Vec<Operation>,
         openings: Vec<Opening>,
@@ -76,7 +76,7 @@ impl Room {
         Self {
             id: uuid::Uuid::new_v4(),
             name: name.to_owned(),
-            render_options,
+            material: material.to_owned(),
             pos,
             size,
             walls,
@@ -91,7 +91,7 @@ impl Room {
         Self {
             outline: Some(outline),
             name: self.name.clone(),
-            render_options: self.render_options.clone(),
+            material: self.material.clone(),
             operations: self.operations.clone(),
             openings: self.openings.clone(),
             rendered_data: None,
@@ -106,7 +106,7 @@ impl Hash for Room {
         self.walls.hash(state);
         self.operations.hash(state);
         self.openings.hash(state);
-        self.render_options.hash(state);
+        self.material.hash(state);
     }
 }
 impl std::fmt::Display for Room {
@@ -227,19 +227,16 @@ impl Operation {
             id: uuid::Uuid::new_v4(),
             action,
             shape,
-            render_options: None,
+            material: None,
             pos,
             size,
             rotation: 0.0,
         }
     }
 
-    pub const fn set_material(&self, material: Material) -> Self {
+    pub fn set_material(&self, material: &str) -> Self {
         Self {
-            render_options: Some(RenderOptions {
-                material,
-                tint: None,
-            }),
+            material: Some(material.to_owned()),
             ..*self
         }
     }
@@ -253,8 +250,8 @@ impl std::fmt::Display for Operation {
         if self.rotation != 0.0 {
             string.push_str(format!(" - {}°", self.rotation).as_str());
         }
-        if let Some(render_options) = &self.render_options {
-            string.push_str(format!("\nRender options: {render_options}").as_str());
+        if let Some(material) = &self.material {
+            string.push_str(format!("\nMaterial: {material}").as_str());
         }
 
         write!(f, "{string}")
@@ -267,33 +264,7 @@ impl Hash for Operation {
         self.rotation.to_bits().hash(state);
         self.action.hash(state);
         self.shape.hash(state);
-        self.render_options.hash(state);
-    }
-}
-
-impl RenderOptions {
-    pub const fn new(material: Material, tint: Color32) -> Self {
-        Self {
-            material,
-            tint: Some(tint),
-        }
-    }
-}
-impl std::fmt::Display for RenderOptions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!("Material: {}", self.material);
-        if let Some(tint) = self.tint {
-            string.push_str(format!(" - Tint: {}", color_to_string(tint)).as_str());
-        }
-        write!(f, "{string}")
-    }
-}
-impl From<Material> for RenderOptions {
-    fn from(material: Material) -> Self {
-        Self {
-            material,
-            tint: None,
-        }
+        self.material.hash(state);
     }
 }
 
@@ -323,6 +294,35 @@ impl Hash for Outline {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.thickness.to_bits().hash(state);
         self.color.hash(state);
+    }
+}
+
+impl GlobalMaterial {
+    pub fn new(name: &str, material: Material, tint: Color32) -> Self {
+        Self {
+            name: name.to_owned(),
+            material,
+            tint: Some(tint),
+        }
+    }
+}
+impl std::fmt::Display for GlobalMaterial {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut string = format!(
+            "GlobalMaterial: {} - Material: {}",
+            self.name, self.material
+        );
+        if let Some(tint) = self.tint {
+            string.push_str(format!(" - Tint: {}", color_to_string(tint)).as_str());
+        }
+        write!(f, "{string}")
+    }
+}
+impl Hash for GlobalMaterial {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.material.hash(state);
+        self.tint.hash(state);
     }
 }
 

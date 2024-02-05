@@ -1,7 +1,7 @@
 use super::HomeFlow;
 use crate::common::{
     layout::{
-        Action, Furniture, Home, Opening, OpeningType, Operation, Outline, RenderOptions, Room,
+        Action, Furniture, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room,
         Shape, Walls,
     },
     shape::coord_to_vec2,
@@ -152,6 +152,7 @@ impl HomeFlow {
             self.edit_mode.enabled = true;
         }
         if ui.button("Refresn").clicked() {
+            self.edit_mode.enabled = false;
             self.layout = Home::default();
             self.layout_server = Home::default();
         }
@@ -670,7 +671,7 @@ impl HomeFlow {
                                 "New Room",
                                 Vec2::ZERO,
                                 vec2(1.0, 1.0),
-                                RenderOptions::default(),
+                                "",
                                 Walls::WALL,
                                 vec![],
                                 vec![],
@@ -826,7 +827,7 @@ impl HomeFlow {
                 .collapsible(true)
                 .open(&mut window_open)
                 .show(ctx, |ui| {
-                    alter_room = room_edit_widgets(ui, room);
+                    alter_room = room_edit_widgets(ui, &self.layout.materials, room);
                 });
             if !window_open {
                 self.edit_mode.selected_room = None;
@@ -871,7 +872,11 @@ enum AlterRoom {
     MoveDown,
 }
 
-fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
+fn room_edit_widgets(
+    ui: &mut egui::Ui,
+    materials: &Vec<GlobalMaterial>,
+    room: &mut Room,
+) -> AlterRoom {
     let mut alter_room = AlterRoom::None;
     ui.horizontal(|ui| {
         ui.label("Room ");
@@ -914,16 +919,18 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
             }
             ui.end_row();
         });
-    render_options_widgets(
-        ui,
-        &mut room.render_options,
-        format!("Materials {}", room.id),
-    );
+    ComboBox::from_id_source(format!("Materials {}", room.id))
+        .selected_text(&room.material)
+        .show_ui(ui, |ui| {
+            for material in materials {
+                ui.selectable_value(&mut room.material, material.name.clone(), &material.name);
+            }
+        });
 
     ui.horizontal(|ui| {
         let mut show_outline = room.outline.is_some();
         if ui
-            .add(Checkbox::new(&mut show_outline, "Show Outline"))
+            .add(Checkbox::new(&mut show_outline, "Outline"))
             .changed()
         {
             if show_outline {
@@ -1018,26 +1025,34 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
 
                 if operation.action == Action::Add {
                     // Add tickbox to use parents material or custom
-                    if ui
-                        .add(Checkbox::new(
-                            &mut operation.render_options.is_none(),
-                            "Use Parent Material",
-                        ))
-                        .changed()
-                    {
-                        if operation.render_options.is_some() {
-                            operation.render_options = None;
-                        } else {
-                            operation.render_options = Some(RenderOptions::default());
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(Checkbox::new(
+                                &mut operation.material.is_none(),
+                                "Use Parent Material",
+                            ))
+                            .changed()
+                        {
+                            if operation.material.is_some() {
+                                operation.material = None;
+                            } else {
+                                operation.material = Some(room.material.clone());
+                            }
                         }
-                    }
-                    if let Some(render_options) = &mut operation.render_options {
-                        render_options_widgets(
-                            ui,
-                            render_options,
-                            format!("Materials Operation {index}"),
-                        );
-                    }
+                        if let Some(op_material) = &mut operation.material {
+                            ComboBox::from_id_source(format!("Materials {}", operation.id))
+                                .selected_text(op_material.clone())
+                                .show_ui(ui, |ui| {
+                                    for material in materials {
+                                        ui.selectable_value(
+                                            op_material,
+                                            material.name.clone(),
+                                            &material.name,
+                                        );
+                                    }
+                                });
+                        }
+                    });
                 }
             });
         }
@@ -1132,27 +1147,6 @@ fn room_edit_widgets(ui: &mut egui::Ui, room: &mut Room) -> AlterRoom {
     });
 
     alter_room
-}
-
-fn render_options_widgets(ui: &mut egui::Ui, render_options: &mut RenderOptions, id: String) {
-    ui.horizontal(|ui| {
-        combo_box_for_enum(ui, id, &mut render_options.material, "");
-
-        // Tint boolean and then color picker
-        if ui
-            .add(Checkbox::new(&mut render_options.tint.is_some(), "Tint"))
-            .changed()
-        {
-            if render_options.tint.is_some() {
-                render_options.tint = None;
-            } else {
-                render_options.tint = Some(Color32::WHITE);
-            }
-        }
-        if let Some(tint) = &mut render_options.tint {
-            ui.color_edit_button_srgba(tint);
-        }
-    });
 }
 
 // Helper function to create a combo box for an enum

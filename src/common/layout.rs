@@ -14,6 +14,7 @@ const LAYOUT_VERSION: &str = "0.1";
 #[derivative(Clone)]
 pub struct Home {
     pub version: String,
+    pub materials: Vec<GlobalMaterial>,
     pub rooms: Vec<Room>,
     pub furniture: Vec<Furniture>,
     #[serde(skip)]
@@ -26,7 +27,7 @@ pub struct Home {
 pub struct Room {
     pub id: Uuid,
     pub name: String,
-    pub render_options: RenderOptions,
+    pub material: String,
     pub pos: Vec2,
     pub size: Vec2,
     pub operations: Vec<Operation>,
@@ -71,7 +72,7 @@ pub struct Operation {
     pub id: Uuid,
     pub action: Action,
     pub shape: Shape,
-    pub render_options: Option<RenderOptions>,
+    pub material: Option<String>,
     pub pos: Vec2,
     pub size: Vec2,
     pub rotation: f64,
@@ -81,12 +82,6 @@ pub struct Operation {
 pub enum OpeningType {
     Door,
     Window,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default, Hash)]
-pub struct RenderOptions {
-    pub material: Material,
-    pub tint: Option<Color32>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -112,6 +107,13 @@ pub enum Shape {
     Triangle,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct GlobalMaterial {
+    pub name: String,
+    pub material: Material,
+    pub tint: Option<Color32>,
+}
+
 pub struct HomeRender {
     pub hash: u64,
     pub wall_polygons: MultiPolygon,
@@ -121,8 +123,8 @@ pub struct HomeRender {
 pub struct RoomRender {
     pub hash: u64,
     pub polygons: MultiPolygon,
-    pub material_polygons: HashMap<Material, MultiPolygon>,
-    pub material_triangles: HashMap<Material, Vec<Triangles>>,
+    pub material_polygons: HashMap<String, MultiPolygon>,
+    pub material_triangles: HashMap<String, Vec<Triangles>>,
     pub wall_polygons: MultiPolygon,
 }
 
@@ -135,12 +137,18 @@ impl Home {
     pub fn template() -> Self {
         Self {
             version: LAYOUT_VERSION.to_string(),
+            materials: vec![
+                GlobalMaterial::new("Carpet", Material::Carpet, Color32::from_rgb(240, 225, 192)),
+                GlobalMaterial::new("Wood", Material::Wood, Color32::from_rgb(190, 120, 80)),
+                GlobalMaterial::new("Marble", Material::Marble, Color32::from_rgb(255, 250, 230)),
+                GlobalMaterial::new("Granite", Material::Granite, Color32::from_rgb(50, 50, 50)),
+            ],
             rooms: vec![
                 Room::new(
                     "Hall",
                     vec2(0.65, 0.5),
                     vec2(5.9, 1.10),
-                    Material::Carpet.into(),
+                    "Carpet",
                     Walls::NONE.top(true),
                     vec![Operation::new(
                         Action::Add,
@@ -148,14 +156,14 @@ impl Home {
                         vec2(-1.0, 1.55),
                         vec2(1.1, 2.0),
                     )
-                    .set_material(Material::Wood)],
+                    .set_material("Wood")],
                     vec![Opening::new(OpeningType::Door, vec2(-1.0, 2.55))],
                 ),
                 Room::new(
                     "Lounge",
                     vec2(-2.75, -1.4),
                     vec2(6.1, 2.7),
-                    Material::Carpet.into(),
+                    "Carpet",
                     Walls::WALL.top(false),
                     vec![],
                     vec![
@@ -167,7 +175,7 @@ impl Home {
                     "Kitchen",
                     vec2(-4.05, 1.5),
                     vec2(3.5, 3.1),
-                    RenderOptions::new(Material::Marble, Color32::from_rgb(255, 250, 230)),
+                    "Marble",
                     Walls::WALL.right(false).bottom(false),
                     vec![],
                     vec![Opening::new(OpeningType::Window, vec2(0.0, 1.55))],
@@ -177,7 +185,7 @@ impl Home {
                     "Storage1",
                     vec2(-1.6, 2.55),
                     vec2(1.4, 1.0),
-                    Material::Carpet.into(),
+                    "Carpet",
                     Walls::WALL,
                     vec![],
                     vec![Opening::new(OpeningType::Door, vec2(0.7, 0.0)).rotate(-90.0)],
@@ -186,7 +194,7 @@ impl Home {
                     "Storage2",
                     vec2(-1.6, 1.55),
                     vec2(1.4, 1.0),
-                    Material::Carpet.into(),
+                    "Carpet",
                     Walls::WALL,
                     vec![],
                     vec![Opening::new(OpeningType::Door, vec2(0.7, 0.0)).rotate(-90.0)],
@@ -195,7 +203,7 @@ impl Home {
                     "Master Bedroom",
                     vec2(3.85, -0.95),
                     vec2(3.9, 3.6),
-                    Material::Carpet.into(),
+                    "Carpet",
                     Walls::WALL,
                     vec![Operation::new(
                         Action::Subtract,
@@ -212,7 +220,7 @@ impl Home {
                     "Ensuite",
                     vec2(1.1, -1.4),
                     vec2(1.6, 2.7),
-                    Material::Granite.into(),
+                    "Granite",
                     Walls::WALL,
                     vec![],
                     vec![
@@ -224,7 +232,7 @@ impl Home {
                     "Boiler Room",
                     vec2(1.5, -0.55),
                     vec2(0.8, 1.0),
-                    Material::Carpet.into(),
+                    "Carpet",
                     Walls::WALL,
                     vec![],
                     vec![Opening::new(OpeningType::Door, vec2(0.0, 0.5)).width(0.6)],
@@ -233,7 +241,7 @@ impl Home {
                     "Bedroom Two",
                     vec2(4.2, 1.95),
                     vec2(3.2, 2.2),
-                    Material::Carpet.into(),
+                    "Carpet",
                     Walls::WALL,
                     vec![Operation::new(
                         Action::Subtract,
@@ -250,7 +258,7 @@ impl Home {
                     "Bathroom",
                     vec2(1.4, 2.05),
                     vec2(2.4, 2.0),
-                    Material::Granite.into(),
+                    "Granite",
                     Walls::WALL,
                     vec![],
                     vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0)).rotate(180.0)],

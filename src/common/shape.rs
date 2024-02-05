@@ -1,7 +1,11 @@
 use super::{
-    layout::{Action, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles, Walls},
+    layout::{
+        Action, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles,
+        Walls,
+    },
     utils::rotate_point,
 };
+use egui::Color32;
 use geo::BooleanOps;
 use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -119,6 +123,15 @@ impl Home {
             wall_triangles,
         });
     }
+
+    pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
+        for material in &self.materials {
+            if material.name == string {
+                return material.clone();
+            }
+        }
+        GlobalMaterial::new(string, Material::Carpet, Color32::WHITE)
+    }
 }
 
 impl Room {
@@ -220,12 +233,12 @@ impl Room {
     pub fn material_polygons(
         &self,
     ) -> (
-        HashMap<Material, MultiPolygon>,
-        HashMap<Material, Vec<Triangles>>,
+        HashMap<String, MultiPolygon>,
+        HashMap<String, Vec<Triangles>>,
     ) {
         let mut polygons = HashMap::new();
         polygons.insert(
-            self.render_options.material,
+            self.material.clone(),
             create_multipolygon(&Shape::Rectangle.vertices(self.pos, self.size, 0.0)),
         );
         for operation in &self.operations {
@@ -239,17 +252,16 @@ impl Room {
                 Action::Add => {
                     // Operation render_options might be none in which case its the same as the room
                     let material = operation
-                        .render_options
+                        .material
                         .clone()
-                        .unwrap_or_else(|| self.render_options.clone())
-                        .material;
+                        .unwrap_or_else(|| self.material.clone());
                     polygons
-                        .entry(material)
+                        .entry(material.clone())
                         .and_modify(|poly| *poly = poly.union(&operation_polygon))
                         .or_insert_with(|| operation_polygon.clone());
                     // Remove from all other polygons
                     for (other_material, poly) in &mut polygons {
-                        if *other_material != material {
+                        if other_material != &material {
                             *poly = poly.difference(&operation_polygon);
                         }
                     }
@@ -271,7 +283,7 @@ impl Room {
                 let (indices, vertices) = triangulate_polygon(polygon);
                 material_triangles.push(Triangles { indices, vertices });
             }
-            triangles.insert(*material, material_triangles);
+            triangles.insert(material.clone(), material_triangles);
         }
 
         (polygons, triangles)
@@ -410,10 +422,8 @@ impl Operation {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, EnumIter, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, EnumIter)]
 pub enum Material {
-    Wall,
-    #[default]
     Carpet,
     Marble,
     Granite,
@@ -424,7 +434,6 @@ pub enum Material {
 impl Material {
     pub const fn get_image(&self) -> &[u8] {
         match self {
-            Self::Wall => include_bytes!("../../assets/textures/wall.png"),
             Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
