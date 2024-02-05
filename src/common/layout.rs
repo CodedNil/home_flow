@@ -32,6 +32,7 @@ pub struct Room {
     pub operations: Vec<Operation>,
     pub walls: Walls,
     pub openings: Vec<Opening>,
+    pub outline: Option<Outline>,
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<RoomRender>,
@@ -84,6 +85,12 @@ pub enum OpeningType {
 pub struct RenderOptions {
     pub material: Material,
     pub tint: Option<Color32>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct Outline {
+    pub thickness: f64,
+    pub color: Color32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]

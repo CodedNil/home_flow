@@ -1,6 +1,7 @@
 use super::{
     layout::{
-        Action, Furniture, Home, Opening, OpeningType, Operation, RenderOptions, Room, Shape, Walls,
+        Action, Furniture, Home, Opening, OpeningType, Operation, Outline, RenderOptions, Room,
+        Shape, Walls,
     },
     shape::Material,
 };
@@ -81,6 +82,7 @@ impl Room {
             walls,
             operations,
             openings,
+            outline: None,
             rendered_data: None,
         }
     }
@@ -279,6 +281,23 @@ impl From<Material> for RenderOptions {
             material,
             tint: None,
         }
+    }
+}
+
+impl std::fmt::Display for Outline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let string = format!(
+            "Outline: Thickness: {} - Color: {}",
+            self.thickness,
+            color_to_string(self.color)
+        );
+        write!(f, "{string}")
+    }
+}
+impl Hash for Outline {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.thickness.to_bits().hash(state);
+        self.color.hash(state);
     }
 }
 
