@@ -6,8 +6,8 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use chrono::{DateTime, Local};
 use std::{fs, path::Path};
+use time::{format_description, OffsetDateTime};
 
 const LAYOUT_PATH: &str = "home_layout.json";
 
@@ -46,9 +46,11 @@ fn save_layout_impl(home: &str) -> Result<()> {
     if Path::new(LAYOUT_PATH).exists() {
         let metadata = fs::metadata(LAYOUT_PATH)?;
         let modified_time = metadata.modified()?;
+        let modified_time = OffsetDateTime::from(modified_time);
+        let format = format_description::parse("[year]-[month]-[day]_[hour]-[minute]-[second]")?;
         let backup_filename = format!(
             "backups/home_layout_{}.json",
-            DateTime::<Local>::from(modified_time).format("%Y-%m-%d_%H-%M-%S")
+            modified_time.format(&format)?
         );
 
         fs::create_dir_all("backups")?;

@@ -21,9 +21,7 @@ derivative = "2.2.0"
 diff = "0.1.13"
 
 # egui = { version = "0.25.0", features = ["serde"] }
-egui = { git = "https://github.com/emilk/egui.git", rev = "9ae890dd1e217d5fd18760d6dd8860ea58bf165f", features = [
-    "serde",
-] }
+egui = { git = "https://github.com/emilk/egui.git", features = ["serde"] }
 egui_plot = "0.25.0"
 ehttp = "0.4.0"
 egui-notify = "0.12.0"
@@ -40,7 +38,7 @@ earcutr = "0.4.3"
 #     "glow",
 #     "persistence",
 # ], optional = true }
-eframe = { git = "https://github.com/emilk/egui.git", rev = "9ae890dd1e217d5fd18760d6dd8860ea58bf165f", default-features = false, features = [
+eframe = { git = "https://github.com/emilk/egui.git", default-features = false, features = [
     "default_fonts",
     "glow",
     "persistence",
@@ -61,7 +59,7 @@ tower-http = { version = "0.5.1", features = [
     "compression-deflate",
     "compression-gzip",
 ] }
-chrono = "0.4.33"
+time = "0.3.34"
 
 [features]
 default = ["gui"]
