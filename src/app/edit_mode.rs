@@ -1,19 +1,20 @@
-use super::{edit_mode_utils::apply_standard_transform, HomeFlow};
-use crate::common::{
-    layout::{
-        Action, Furniture, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room,
-        Shape,
+use super::{
+    edit_mode_utils::{
+        apply_standard_transform, combo_box_for_enum, combo_box_for_materials, edit_option,
+        edit_rotation, edit_vec2, labelled_widget,
     },
-    shape::coord_to_vec2,
+    HomeFlow,
+};
+use crate::common::{
+    layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
     utils::vec2_to_egui_pos,
 };
 use egui::{
-    collapsing_header::CollapsingState, Align2, Button, Color32, ComboBox, Context, CursorIcon,
-    DragValue, Painter, PointerButton, Shape as EShape, Stroke, TextEdit, Ui, Window,
+    collapsing_header::CollapsingState, Align2, Button, Color32, Context, CursorIcon, DragValue,
+    PointerButton, TextEdit, Ui, Window,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::time::Duration;
-use strum::IntoEnumIterator;
 use uuid::Uuid;
 
 #[derive(Default)]
@@ -63,9 +64,9 @@ impl ManipulationType {
 
 pub struct EditResponse {
     pub used_dragged: bool,
-    hovered_id: Option<Uuid>,
-    snap_line_x: Option<f64>,
-    snap_line_y: Option<f64>,
+    pub hovered_id: Option<Uuid>,
+    pub snap_line_x: Option<f64>,
+    pub snap_line_y: Option<f64>,
 }
 
 impl HomeFlow {
@@ -268,192 +269,7 @@ impl HomeFlow {
             self.edit_mode.drag_data = None;
         }
 
-        EditResponse {
-            used_dragged,
-            hovered_id: hover_details.map(|h| h.id),
-            snap_line_x,
-            snap_line_y,
-        }
-    }
-
-    pub fn paint_edit_mode(
-        &mut self,
-        painter: &Painter,
-        edit_response: &EditResponse,
-        ctx: &Context,
-    ) {
-        if let Some(snap_line_x) = edit_response.snap_line_x {
-            let y_level = self.world_to_pixels(-1000.0, snap_line_x).y;
-            painter.add(EShape::dashed_line(
-                &[
-                    vec2_to_egui_pos(vec2(0.0, y_level)),
-                    vec2_to_egui_pos(vec2(self.canvas_center.x * 2.0, y_level)),
-                ],
-                Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
-                40.0,
-                20.0,
-            ));
-        }
-        if let Some(snap_line_y) = edit_response.snap_line_y {
-            let x_level = self.world_to_pixels(snap_line_y, -1000.0).x;
-            painter.add(EShape::dashed_line(
-                &[
-                    vec2_to_egui_pos(vec2(x_level, 0.0)),
-                    vec2_to_egui_pos(vec2(x_level, self.canvas_center.y * 2.0)),
-                ],
-                Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
-                40.0,
-                20.0,
-            ));
-        }
-
-        Window::new("Edit mode instructions".to_string())
-            .fixed_pos(vec2_to_egui_pos(vec2(
-                self.canvas_center.x,
-                self.canvas_center.y * 2.0 - 10.0,
-            )))
-            .fixed_size([300.0, 0.0])
-            .pivot(Align2::CENTER_BOTTOM)
-            .title_bar(false)
-            .resizable(false)
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label("Drag to move room or operation");
-                    ui.label("Click to select room, escape to deselect");
-                    ui.label("Shift to disable snap");
-                    ui.horizontal(|ui| {
-                        ui.add_space(ui.available_width() / 4.0);
-                        if ui.button("Add Room").clicked() {
-                            self.layout.rooms.push(Room::default());
-                        }
-                        if ui.button("Add Furniture").clicked() {
-                            self.layout.furniture.push(Furniture::default());
-                        }
-                        ui.add_space(ui.available_width() / 4.0);
-                    });
-                });
-            });
-
-        // Get hovered room or selected room if there isn't one
-        if let Some(room) = [edit_response.hovered_id, self.edit_mode.selected_id]
-            .iter()
-            .filter_map(|&id| id)
-            .find_map(|id| self.layout.rooms.iter().find(|r| r.id == id))
-        {
-            let rendered_data = room.rendered_data.as_ref().unwrap();
-
-            // Render outline
-            for poly in &rendered_data.polygons {
-                let points: Vec<Vec2> = poly
-                    .exterior()
-                    .points()
-                    .map(coord_to_vec2)
-                    .map(|p| self.world_to_pixels(p.x, p.y))
-                    .collect();
-                closed_dashed_line_with_offset(
-                    painter,
-                    &points,
-                    Stroke::new(6.0, Color32::from_rgba_premultiplied(255, 255, 255, 150)),
-                    60.0,
-                    self.time * 50.0,
-                );
-                for interior in poly.interiors() {
-                    let points: Vec<Vec2> = interior
-                        .points()
-                        .map(coord_to_vec2)
-                        .map(|p| self.world_to_pixels(p.x, p.y))
-                        .collect();
-                    closed_dashed_line_with_offset(
-                        painter,
-                        &points,
-                        Stroke::new(4.0, Color32::from_rgba_premultiplied(255, 200, 200, 150)),
-                        60.0,
-                        self.time * 50.0,
-                    );
-                }
-            }
-
-            // Render original shape
-            let vertices = Shape::Rectangle.vertices(room.pos, room.size, 0.0);
-            let points = vertices
-                .iter()
-                .map(|v| self.world_to_pixels(v.x, v.y))
-                .collect::<Vec<_>>();
-            let stroke = Stroke::new(3.0, Color32::from_rgb(50, 200, 50).gamma_multiply(0.6));
-            closed_dashed_line_with_offset(painter, &points, stroke, 35.0, self.time * 50.0);
-
-            // Render operations
-            for operation in &room.operations {
-                let vertices = operation.vertices(room.pos);
-                let points = vertices
-                    .iter()
-                    .map(|v| self.world_to_pixels(v.x, v.y))
-                    .collect::<Vec<_>>();
-                let stroke = Stroke::new(
-                    3.0,
-                    match operation.action {
-                        Action::Add => Color32::from_rgb(50, 200, 50),
-                        Action::Subtract => Color32::from_rgb(200, 50, 50),
-                        Action::AddWall => Color32::from_rgb(50, 100, 50),
-                        Action::SubtractWall => Color32::from_rgb(160, 90, 50),
-                    }
-                    .gamma_multiply(0.6),
-                );
-                closed_dashed_line_with_offset(painter, &points, stroke, 35.0, self.time * 50.0);
-            }
-
-            // Render openings
-            for opening in &room.openings {
-                let selected = edit_response.hovered_id == Some(opening.id);
-                // Draw a circle for each opening
-                let pos = room.pos + opening.pos;
-                let pos = self.world_to_pixels(pos.x, pos.y);
-                let color = match opening.opening_type {
-                    OpeningType::Door => Color32::from_rgb(255, 100, 0),
-                    OpeningType::Window => Color32::from_rgb(0, 70, 230),
-                }
-                .gamma_multiply(0.8);
-                painter.add(EShape::circle_filled(
-                    vec2_to_egui_pos(pos),
-                    if selected { 16.0 } else { 10.0 },
-                    color,
-                ));
-                painter.add(EShape::circle_filled(
-                    vec2_to_egui_pos(pos),
-                    if selected { 6.0 } else { 2.0 },
-                    Color32::from_rgb(0, 0, 0),
-                ));
-                // Add a line along its rotation
-                let rot_dir = vec2(
-                    opening.rotation.to_radians().cos(),
-                    opening.rotation.to_radians().sin(),
-                ) * (opening.width / 2.0 * self.zoom);
-                let start = vec2_to_egui_pos(pos - rot_dir);
-                let end = vec2_to_egui_pos(pos + rot_dir);
-                painter.line_segment([start, end], Stroke::new(6.0, color));
-            }
-        }
-
-        // Render furniture
-        for furniture in &self.layout.furniture {
-            let selected = edit_response.hovered_id == Some(furniture.id)
-                || self.edit_mode.selected_id == Some(furniture.id);
-            painter.add(EShape::closed_line(
-                Shape::Rectangle
-                    .vertices(furniture.pos, furniture.size, furniture.rotation)
-                    .iter()
-                    .map(|v| vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)))
-                    .collect(),
-                Stroke::new(
-                    if selected { 8.0 } else { 4.0 },
-                    Color32::from_rgb(150, 0, 50).gamma_multiply(0.8),
-                ),
-            ));
-        }
-
         if let Some(selected_id) = self.edit_mode.selected_id {
-            let selected_type = self.edit_mode.selected_type.unwrap();
-            let mut alter_type = AlterObject::None;
             let mut window_open: bool = true;
             Window::new(format!("Edit {selected_id}"))
                 .default_pos(vec2_to_egui_pos(vec2(self.canvas_center.x, 20.0)))
@@ -463,90 +279,67 @@ impl HomeFlow {
                 .resizable(false)
                 .collapsible(true)
                 .open(&mut window_open)
-                .show(ctx, |ui| match selected_type {
-                    ObjectType::Room => {
-                        let room = self.layout.rooms.iter_mut().find(|r| r.id == selected_id);
-                        if let Some(room) = room {
-                            alter_type = room_edit_widgets(ui, &self.layout.materials, room);
-                        }
-                    }
-                    ObjectType::Furniture => {
-                        let furniture = self
-                            .layout
-                            .furniture
-                            .iter_mut()
-                            .find(|f| f.id == selected_id);
-                        if let Some(furniture) = furniture {
-                            // alter_type = furniture_edit_widgets(ui, furniture);
-                        }
-                    }
-                    _ => {}
-                });
+                .show(ctx, |ui| self.edit_widgets(ui, selected_id));
             if !window_open {
                 self.edit_mode.selected_id = None;
                 self.edit_mode.selected_type = None;
             }
-            match alter_type {
-                AlterObject::Delete => {
-                    match selected_type {
-                        ObjectType::Room => {
+        }
+
+        EditResponse {
+            used_dragged,
+            hovered_id: hover_details.map(|h| h.id),
+            snap_line_x,
+            snap_line_y,
+        }
+    }
+
+    fn edit_widgets(&mut self, ui: &mut Ui, selected_id: Uuid) {
+        match self.edit_mode.selected_type.unwrap() {
+            ObjectType::Room => {
+                let room_and_index = self.layout.rooms.iter_mut().enumerate().find_map(|obj| {
+                    if obj.1.id == selected_id {
+                        Some(obj)
+                    } else {
+                        None
+                    }
+                });
+                if let Some((index, room)) = room_and_index {
+                    let alter_type = room_edit_widgets(ui, &self.layout.materials, room);
+                    match alter_type {
+                        AlterObject::Delete => {
                             self.layout.rooms.retain(|r| r.id != selected_id);
+                            self.edit_mode.selected_id = None;
+                            self.edit_mode.selected_type = None;
                         }
-                        ObjectType::Furniture => {
-                            self.layout.furniture.retain(|f| f.id != selected_id);
+                        AlterObject::MoveUp => {
+                            if index < self.layout.rooms.len() - 1 {
+                                self.layout.rooms.swap(index, index + 1);
+                            }
                         }
-                        _ => {}
+                        AlterObject::MoveDown => {
+                            if index > 0 {
+                                self.layout.rooms.swap(index, index - 1);
+                            }
+                        }
+                        AlterObject::None => {}
                     }
-                    self.edit_mode.selected_id = None;
-                    self.edit_mode.selected_type = None;
                 }
-                AlterObject::MoveUp | AlterObject::MoveDown => match selected_type {
-                    ObjectType::Room => {
-                        let index = self
-                            .layout
-                            .rooms
-                            .iter()
-                            .position(|r| r.id == selected_id)
-                            .unwrap();
-                        match alter_type {
-                            AlterObject::MoveUp => {
-                                if index < self.layout.rooms.len() - 1 {
-                                    self.layout.rooms.swap(index, index + 1);
-                                }
-                            }
-                            AlterObject::MoveDown => {
-                                if index > 0 {
-                                    self.layout.rooms.swap(index, index - 1);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    ObjectType::Furniture => {
-                        let index = self
-                            .layout
-                            .furniture
-                            .iter()
-                            .position(|f| f.id == selected_id)
-                            .unwrap();
-                        match alter_type {
-                            AlterObject::MoveUp => {
-                                if index < self.layout.furniture.len() - 1 {
-                                    self.layout.furniture.swap(index, index + 1);
-                                }
-                            }
-                            AlterObject::MoveDown => {
-                                if index > 0 {
-                                    self.layout.furniture.swap(index, index - 1);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                },
-                AlterObject::None => {}
             }
+            ObjectType::Furniture => {
+                let furniture_and_index =
+                    self.layout.rooms.iter_mut().enumerate().find_map(|obj| {
+                        if obj.1.id == selected_id {
+                            Some(obj)
+                        } else {
+                            None
+                        }
+                    });
+                if let Some((index, furniture)) = furniture_and_index {
+                    // let alter_type = furniture_edit_widgets(ui, furniture);
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -612,7 +405,6 @@ fn room_edit_widgets(
             edit_option(
                 ui,
                 "Outline",
-                false,
                 &mut room.outline,
                 Outline::default,
                 |ui, outline| {
@@ -687,8 +479,7 @@ fn room_edit_widgets(
                         ui.horizontal(|ui| {
                             edit_option(
                                 ui,
-                                "Use Parent Material",
-                                true,
+                                "Custom Material",
                                 &mut operation.material,
                                 || room.material.clone(),
                                 |ui, content| {
@@ -779,160 +570,4 @@ fn room_edit_widgets(
     });
 
     alter_type
-}
-
-// Helper function to create a combo box for an enum
-fn combo_box_for_enum<T>(ui: &mut egui::Ui, id: impl std::hash::Hash, selected: &mut T, label: &str)
-where
-    T: ToString + PartialEq + Copy + IntoEnumIterator,
-{
-    let display_label = if label.is_empty() {
-        selected.to_string()
-    } else {
-        format!("{}: {}", label, selected.to_string())
-    };
-
-    ComboBox::from_id_source(id)
-        .selected_text(display_label)
-        .show_ui(ui, |ui| {
-            for variant in T::iter() {
-                ui.selectable_value(selected, variant, variant.to_string());
-            }
-        });
-}
-
-// Helper function to create a combo box for materials
-fn combo_box_for_materials(
-    ui: &mut egui::Ui,
-    id: Uuid,
-    materials: &Vec<GlobalMaterial>,
-    selected: &mut String,
-) {
-    ComboBox::from_id_source(format!("Materials {id}"))
-        .selected_text(selected.clone())
-        .show_ui(ui, |ui| {
-            for material in materials {
-                ui.selectable_value(selected, material.name.clone(), &material.name);
-            }
-        });
-}
-
-// Helper function to edit Vec2 using two DragValue widgets
-fn edit_vec2(ui: &mut egui::Ui, label: &str, vec2: &mut Vec2, speed: f32, fixed_decimals: usize) {
-    labelled_widget(ui, label, |ui| {
-        ui.add(
-            egui::DragValue::new(&mut vec2.x)
-                .speed(speed)
-                .fixed_decimals(fixed_decimals)
-                .prefix("X: "),
-        );
-        ui.add(
-            egui::DragValue::new(&mut vec2.y)
-                .speed(speed)
-                .fixed_decimals(fixed_decimals)
-                .prefix("Y: "),
-        );
-    });
-}
-
-// Helper function to edit rotation using a DragValue widget and returning if changed
-fn edit_rotation(ui: &mut egui::Ui, rotation: &mut f64) {
-    labelled_widget(ui, "Rotation", |ui| {
-        if ui
-            .add(
-                DragValue::new(rotation)
-                    .speed(5)
-                    .fixed_decimals(0)
-                    .suffix("°"),
-            )
-            .changed()
-        {
-            *rotation = rotation.rem_euclid(360.0);
-        }
-    });
-}
-
-// Helper function to wrap any widget in a horizontal layout with label
-fn labelled_widget<F>(ui: &mut egui::Ui, label: &str, widget: F)
-where
-    F: FnOnce(&mut egui::Ui),
-{
-    ui.horizontal(|ui| {
-        ui.label(label);
-        widget(ui);
-    });
-}
-
-// Helper function to edit an option using a checkbox and a widget
-fn edit_option<T, F, D>(
-    ui: &mut egui::Ui,
-    label: &str,
-    inverted: bool,
-    option: &mut Option<T>,
-    default: D,
-    mut widget: F,
-) where
-    F: FnMut(&mut egui::Ui, &mut T),
-    D: FnOnce() -> T,
-{
-    let mut checkbox_state = if inverted {
-        option.is_none()
-    } else {
-        option.is_some()
-    };
-
-    if ui
-        .add(egui::Checkbox::new(&mut checkbox_state, label))
-        .changed()
-    {
-        *option = if (checkbox_state && inverted) || (!checkbox_state && !inverted) {
-            None
-        } else {
-            Some(default())
-        };
-    }
-
-    // Pass mutable reference to the content to the widget closure
-    if let Some(ref mut content) = option {
-        widget(ui, content);
-    }
-}
-
-fn closed_dashed_line_with_offset(
-    painter: &Painter,
-    points: &[Vec2],
-    stroke: Stroke,
-    desired_combined_length: f64,
-    time: f64,
-) {
-    let mut points = points.to_vec();
-    points.push(points[0]);
-
-    let mut total_length = 0.0;
-    for i in 0..points.len() {
-        let next_index = (i + 1) % points.len();
-        total_length += points[i].distance(points[next_index]);
-    }
-
-    let num_dashes = (total_length / desired_combined_length).round() as usize;
-    let combined_length = total_length / num_dashes as f64;
-    let dash_length = combined_length * 0.6;
-    let gap_length = combined_length - dash_length;
-
-    let offset = time % combined_length;
-    let normal = (points[1] - points[0]).normalize();
-    points.push(points[0] + normal * offset);
-
-    let points = points
-        .iter()
-        .map(|p| vec2_to_egui_pos(*p))
-        .collect::<Vec<_>>();
-
-    painter.add(EShape::dashed_line_with_offset(
-        &points,
-        stroke,
-        &[dash_length as f32],
-        &[gap_length as f32],
-        offset as f32,
-    ));
 }

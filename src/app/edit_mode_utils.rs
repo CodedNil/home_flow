@@ -2,9 +2,14 @@ use super::{
     edit_mode::{DragData, ManipulationType, ObjectType},
     HomeFlow,
 };
-use crate::common::{layout::Shape, shape::coord_to_vec2};
-use egui::{CursorIcon, Key, Ui};
+use crate::common::{
+    layout::{GlobalMaterial, Shape},
+    shape::coord_to_vec2,
+    utils::vec2_to_egui_pos,
+};
+use egui::{ComboBox, CursorIcon, DragValue, Key, Painter, Shape as EShape, Stroke, Ui};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
+use strum::IntoEnumIterator;
 use uuid::Uuid;
 
 pub struct HoverDetails {
@@ -381,4 +386,148 @@ pub fn apply_standard_transform(
             pos.y = new_pos.y - new_size / 2.0 * sign;
         }
     }
+}
+
+pub fn combo_box_for_enum<T>(
+    ui: &mut egui::Ui,
+    id: impl std::hash::Hash,
+    selected: &mut T,
+    label: &str,
+) where
+    T: ToString + PartialEq + Copy + IntoEnumIterator,
+{
+    ComboBox::from_id_source(id)
+        .selected_text(if label.is_empty() {
+            selected.to_string()
+        } else {
+            format!("{}: {}", label, selected.to_string())
+        })
+        .show_ui(ui, |ui| {
+            for variant in T::iter() {
+                ui.selectable_value(selected, variant, variant.to_string());
+            }
+        });
+}
+
+pub fn combo_box_for_materials(
+    ui: &mut egui::Ui,
+    id: Uuid,
+    materials: &Vec<GlobalMaterial>,
+    selected: &mut String,
+) {
+    ComboBox::from_id_source(format!("Materials {id}"))
+        .selected_text(selected.clone())
+        .show_ui(ui, |ui| {
+            for material in materials {
+                ui.selectable_value(selected, material.name.clone(), &material.name);
+            }
+        });
+}
+
+pub fn edit_vec2(
+    ui: &mut egui::Ui,
+    label: &str,
+    vec2: &mut Vec2,
+    speed: f32,
+    fixed_decimals: usize,
+) {
+    labelled_widget(ui, label, |ui| {
+        ui.add(
+            egui::DragValue::new(&mut vec2.x)
+                .speed(speed)
+                .fixed_decimals(fixed_decimals)
+                .prefix("X: "),
+        );
+        ui.add(
+            egui::DragValue::new(&mut vec2.y)
+                .speed(speed)
+                .fixed_decimals(fixed_decimals)
+                .prefix("Y: "),
+        );
+    });
+}
+
+pub fn edit_rotation(ui: &mut egui::Ui, rotation: &mut f64) {
+    labelled_widget(ui, "Rotation", |ui| {
+        let widget = ui.add(
+            DragValue::new(rotation)
+                .speed(5)
+                .fixed_decimals(0)
+                .suffix("°"),
+        );
+        if widget.changed() {
+            *rotation = rotation.rem_euclid(360.0);
+        }
+    });
+}
+
+pub fn labelled_widget<F>(ui: &mut egui::Ui, label: &str, widget: F)
+where
+    F: FnOnce(&mut egui::Ui),
+{
+    ui.horizontal(|ui| {
+        ui.label(label);
+        widget(ui);
+    });
+}
+
+pub fn edit_option<T, F, D>(
+    ui: &mut egui::Ui,
+    label: &str,
+    option: &mut Option<T>,
+    default: D,
+    mut widget: F,
+) where
+    F: FnMut(&mut egui::Ui, &mut T),
+    D: FnOnce() -> T,
+{
+    let mut checkbox_state = option.is_some();
+    let checkbox = ui.add(egui::Checkbox::new(&mut checkbox_state, label));
+    if checkbox.changed() {
+        *option = if checkbox_state {
+            Some(default())
+        } else {
+            None
+        };
+    }
+    if let Some(content) = option {
+        widget(ui, content);
+    }
+}
+
+pub fn closed_dashed_line_with_offset(
+    painter: &Painter,
+    points: &[Vec2],
+    stroke: Stroke,
+    desired_combined_length: f64,
+    time: f64,
+) {
+    let mut points = points.to_vec();
+    points.push(points[0]);
+
+    let mut total_length = 0.0;
+    for i in 0..points.len() {
+        let next_index = (i + 1) % points.len();
+        total_length += points[i].distance(points[next_index]);
+    }
+
+    let combined_length = total_length / (total_length / desired_combined_length).round();
+    let dash_length = combined_length * 0.6;
+    let gap_length = combined_length - dash_length;
+
+    let offset = time % combined_length;
+    points.push(points[0] + (points[1] - points[0]).normalize() * offset);
+
+    let points = points
+        .iter()
+        .map(|p| vec2_to_egui_pos(*p))
+        .collect::<Vec<_>>();
+
+    painter.add(EShape::dashed_line_with_offset(
+        &points,
+        stroke,
+        &[dash_length as f32],
+        &[gap_length as f32],
+        offset as f32,
+    ));
 }

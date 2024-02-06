@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
 mod edit_mode;
+mod edit_mode_render;
 mod edit_mode_utils;
 mod render;
 
