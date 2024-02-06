@@ -3,22 +3,17 @@ use super::{
         Action, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles,
         Walls,
     },
-    utils::rotate_point,
+    utils::{rotate_point, Material},
 };
 use egui::Color32;
 use geo::BooleanOps;
 use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
-use image::RgbaImage;
-use once_cell::sync::Lazy;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
 };
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
 
 pub const WALL_WIDTH: f64 = 0.1;
 
@@ -57,24 +52,14 @@ impl Home {
             .map(|(index, id, hash)| {
                 let room = &self.rooms[*index];
                 let polygons = room.polygons();
-                let (material_polygons, material_triangles) = room.material_polygons();
-                let any_add = room
-                    .operations
-                    .iter()
-                    .any(|operation| operation.action == Action::AddWall);
+                let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
                 let wall_polygons = if room.walls == Walls::NONE && !any_add {
                     EMPTY_MULTI_POLYGON
                 } else {
                     room.wall_polygons(&polygons)
                 };
-                (
-                    *id,
-                    *hash,
-                    polygons,
-                    material_polygons,
-                    material_triangles,
-                    wall_polygons,
-                )
+                let (mat_polys, mat_tris) = room.material_polygons();
+                (*id, *hash, polygons, mat_polys, mat_tris, wall_polygons)
             })
             .collect::<Vec<_>>();
         // Update rooms with new data
@@ -144,26 +129,7 @@ impl Room {
 
         for operation in &self.operations {
             if operation.action == Action::Add {
-                let center = self.pos + operation.pos;
-                let corners = [
-                    center - operation.size / 2.0,
-                    vec2(
-                        center.x + operation.size.x / 2.0,
-                        center.y - operation.size.y / 2.0,
-                    ),
-                    center + operation.size / 2.0,
-                    vec2(
-                        center.x - operation.size.x / 2.0,
-                        center.y + operation.size.y / 2.0,
-                    ),
-                ];
-
-                let rotated_corners: Vec<_> = corners
-                    .iter()
-                    .map(|&corner| rotate_point(corner, center, -operation.rotation))
-                    .collect();
-
-                for &corner in &rotated_corners {
+                for corner in operation.vertices(self.pos) {
                     min = min.min(corner);
                     max = max.max(corner);
                 }
@@ -183,24 +149,16 @@ impl Room {
     pub fn contains(&self, point: Vec2) -> bool {
         let mut inside = Shape::Rectangle.contains(point, self.pos, self.size, 0.0);
         for operation in &self.operations {
-            let op_contains = operation.shape.contains(
-                point,
-                self.pos + operation.pos,
-                operation.size,
-                operation.rotation,
-            );
-            match operation.action {
-                Action::Add => {
-                    if op_contains {
+            if operation.contains(self.pos, point) {
+                match operation.action {
+                    Action::Add => {
                         inside = true;
                     }
-                }
-                Action::Subtract => {
-                    if op_contains {
+                    Action::Subtract => {
                         inside = false;
                     }
+                    _ => {}
                 }
-                _ => {}
             }
         }
         inside
@@ -210,12 +168,7 @@ impl Room {
         let mut polygons =
             create_multipolygon(&Shape::Rectangle.vertices(self.pos, self.size, 0.0));
         for operation in &self.operations {
-            let operation_polygon = create_multipolygon(&operation.shape.vertices(
-                self.pos + operation.pos,
-                operation.size,
-                operation.rotation,
-            ));
-
+            let operation_polygon = operation.polygons(self.pos);
             match operation.action {
                 Action::Add => {
                     polygons = polygons.union(&operation_polygon);
@@ -226,7 +179,6 @@ impl Room {
                 _ => {}
             }
         }
-
         polygons
     }
 
@@ -242,33 +194,27 @@ impl Room {
             create_multipolygon(&Shape::Rectangle.vertices(self.pos, self.size, 0.0)),
         );
         for operation in &self.operations {
-            let operation_polygon = create_multipolygon(&operation.shape.vertices(
-                self.pos + operation.pos,
-                operation.size,
-                operation.rotation,
-            ));
-
+            let op_polygon = operation.polygons(self.pos);
             match operation.action {
                 Action::Add => {
-                    // Operation render_options might be none in which case its the same as the room
                     let material = operation
                         .material
                         .clone()
                         .unwrap_or_else(|| self.material.clone());
                     polygons
                         .entry(material.clone())
-                        .and_modify(|poly| *poly = poly.union(&operation_polygon))
-                        .or_insert_with(|| operation_polygon.clone());
+                        .and_modify(|poly| *poly = poly.union(&op_polygon))
+                        .or_insert_with(|| op_polygon.clone());
                     // Remove from all other polygons
                     for (other_material, poly) in &mut polygons {
                         if other_material != &material {
-                            *poly = poly.difference(&operation_polygon);
+                            *poly = poly.difference(&op_polygon);
                         }
                     }
                 }
                 Action::Subtract => {
                     for poly in polygons.values_mut() {
-                        *poly = poly.difference(&operation_polygon);
+                        *poly = poly.difference(&op_polygon);
                     }
                 }
                 _ => {}
@@ -315,12 +261,7 @@ impl Room {
         // Subtract operations that are SubtractWall
         for operation in &self.operations {
             if operation.action == Action::SubtractWall {
-                let operation_polygon = create_multipolygon(&operation.shape.vertices(
-                    self.pos + operation.pos,
-                    operation.size,
-                    operation.rotation,
-                ));
-                new_polys = new_polys.difference(&operation_polygon);
+                new_polys = new_polys.difference(&operation.polygons(self.pos));
             }
         }
 
@@ -335,50 +276,29 @@ impl Room {
 
         let up = size.y * 0.5 - width_half * 3.0;
         let right = size.x * 0.5 - width_half * 3.0;
-        let vertices = vec![
-            // Left
-            vec![
-                center,
-                center + vec2(-right, up),
-                center + vec2(-right * 4.0, up),
-                center + vec2(-right * 4.0, -up),
-                center + vec2(-right, -up),
-            ],
-            // Top
-            vec![
-                center,
-                center + vec2(-right, up),
-                center + vec2(-right, up * 4.0),
-                center + vec2(right, up * 4.0),
-                center + vec2(right, up),
-            ],
-            // Right
-            vec![
-                center,
-                center + vec2(right, up),
-                center + vec2(right * 4.0, up),
-                center + vec2(right * 4.0, -up),
-                center + vec2(right, -up),
-            ],
-            // Bottom
-            vec![
-                center,
-                center + vec2(-right, -up),
-                center + vec2(-right, -up * 4.0),
-                center + vec2(right, -up * 4.0),
-                center + vec2(right, -up),
-            ],
-        ];
+
         let mut subtract_shape = EMPTY_MULTI_POLYGON;
         for index in 0..4 {
-            let (is_wall, vertices) = match index {
-                0 => (self.walls.left, vertices[0].clone()),
-                1 => (self.walls.top, vertices[1].clone()),
-                2 => (self.walls.right, vertices[2].clone()),
-                _ => (self.walls.bottom, vertices[3].clone()),
-            };
-            if !is_wall {
-                subtract_shape = subtract_shape.union(&create_multipolygon(&vertices));
+            if !match index {
+                0 => self.walls.left,
+                1 => self.walls.top,
+                2 => self.walls.right,
+                _ => self.walls.bottom,
+            } {
+                let pos_neg = vec2(1.0, -1.0);
+                let neg_pos = vec2(-1.0, 1.0);
+                let neg = vec2(-1.0, -1.0);
+                let pos = vec2(1.0, 1.0);
+                let mut vertices = vec![
+                    vec![Vec2::ZERO, neg_pos, vec2(-4.0, 1.0), vec2(-4.0, -1.0), neg], // Left
+                    vec![Vec2::ZERO, neg_pos, vec2(-1.0, 4.0), vec2(1.0, 4.0), pos],   // Top
+                    vec![Vec2::ZERO, pos, vec2(4.0, 1.0), vec2(4.0, -1.0), pos_neg],   // Right
+                    vec![Vec2::ZERO, neg, vec2(-1.0, -4.0), vec2(1.0, -4.0), pos_neg], // Bottom
+                ];
+                vertices[index]
+                    .iter_mut()
+                    .for_each(|vertex| *vertex = center + *vertex * vec2(right, up));
+                subtract_shape = subtract_shape.union(&create_multipolygon(&vertices[index]));
             }
         }
         // Add corners
@@ -400,18 +320,12 @@ impl Room {
         // Add back operations that are AddWall
         for operation in &self.operations {
             if operation.action == Action::AddWall {
-                let operation_polygon = create_multipolygon(&operation.shape.vertices(
-                    self.pos + operation.pos,
-                    operation.size,
-                    operation.rotation,
-                ));
+                let operation_polygon = operation.polygons(self.pos);
                 subtract_shape = subtract_shape.difference(&operation_polygon);
             }
         }
 
-        new_polys = new_polys.difference(&subtract_shape);
-
-        new_polys
+        new_polys.difference(&subtract_shape)
     }
 }
 
@@ -420,54 +334,28 @@ impl Operation {
         self.shape
             .contains(point, room_pos + self.pos, self.size, self.rotation)
     }
-}
 
-#[derive(Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, EnumIter)]
-pub enum Material {
-    Carpet,
-    Marble,
-    Granite,
-    Limestone,
-    Wood,
-}
+    pub fn vertices(&self, room_pos: Vec2) -> Vec<Vec2> {
+        self.shape
+            .vertices(room_pos + self.pos, self.size, self.rotation)
+    }
 
-impl Material {
-    pub const fn get_image(&self) -> &[u8] {
-        match self {
-            Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
-            Self::Marble => include_bytes!("../../assets/textures/marble.png"),
-            Self::Granite => include_bytes!("../../assets/textures/granite.png"),
-            Self::Limestone => include_bytes!("../../assets/textures/limestone.png"),
-            Self::Wood => include_bytes!("../../assets/textures/wood.png"),
-        }
+    pub fn polygons(&self, room_pos: Vec2) -> MultiPolygon {
+        create_multipolygon(&self.vertices(room_pos))
     }
 }
 
-pub static TEXTURES: Lazy<HashMap<Material, RgbaImage>> = Lazy::new(|| {
-    let mut m = HashMap::new();
-    for variant in Material::iter() {
-        m.insert(
-            variant,
-            image::load_from_memory(variant.get_image())
-                .unwrap()
-                .into_rgba8(),
-        );
-    }
-    m
-});
-
-pub fn coord_to_vec2(c: geo_types::Point<f64>) -> Vec2 {
+pub fn coord_to_vec2(c: geo_types::Point) -> Vec2 {
     vec2(c.x(), c.y())
+}
+
+pub const fn vec2_to_coord(v: &Vec2) -> geo_types::Coord {
+    geo_types::Coord { x: v.x, y: v.y }
 }
 
 pub fn create_multipolygon(vertices: &[Vec2]) -> MultiPolygon {
     MultiPolygon(vec![Polygon::new(
-        geo::LineString::from(
-            vertices
-                .iter()
-                .map(|v| geo_types::Coord { x: v.x, y: v.y })
-                .collect::<Vec<_>>(),
-        ),
+        geo::LineString::from(vertices.iter().map(vec2_to_coord).collect::<Vec<_>>()),
         vec![],
     )])
 }
@@ -475,40 +363,26 @@ pub fn create_multipolygon(vertices: &[Vec2]) -> MultiPolygon {
 pub const EMPTY_MULTI_POLYGON: MultiPolygon = MultiPolygon(vec![]);
 
 pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
-    // Convert the geo Polygon into the Vec<Vec<Vec<T>>> format expected by flatten
-    let mut data = Vec::new();
-    let mut exterior_ring = Vec::new();
-    for point in polygon.exterior().points() {
-        exterior_ring.push(vec![point.x(), point.y()]);
-    }
-    data.push(exterior_ring);
-
-    for interior in polygon.interiors() {
-        let mut interior_ring = Vec::new();
-        for point in interior.points() {
-            interior_ring.push(vec![point.x(), point.y()]);
-        }
-        data.push(interior_ring);
-    }
+    // Prepare polygon data for triangulation
+    let data = std::iter::once(polygon.exterior())
+        .chain(polygon.interiors())
+        .map(|ring| ring.points().map(|p| vec![p.x(), p.y()]).collect())
+        .collect();
 
     // Use the flatten function to prepare data for earcut
     let (vertices, hole_indices, dims) = earcutr::flatten(&data);
-
-    // Perform triangulation
     let triangle_indices = earcutr::earcut(&vertices, &hole_indices, dims);
 
     triangle_indices.map_or_else(
         |_| (vec![], vec![]),
-        |triangle_indices| {
-            // Convert flat vertex list to Vec<glam::Vec2>
-            let vertices_vec2: Vec<Vec2> = vertices
-                .chunks(dims)
-                .map(|chunk| vec2(chunk[0], chunk[1]))
-                .collect();
-            // Convert triangle indices to Vec<u32>
-            let triangle_indices: Vec<u32> = triangle_indices.iter().map(|&i| i as u32).collect();
-
-            (triangle_indices, vertices_vec2)
+        |indices| {
+            (
+                indices.iter().map(|&i| i as u32).collect(),
+                vertices
+                    .chunks(dims)
+                    .map(|chunk| vec2(chunk[0], chunk[1]))
+                    .collect(),
+            )
         },
     )
 }
@@ -524,72 +398,42 @@ impl Shape {
                     && point.y <= center.y + size.y / 2.0
             }
             Self::Circle => {
-                let a = size.x / 2.0;
-                let b = size.y / 2.0;
-                let dx = (point.x - center.x) / a;
-                let dy = (point.y - center.y) / b;
-
+                let dx = (point.x - center.x) / (size.x / 2.0);
+                let dy = (point.y - center.y) / (size.y / 2.0);
                 dx * dx + dy * dy <= 1.0
             }
             Self::Triangle => {
-                let base = size.x;
-                let height = size.y;
-                let hypotenuse_slope = height / base;
-
-                let relative_point_x = point.x - center.x + size.x / 2.0;
-                let relative_point_y = center.y - point.y + size.y / 2.0;
-
-                relative_point_x >= 0.0
-                    && relative_point_y >= 0.0
-                    && relative_point_y <= height
-                    && relative_point_y <= (-hypotenuse_slope) * relative_point_x + height
+                let relative_x = point.x - center.x + size.x / 2.0;
+                let relative_y = center.y - point.y + size.y / 2.0;
+                relative_x >= 0.0
+                    && relative_y >= 0.0
+                    && relative_y <= size.y
+                    && relative_y <= -(size.y / size.x) * relative_x + size.y
             }
         }
     }
 
     pub fn vertices(self, pos: Vec2, size: Vec2, rotation: f64) -> Vec<Vec2> {
-        match self {
-            Self::Rectangle => {
-                let mut vertices = vec![
-                    vec2(pos.x - size.x / 2.0, pos.y - size.y / 2.0),
-                    vec2(pos.x + size.x / 2.0, pos.y - size.y / 2.0),
-                    vec2(pos.x + size.x / 2.0, pos.y + size.y / 2.0),
-                    vec2(pos.x - size.x / 2.0, pos.y + size.y / 2.0),
-                ];
-                for vertex in &mut vertices {
-                    *vertex = rotate_point(*vertex, pos, -rotation);
-                }
-                vertices
-            }
+        let mut vertices = match self {
+            Self::Rectangle => vec![(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)],
             Self::Circle => {
-                let radius_x = size.x / 2.0;
-                let radius_y = size.y / 2.0;
                 let quality = 90;
-                let mut vertices = Vec::with_capacity(quality);
-                for i in 0..quality {
-                    let angle = (i as f64 / quality as f64) * std::f64::consts::PI * 2.0;
-                    vertices.push(vec2(
-                        pos.x + angle.cos() * radius_x,
-                        pos.y + angle.sin() * radius_y,
-                    ));
-                }
-                for vertex in &mut vertices {
-                    *vertex = rotate_point(*vertex, pos, -rotation);
-                }
-                vertices
+                (0..quality)
+                    .map(|i| {
+                        let angle = (i as f64 / quality as f64) * std::f64::consts::PI * 2.0;
+                        (angle.cos() * 0.5, angle.sin() * 0.5)
+                    })
+                    .collect()
             }
-            Self::Triangle => {
-                let mut vertices = vec![
-                    vec2(pos.x - size.x / 2.0, pos.y + size.y / 2.0), // Right angle at top left
-                    vec2(pos.x + size.x / 2.0, pos.y + size.y / 2.0), // Bottom right
-                    vec2(pos.x - size.x / 2.0, pos.y - size.y / 2.0), // Top right
-                ];
-                for vertex in &mut vertices {
-                    *vertex = rotate_point(*vertex, pos, -rotation);
-                }
-                vertices
-            }
+            Self::Triangle => vec![(-0.5, 0.5), (0.5, 0.5), (-0.5, -0.5)],
         }
+        .iter()
+        .map(|(x_offset, y_offset)| vec2(pos.x + x_offset * size.x, pos.y + y_offset * size.y))
+        .collect::<Vec<_>>();
+        vertices
+            .iter_mut()
+            .for_each(|vertex| *vertex = rotate_point(*vertex, pos, -rotation));
+        vertices
     }
 }
 

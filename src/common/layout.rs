@@ -1,4 +1,4 @@
-use super::{shape::Material, utils::clone_as_none};
+use super::utils::{clone_as_none, Material};
 use derivative::Derivative;
 use egui::Color32;
 use geo_types::MultiPolygon;
@@ -264,7 +264,7 @@ impl Home {
                     vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0)).rotate(180.0)],
                 ),
             ],
-            furniture: vec![],
+            furniture: vec![Furniture::new(vec2(0.0, 0.0), vec2(1.0, 1.0), 0.0)],
             rendered_data: None,
         }
     }

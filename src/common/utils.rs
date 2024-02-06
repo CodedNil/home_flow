@@ -1,15 +1,14 @@
-use super::{
-    layout::{
-        Action, Furniture, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room,
-        Shape, Walls,
-    },
-    shape::Material,
+use super::layout::{
+    Action, Furniture, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room, Shape,
+    Walls,
 };
 use egui::Color32;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
+use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
+use strum_macros::{Display, EnumIter};
 
-pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
+fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
     vec.x.to_bits().hash(state);
     vec.y.to_bits().hash(state);
 }
@@ -111,6 +110,21 @@ impl Room {
         }
     }
 
+    pub fn default() -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            name: "New Room".to_owned(),
+            material: String::new(),
+            pos: Vec2::ZERO,
+            size: vec2(1.0, 1.0),
+            walls: Walls::WALL,
+            operations: Vec::new(),
+            openings: Vec::new(),
+            outline: None,
+            rendered_data: None,
+        }
+    }
+
     pub fn outline(&self, outline: Outline) -> Self {
         Self {
             outline: Some(outline),
@@ -189,6 +203,17 @@ impl Opening {
         }
     }
 
+    pub fn default() -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            opening_type: OpeningType::Door,
+            pos: Vec2::ZERO,
+            rotation: 0.0,
+            width: 0.8,
+            open_amount: 0.0,
+        }
+    }
+
     pub const fn rotate(&self, angle: f64) -> Self {
         Self {
             rotation: angle,
@@ -233,6 +258,16 @@ impl Furniture {
             children: Vec::new(),
         }
     }
+
+    pub fn default() -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            pos: Vec2::ZERO,
+            size: vec2(1.0, 1.0),
+            rotation: 0.0,
+            children: Vec::new(),
+        }
+    }
 }
 impl std::fmt::Display for Furniture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -273,6 +308,18 @@ impl Operation {
             material: None,
             pos,
             size,
+            rotation: 0.0,
+        }
+    }
+
+    pub fn default() -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            action: Action::Add,
+            shape: Shape::Rectangle,
+            material: None,
+            pos: Vec2::ZERO,
+            size: vec2(1.0, 1.0),
             rotation: 0.0,
         }
     }
@@ -366,6 +413,27 @@ impl Hash for GlobalMaterial {
         self.name.hash(state);
         self.material.hash(state);
         self.tint.hash(state);
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, EnumIter)]
+pub enum Material {
+    Carpet,
+    Marble,
+    Granite,
+    Limestone,
+    Wood,
+}
+
+impl Material {
+    pub const fn get_image(&self) -> &[u8] {
+        match self {
+            Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
+            Self::Marble => include_bytes!("../../assets/textures/marble.png"),
+            Self::Granite => include_bytes!("../../assets/textures/granite.png"),
+            Self::Limestone => include_bytes!("../../assets/textures/limestone.png"),
+            Self::Wood => include_bytes!("../../assets/textures/wood.png"),
+        }
     }
 }
 

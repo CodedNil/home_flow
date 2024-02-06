@@ -1,7 +1,7 @@
 use super::HomeFlow;
 use crate::common::{
     layout::{OpeningType, Shape},
-    shape::{TEXTURES, WALL_WIDTH},
+    shape::WALL_WIDTH,
     utils::{rotate_point, vec2_to_egui_pos},
 };
 use egui::{
@@ -94,11 +94,14 @@ impl HomeFlow {
                         .textures
                         .entry(material.to_string())
                         .or_insert_with(|| {
-                            let texture = TEXTURES.get(&global_material.material).unwrap();
+                            let texture =
+                                image::load_from_memory(global_material.material.get_image())
+                                    .unwrap()
+                                    .into_rgba8();
                             let canvas_size = texture.dimensions();
                             let egui_image = ColorImage::from_rgba_unmultiplied(
                                 [canvas_size.0 as usize, canvas_size.1 as usize],
-                                texture,
+                                &texture,
                             );
                             ctx.load_texture(
                                 material.to_string(),
