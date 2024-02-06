@@ -10,8 +10,8 @@ use crate::common::{
     utils::vec2_to_egui_pos,
 };
 use egui::{
-    collapsing_header::CollapsingState, Align2, Button, Color32, Context, CursorIcon, DragValue,
-    PointerButton, TextEdit, Ui, Window,
+    collapsing_header::CollapsingState, Align2, Button, Color32, Context, DragValue, PointerButton,
+    TextEdit, Ui, Window,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::time::Duration;
@@ -32,7 +32,7 @@ pub struct DragData {
     pub manipulation_type: ManipulationType,
     pub mouse_start_pos: Vec2,
     pub object_start_pos: Vec2,
-    pub bounds: (Vec2, Vec2),
+    pub object_size: Vec2,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -169,12 +169,12 @@ impl HomeFlow {
             };
         }
 
+        let snap_enabled = !ui.input(|i| i.modifiers.shift); // Shift to disable snap
         let hover_details = self.hover_select(response, ui);
 
-        let snap_enabled = !ui.input(|i| i.modifiers.shift); // Shift to disable snap
-
+        let mouse_down = ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
         if let Some(hover_details) = &hover_details {
-            let mouse_down = ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
+            // Start drag
             if mouse_down && self.edit_mode.drag_data.is_none() && hover_details.can_drag {
                 self.edit_mode.drag_data = Some(DragData {
                     id: hover_details.id,
@@ -182,7 +182,7 @@ impl HomeFlow {
                     manipulation_type: hover_details.manipulation_type,
                     mouse_start_pos: self.mouse_pos_world,
                     object_start_pos: hover_details.pos,
-                    bounds: hover_details.bounds,
+                    object_size: hover_details.size,
                 });
             }
         }
@@ -194,14 +194,12 @@ impl HomeFlow {
         if response.dragged_by(PointerButton::Primary) {
             if let Some(drag_data) = &self.edit_mode.drag_data {
                 used_dragged = true;
-                ctx.set_cursor_icon(CursorIcon::Grab);
 
                 let (new_pos, new_rotation, snap_x, snap_y) =
                     self.handle_drag(drag_data, snap_enabled);
                 Window::new("Dragging Info")
                     .fixed_pos(vec2_to_egui_pos(
-                        self.world_to_pixels(self.mouse_pos_world.x, self.mouse_pos_world.y)
-                            + vec2(0.0, -60.0),
+                        self.world_to_pixels(self.mouse_pos_world) + vec2(0.0, -60.0),
                     ))
                     .fixed_size([200.0, 0.0])
                     .pivot(Align2::CENTER_CENTER)
@@ -210,12 +208,10 @@ impl HomeFlow {
                     .interactable(false)
                     .show(ctx, |ui| {
                         ui.label(format!("Pos: ({:.1}, {:.1})", new_pos.x, new_pos.y));
-                        let (bounds_min, bounds_max) = drag_data.bounds;
-                        if bounds_min.distance(bounds_max) > 0.0 {
+                        if drag_data.object_size.length() > 0.0 {
                             ui.label(format!(
                                 "Size: ({:.1}, {:.1})",
-                                bounds_max.x - bounds_min.x,
-                                bounds_max.y - bounds_min.y
+                                drag_data.object_size.x, drag_data.object_size.y
                             ));
                         }
                     });
@@ -265,7 +261,7 @@ impl HomeFlow {
                 snap_line_y = snap_y;
             }
         }
-        if response.drag_released_by(PointerButton::Primary) {
+        if !mouse_down {
             self.edit_mode.drag_data = None;
         }
 

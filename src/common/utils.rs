@@ -24,6 +24,16 @@ fn format_float(n: f64) -> String {
     }
 }
 
+pub trait RoundFactor {
+    fn round_factor(&self, factor: f64) -> f64;
+}
+
+impl RoundFactor for f64 {
+    fn round_factor(&self, factor: f64) -> f64 {
+        (self * factor).round() / factor
+    }
+}
+
 pub fn display_vec2(vec: Vec2) -> String {
     format!("[{}x{}]", format_float(vec.x), format_float(vec.y))
 }

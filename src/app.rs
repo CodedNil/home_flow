@@ -97,14 +97,32 @@ impl HomeFlow {
         }
     }
 
-    fn pixels_to_world(&self, x: f64, y: f64) -> Vec2 {
+    fn pixels_to_world(&self, v: Vec2) -> Vec2 {
+        vec2(v.x - self.canvas_center.x, self.canvas_center.y - v.y) / self.zoom
+            - vec2(self.translation.x, -self.translation.y)
+    }
+
+    fn pixels_to_world_xy(&self, x: f64, y: f64) -> Vec2 {
         vec2(x - self.canvas_center.x, self.canvas_center.y - y) / self.zoom
             - vec2(self.translation.x, -self.translation.y)
     }
 
-    fn world_to_pixels(&self, x: f64, y: f64) -> Vec2 {
+    fn world_to_pixels(&self, v: Vec2) -> Vec2 {
+        vec2(v.x + self.translation.x, self.translation.y - v.y) * self.zoom
+            + vec2(self.canvas_center.x, self.canvas_center.y)
+    }
+
+    fn world_to_pixels_xy(&self, x: f64, y: f64) -> Vec2 {
         vec2(x + self.translation.x, self.translation.y - y) * self.zoom
             + vec2(self.canvas_center.x, self.canvas_center.y)
+    }
+
+    fn world_to_pixels_x(&self, x: f64) -> f64 {
+        (x + self.translation.x) * self.zoom + self.canvas_center.x
+    }
+
+    fn world_to_pixels_y(&self, y: f64) -> f64 {
+        (self.translation.y - y) * self.zoom + self.canvas_center.y
     }
 
     fn handle_pan_zoom(&mut self, response: &egui::Response, ui: &egui::Ui) {
@@ -117,17 +135,11 @@ impl HomeFlow {
         let scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta));
         if scroll_delta != Vec2::ZERO {
             let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
-            if let Some(mouse_pos) = ui.input(|i| i.pointer.latest_pos()) {
-                let mouse_world_before_zoom =
-                    self.pixels_to_world(mouse_pos.x as f64, mouse_pos.y as f64);
-                self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
-                let mouse_world_after_zoom =
-                    self.pixels_to_world(mouse_pos.x as f64, mouse_pos.y as f64);
-                let difference = mouse_world_after_zoom - mouse_world_before_zoom;
-                self.translation += Vec2::new(difference.x, -difference.y);
-            } else {
-                self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
-            }
+            let mouse_world_before_zoom = self.pixels_to_world(self.mouse_pos);
+            self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
+            let mouse_world_after_zoom = self.pixels_to_world(self.mouse_pos);
+            let difference = mouse_world_after_zoom - mouse_world_before_zoom;
+            self.translation += Vec2::new(difference.x, -difference.y);
         }
 
         // Clamp translation to bounds
@@ -273,7 +285,7 @@ impl eframe::App for HomeFlow {
                     .input(|i| i.pointer.interact_pos())
                     .map_or(self.mouse_pos, egui_pos_to_vec2);
                 self.mouse_pos = mouse_pos;
-                self.mouse_pos_world = self.pixels_to_world(mouse_pos.x, mouse_pos.y);
+                self.mouse_pos_world = self.pixels_to_world(mouse_pos);
 
                 let edit_mode_response = self.run_edit_mode(&response, ctx, ui);
                 if !edit_mode_response.used_dragged {

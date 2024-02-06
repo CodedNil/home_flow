@@ -1,4 +1,4 @@
-use super::{edit_mode::EditResponse, edit_mode_utils::closed_dashed_line_with_offset, HomeFlow};
+use super::{edit_mode::EditResponse, HomeFlow};
 use crate::common::{
     layout::{Action, Furniture, OpeningType, Room, Shape},
     shape::coord_to_vec2,
@@ -15,7 +15,7 @@ impl HomeFlow {
         ctx: &Context,
     ) {
         if let Some(snap_line_x) = edit_response.snap_line_x {
-            let y_level = self.world_to_pixels(-1000.0, snap_line_x).y;
+            let y_level = self.world_to_pixels_xy(0.0, snap_line_x).y;
             painter.add(EShape::dashed_line(
                 &[
                     vec2_to_egui_pos(vec2(0.0, y_level)),
@@ -27,7 +27,7 @@ impl HomeFlow {
             ));
         }
         if let Some(snap_line_y) = edit_response.snap_line_y {
-            let x_level = self.world_to_pixels(snap_line_y, -1000.0).x;
+            let x_level = self.world_to_pixels_xy(snap_line_y, 0.0).x;
             painter.add(EShape::dashed_line(
                 &[
                     vec2_to_egui_pos(vec2(x_level, 0.0)),
@@ -76,13 +76,8 @@ impl HomeFlow {
 
             // Render outline
             for poly in &rendered_data.polygons {
-                let points: Vec<Vec2> = poly
-                    .exterior()
-                    .points()
-                    .map(coord_to_vec2)
-                    .map(|p| self.world_to_pixels(p.x, p.y))
-                    .collect();
-                closed_dashed_line_with_offset(
+                let points: Vec<Vec2> = poly.exterior().points().map(coord_to_vec2).collect();
+                self.closed_dashed_line_with_offset(
                     painter,
                     &points,
                     Stroke::new(6.0, Color32::from_rgba_premultiplied(255, 255, 255, 150)),
@@ -90,12 +85,8 @@ impl HomeFlow {
                     self.time * 50.0,
                 );
                 for interior in poly.interiors() {
-                    let points: Vec<Vec2> = interior
-                        .points()
-                        .map(coord_to_vec2)
-                        .map(|p| self.world_to_pixels(p.x, p.y))
-                        .collect();
-                    closed_dashed_line_with_offset(
+                    let points: Vec<Vec2> = interior.points().map(coord_to_vec2).collect();
+                    self.closed_dashed_line_with_offset(
                         painter,
                         &points,
                         Stroke::new(4.0, Color32::from_rgba_premultiplied(255, 200, 200, 150)),
@@ -107,20 +98,12 @@ impl HomeFlow {
 
             // Render original shape
             let vertices = Shape::Rectangle.vertices(room.pos, room.size, 0.0);
-            let points = vertices
-                .iter()
-                .map(|v| self.world_to_pixels(v.x, v.y))
-                .collect::<Vec<_>>();
             let stroke = Stroke::new(3.0, Color32::from_rgb(50, 200, 50).gamma_multiply(0.6));
-            closed_dashed_line_with_offset(painter, &points, stroke, 35.0, self.time * 50.0);
+            self.closed_dashed_line_with_offset(painter, &vertices, stroke, 35.0, self.time * 50.0);
 
             // Render operations
             for operation in &room.operations {
                 let vertices = operation.vertices(room.pos);
-                let points = vertices
-                    .iter()
-                    .map(|v| self.world_to_pixels(v.x, v.y))
-                    .collect::<Vec<_>>();
                 let stroke = Stroke::new(
                     3.0,
                     match operation.action {
@@ -131,15 +114,19 @@ impl HomeFlow {
                     }
                     .gamma_multiply(0.6),
                 );
-                closed_dashed_line_with_offset(painter, &points, stroke, 35.0, self.time * 50.0);
+                self.closed_dashed_line_with_offset(
+                    painter,
+                    &vertices,
+                    stroke,
+                    35.0,
+                    self.time * 50.0,
+                );
             }
 
             // Render openings
             for opening in &room.openings {
                 let selected = edit_response.hovered_id == Some(opening.id);
-                // Draw a circle for each opening
-                let pos = room.pos + opening.pos;
-                let pos = self.world_to_pixels(pos.x, pos.y);
+                let pos = self.world_to_pixels(room.pos + opening.pos);
                 let color = match opening.opening_type {
                     OpeningType::Door => Color32::from_rgb(255, 100, 0),
                     OpeningType::Window => Color32::from_rgb(0, 70, 230),
@@ -174,7 +161,7 @@ impl HomeFlow {
                 Shape::Rectangle
                     .vertices(furniture.pos, furniture.size, furniture.rotation)
                     .iter()
-                    .map(|v| vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)))
+                    .map(|v| vec2_to_egui_pos(self.world_to_pixels(*v)))
                     .collect(),
                 Stroke::new(
                     if selected { 8.0 } else { 4.0 },
@@ -182,5 +169,46 @@ impl HomeFlow {
                 ),
             ));
         }
+    }
+
+    fn closed_dashed_line_with_offset(
+        &self,
+        painter: &Painter,
+        points: &[Vec2],
+        stroke: Stroke,
+        desired_combined_length: f64,
+        time: f64,
+    ) {
+        let mut points = points
+            .iter()
+            .map(|v| self.world_to_pixels(*v))
+            .collect::<Vec<_>>();
+        points.push(points[0]);
+
+        let mut total_length = 0.0;
+        for i in 0..points.len() {
+            let next_index = (i + 1) % points.len();
+            total_length += points[i].distance(points[next_index]);
+        }
+
+        let combined_length = total_length / (total_length / desired_combined_length).round();
+        let dash_length = combined_length * 0.6;
+        let gap_length = combined_length - dash_length;
+
+        let offset = time % combined_length;
+        points.push(points[0] + (points[1] - points[0]).normalize() * offset);
+
+        let points = points
+            .iter()
+            .map(|p| vec2_to_egui_pos(*p))
+            .collect::<Vec<_>>();
+
+        painter.add(EShape::dashed_line_with_offset(
+            &points,
+            stroke,
+            &[dash_length as f32],
+            &[gap_length as f32],
+            offset as f32,
+        ));
     }
 }

@@ -30,12 +30,12 @@ impl HomeFlow {
         ];
 
         let (bottom_edge_world, top_edge_world) = (
-            self.pixels_to_world(0.0, visible_rect.bottom() as f64).y,
-            self.pixels_to_world(0.0, visible_rect.top() as f64).y,
+            self.pixels_to_world_xy(0.0, visible_rect.bottom() as f64).y,
+            self.pixels_to_world_xy(0.0, visible_rect.top() as f64).y,
         );
         let (left_edge_world, right_edge_world) = (
-            self.pixels_to_world(visible_rect.left() as f64, 0.0).x,
-            self.pixels_to_world(visible_rect.right() as f64, 0.0).x,
+            self.pixels_to_world_xy(visible_rect.left() as f64, 0.0).x,
+            self.pixels_to_world_xy(visible_rect.right() as f64, 0.0).x,
         );
 
         let mut rendered_vertical = HashSet::new();
@@ -46,7 +46,7 @@ impl HomeFlow {
             for x in ((left_edge_world / grid_interval).ceil() as i32)
                 ..=((right_edge_world / grid_interval).floor() as i32)
             {
-                let grid_line_pixel = self.world_to_pixels(x as f64 * grid_interval, 0.0).x;
+                let grid_line_pixel = self.world_to_pixels_x(x as f64 * grid_interval);
                 let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
                 if rendered_vertical.contains(&grid_line_pixel_int) {
                     continue;
@@ -63,7 +63,7 @@ impl HomeFlow {
             for y in ((bottom_edge_world / grid_interval).ceil() as i32)
                 ..=((top_edge_world / grid_interval).floor() as i32)
             {
-                let grid_line_pixel = self.world_to_pixels(0.0, y as f64 * grid_interval).y;
+                let grid_line_pixel = self.world_to_pixels_y(y as f64 * grid_interval);
                 let grid_line_pixel_int = (grid_line_pixel * 100.0).round() as i32;
                 if rendered_horizontal.contains(&grid_line_pixel_int) {
                     continue;
@@ -118,7 +118,7 @@ impl HomeFlow {
                         .map(|&v| {
                             let local_pos = v * 0.2;
                             Vertex {
-                                pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
+                                pos: vec2_to_egui_pos(self.world_to_pixels(v)),
                                 uv: egui::pos2(local_pos.x as f32, local_pos.y as f32),
                                 color,
                             }
@@ -138,7 +138,7 @@ impl HomeFlow {
                     let vertices = polygon
                         .exterior()
                         .points()
-                        .map(|v| vec2_to_egui_pos(self.world_to_pixels(v.x(), v.y())))
+                        .map(|v| vec2_to_egui_pos(self.world_to_pixels_xy(v.x(), v.y())))
                         .collect();
                     painter.add(EShape::closed_line(
                         vertices,
@@ -155,7 +155,7 @@ impl HomeFlow {
                 .vertices
                 .iter()
                 .map(|v| Vertex {
-                    pos: vec2_to_egui_pos(self.world_to_pixels(v.x, v.y)),
+                    pos: vec2_to_egui_pos(self.world_to_pixels(*v)),
                     uv: egui::Pos2::default(),
                     color: WALL_COLOR,
                 })
@@ -208,7 +208,7 @@ impl HomeFlow {
                     .map(|v| {
                         let rotated = rotate_point(*v, hinge_pos, opening.open_amount * 40.0);
                         Vertex {
-                            pos: vec2_to_egui_pos(self.world_to_pixels(rotated.x, rotated.y)),
+                            pos: vec2_to_egui_pos(self.world_to_pixels(rotated)),
                             uv: egui::Pos2::default(),
                             color,
                         }

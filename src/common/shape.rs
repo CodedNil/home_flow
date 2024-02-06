@@ -1,7 +1,7 @@
 use super::{
     layout::{
-        Action, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles,
-        Walls,
+        Action, Furniture, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape,
+        Triangles, Walls,
     },
     utils::{rotate_point, Material},
 };
@@ -342,6 +342,12 @@ impl Operation {
 
     pub fn polygons(&self, room_pos: Vec2) -> MultiPolygon {
         create_multipolygon(&self.vertices(room_pos))
+    }
+}
+
+impl Furniture {
+    pub fn contains(&self, point: Vec2) -> bool {
+        Shape::Rectangle.contains(point, self.pos, self.size, self.rotation)
     }
 }
 
