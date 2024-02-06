@@ -2,11 +2,9 @@ use super::{
     edit_mode::{DragData, ManipulationType, ObjectType},
     HomeFlow,
 };
-use crate::common::utils::RoundFactor;
-use crate::common::{layout::GlobalMaterial, shape::coord_to_vec2};
-use egui::{ComboBox, CursorIcon, DragValue, Key, Ui};
+use crate::common::{layout::GlobalMaterial, shape::coord_to_vec2, utils::RoundFactor};
+use egui::{ComboBox, DragValue, Key, Ui};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
-use std::f64::EPSILON;
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 
@@ -16,11 +14,21 @@ pub struct HoverDetails {
     pub pos: Vec2,
     pub size: Vec2,
     pub manipulation_type: ManipulationType,
-    pub can_drag: bool,
 }
 
 impl HomeFlow {
     pub fn hover_select(&mut self, response: &egui::Response, ui: &Ui) -> Option<HoverDetails> {
+        // If dragging use drag_data
+        if let Some(drag_data) = &self.edit_mode.drag_data {
+            return Some(HoverDetails {
+                id: drag_data.id,
+                object_type: drag_data.object_type,
+                pos: drag_data.object_start_pos,
+                size: drag_data.object_size,
+                manipulation_type: drag_data.manipulation_type,
+            });
+        }
+
         // Hover over rooms and furniture
         let mut hovered_data = None;
         for room in self.layout.rooms.iter().rev() {
@@ -110,39 +118,12 @@ impl HomeFlow {
             }
         }
 
-        // If dragging use drag_data
-        if let Some(drag_data) = &self.edit_mode.drag_data {
-            manipulation_type = drag_data.manipulation_type;
-            hovered_data = Some((
-                drag_data.id,
-                drag_data.object_type,
-                drag_data.object_start_pos,
-                drag_data.object_size,
-            ));
-        }
-
-        // Cursor for hovered
-        let can_drag = self.edit_mode.selected_id.is_some()
-            || matches!(hovered_data, Some((_, ObjectType::Furniture, _, _)));
-        if hovered_data.is_some() && can_drag {
-            match manipulation_type {
-                ManipulationType::Move => ui.ctx().set_cursor_icon(CursorIcon::PointingHand),
-                ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
-                    ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
-                }
-                ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
-                    ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
-                }
-            }
-        }
-
         hovered_data.map(|(id, object_type, pos, size)| HoverDetails {
             id,
             object_type,
             pos,
             size,
             manipulation_type,
-            can_drag,
         })
     }
 
@@ -163,18 +144,13 @@ impl HomeFlow {
             ObjectType::Furniture => 20.0,
         };
         if drag_data.object_type == ObjectType::Opening {
-            // Find the room the object is part of
-            let mut found_room = None;
-            for room in &self.layout.rooms {
-                for opening in &room.openings {
-                    if opening.id == drag_data.id {
-                        found_room = Some(room);
-                        break;
-                    }
-                }
-            }
-            if let Some(room) = found_room {
-                let mut closest_distance = f64::INFINITY;
+            if let Some(room) = self
+                .layout
+                .rooms
+                .iter()
+                .find(|r| r.openings.iter().any(|o| o.id == drag_data.id))
+            {
+                let mut closest_distance = f64::MAX;
                 let mut closest_point = None;
                 let mut closest_rotation = None;
 
@@ -207,10 +183,12 @@ impl HomeFlow {
 
                     // If rotation is 0, 90, 180 or 270 degrees, snap to grid along the line
                     if snap {
-                        if new_rotation.abs() < EPSILON || (new_rotation - 180.0).abs() < EPSILON {
+                        if new_rotation.abs() < f64::EPSILON
+                            || (new_rotation - 180.0).abs() < f64::EPSILON
+                        {
                             new_pos.x = new_pos.x.round_factor(snap_amount);
-                        } else if (new_rotation - 90.0).abs() < EPSILON
-                            || (new_rotation - 270.0).abs() < EPSILON
+                        } else if (new_rotation - 90.0).abs() < f64::EPSILON
+                            || (new_rotation - 270.0).abs() < f64::EPSILON
                         {
                             new_pos.y = new_pos.y.round_factor(snap_amount);
                         }

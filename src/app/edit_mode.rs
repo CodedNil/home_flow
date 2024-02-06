@@ -10,8 +10,8 @@ use crate::common::{
     utils::vec2_to_egui_pos,
 };
 use egui::{
-    collapsing_header::CollapsingState, Align2, Button, Color32, Context, DragValue, PointerButton,
-    TextEdit, Ui, Window,
+    collapsing_header::CollapsingState, Align2, Button, Color32, Context, CursorIcon, DragValue,
+    PointerButton, TextEdit, Ui, Window,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::time::Duration;
@@ -172,10 +172,37 @@ impl HomeFlow {
         let snap_enabled = !ui.input(|i| i.modifiers.shift); // Shift to disable snap
         let hover_details = self.hover_select(response, ui);
 
+        // Cursor for hovered
+        let can_drag = self.edit_mode.selected_id.is_some()
+            || hover_details
+                .as_ref()
+                .is_some_and(|h| h.object_type == ObjectType::Furniture);
+
+        if can_drag || self.edit_mode.drag_data.is_some() {
+            if let Some(hover_details) = &hover_details {
+                match hover_details.manipulation_type {
+                    ManipulationType::Move => {
+                        ui.ctx()
+                            .set_cursor_icon(if self.edit_mode.drag_data.is_some() {
+                                CursorIcon::Grabbing
+                            } else {
+                                CursorIcon::PointingHand
+                            });
+                    }
+                    ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
+                        ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
+                    }
+                    ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
+                        ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+                    }
+                }
+            }
+        }
+
         let mouse_down = ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
         if let Some(hover_details) = &hover_details {
             // Start drag
-            if mouse_down && self.edit_mode.drag_data.is_none() && hover_details.can_drag {
+            if mouse_down && self.edit_mode.drag_data.is_none() && can_drag {
                 self.edit_mode.drag_data = Some(DragData {
                     id: hover_details.id,
                     object_type: hover_details.object_type,
