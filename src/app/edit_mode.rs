@@ -20,7 +20,8 @@ use uuid::Uuid;
 pub struct EditDetails {
     pub enabled: bool,
     drag_data: Option<DragData>,
-    selected_room: Option<Uuid>,
+    selected_id: Option<Uuid>,
+    selected_type: Option<ObjectType>,
     preview_edits: bool,
 }
 
@@ -39,14 +40,6 @@ enum ObjectType {
     Operation,
     Opening,
     Furniture,
-}
-impl ObjectType {
-    const fn snap_to_grid(self) -> f64 {
-        match self {
-            Self::Room | Self::Operation => 10.0,
-            _ => 100.0,
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -71,7 +64,6 @@ impl ManipulationType {
 pub struct EditResponse {
     pub used_dragged: bool,
     hovered_id: Option<Uuid>,
-    room_selected: Option<Uuid>,
     snap_line_x: Option<f64>,
     snap_line_y: Option<f64>,
 }
@@ -171,7 +163,6 @@ impl HomeFlow {
             return EditResponse {
                 used_dragged: false,
                 hovered_id: None,
-                room_selected: None,
                 snap_line_x: None,
                 snap_line_y: None,
             };
@@ -183,8 +174,9 @@ impl HomeFlow {
         let mut hovered_pos = None;
         let mut hovered_bounds = None;
 
-        if let Some(selected_id) = self.edit_mode.selected_room {
+        if self.edit_mode.selected_type == Some(ObjectType::Room) {
             // Selected room hover
+            let selected_id = self.edit_mode.selected_id.unwrap();
             for room in &self.layout.rooms {
                 if room.id == selected_id {
                     if room.contains(self.mouse_pos_world) {
@@ -237,19 +229,34 @@ impl HomeFlow {
             }
         }
         // Double click to select room
-        if response.double_clicked() {
-            self.edit_mode.selected_room = self.layout.rooms.iter().rev().find_map(|room| {
+        if response.clicked() {
+            let mut best_selected = None;
+            let mut best_type = None;
+            for room in &self.layout.rooms {
                 if room.contains(self.mouse_pos_world) {
-                    Some(room.id)
-                } else {
-                    None
+                    best_selected = Some(room.id);
+                    best_type = Some(ObjectType::Room);
                 }
-            });
+            }
+            for furniture in &self.layout.furniture {
+                if Shape::Rectangle.contains(
+                    self.mouse_pos_world,
+                    furniture.pos,
+                    furniture.size,
+                    furniture.rotation,
+                ) {
+                    best_selected = Some(furniture.id);
+                    best_type = Some(ObjectType::Furniture);
+                }
+            }
+            self.edit_mode.selected_id = best_selected;
+            self.edit_mode.selected_type = best_type;
             self.edit_mode.drag_data = None;
         }
         // Escape to deselect room
         if ui.input(|i| i.key_pressed(Key::Escape)) {
-            self.edit_mode.selected_room = None;
+            self.edit_mode.selected_id = None;
+            self.edit_mode.selected_type = None;
             self.edit_mode.drag_data = None;
         }
         // Shift to disable snap
@@ -297,10 +304,9 @@ impl HomeFlow {
         }
 
         // Cursor for hovered
-        if hovered_id.is_some()
-            && (hovered_type == Some(ObjectType::Furniture)
-                || self.edit_mode.selected_room.is_some())
-        {
+        let can_drag = self.edit_mode.selected_id.is_some()
+            || matches!(hovered_type, Some(ObjectType::Furniture));
+        if hovered_id.is_some() && can_drag {
             match manipulation_type {
                 ManipulationType::Move => ctx.set_cursor_icon(CursorIcon::PointingHand),
                 ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
@@ -312,8 +318,6 @@ impl HomeFlow {
             }
         }
 
-        let can_drag = self.edit_mode.selected_room.is_some()
-            || matches!(hovered_type, Some(ObjectType::Furniture));
         if let Some(hovered_id) = hovered_id {
             let mouse_down = ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
             if mouse_down && self.edit_mode.drag_data.is_none() && can_drag {
@@ -435,7 +439,6 @@ impl HomeFlow {
         EditResponse {
             used_dragged,
             hovered_id,
-            room_selected: self.edit_mode.selected_room,
             snap_line_x,
             snap_line_y,
         }
@@ -453,7 +456,10 @@ impl HomeFlow {
         let mut new_pos = drag_data.object_start_pos + vec2(delta.x, delta.y);
         let mut new_rotation = 0.0;
 
-        let snap_amount = drag_data.object_type.snap_to_grid();
+        let snap_amount = match drag_data.object_type {
+            ObjectType::Room | ObjectType::Operation => 10.0,
+            _ => 20.0,
+        };
         if snap && drag_data.object_type == ObjectType::Opening {
             // Find the room the object is part of
             let mut found_room = None;
@@ -690,7 +696,7 @@ impl HomeFlow {
             });
 
         // Get hovered room or selected room if there isn't one
-        if let Some(room) = [edit_response.hovered_id, self.edit_mode.selected_room]
+        if let Some(room) = [edit_response.hovered_id, self.edit_mode.selected_id]
             .iter()
             .filter_map(|&id| id)
             .find_map(|id| self.layout.rooms.iter().find(|r| r.id == id))
@@ -795,7 +801,8 @@ impl HomeFlow {
 
         // Render furniture
         for furniture in &self.layout.furniture {
-            let selected = edit_response.hovered_id == Some(furniture.id);
+            let selected = edit_response.hovered_id == Some(furniture.id)
+                || self.edit_mode.selected_id == Some(furniture.id);
             painter.add(EShape::closed_line(
                 Shape::Rectangle
                     .vertices(furniture.pos, furniture.size, furniture.rotation)
@@ -809,16 +816,11 @@ impl HomeFlow {
             ));
         }
 
-        if let Some(room_id) = &edit_response.room_selected {
-            let room = self
-                .layout
-                .rooms
-                .iter_mut()
-                .find(|r| &r.id == room_id)
-                .unwrap();
-            let mut alter_room = AlterRoom::None;
+        if let Some(selected_id) = self.edit_mode.selected_id {
+            let selected_type = self.edit_mode.selected_type.unwrap();
+            let mut alter_type = AlterObject::None;
             let mut window_open: bool = true;
-            Window::new(format!("Edit {}", room.id))
+            Window::new(format!("Edit {selected_id}"))
                 .default_pos(vec2_to_egui_pos(vec2(self.canvas_center.x, 20.0)))
                 .default_size([0.0, 0.0])
                 .pivot(Align2::CENTER_TOP)
@@ -826,46 +828,95 @@ impl HomeFlow {
                 .resizable(false)
                 .collapsible(true)
                 .open(&mut window_open)
-                .show(ctx, |ui| {
-                    alter_room = room_edit_widgets(ui, &self.layout.materials, room);
+                .show(ctx, |ui| match selected_type {
+                    ObjectType::Room => {
+                        let room = self.layout.rooms.iter_mut().find(|r| r.id == selected_id);
+                        if let Some(room) = room {
+                            alter_type = room_edit_widgets(ui, &self.layout.materials, room);
+                        }
+                    }
+                    ObjectType::Furniture => {
+                        let furniture = self
+                            .layout
+                            .furniture
+                            .iter_mut()
+                            .find(|f| f.id == selected_id);
+                        if let Some(furniture) = furniture {
+                            // alter_type = furniture_edit_widgets(ui, furniture);
+                        }
+                    }
+                    _ => {}
                 });
             if !window_open {
-                self.edit_mode.selected_room = None;
+                self.edit_mode.selected_id = None;
+                self.edit_mode.selected_type = None;
             }
-            match alter_room {
-                AlterRoom::Delete => {
-                    self.layout.rooms.retain(|r| r.id != *room_id);
-                    self.edit_mode.selected_room = None;
-                }
-                AlterRoom::MoveUp => {
-                    let index = self
-                        .layout
-                        .rooms
-                        .iter()
-                        .position(|r| r.id == *room_id)
-                        .unwrap();
-                    if index < self.layout.rooms.len() - 1 {
-                        self.layout.rooms.swap(index, index + 1);
+            match alter_type {
+                AlterObject::Delete => {
+                    match selected_type {
+                        ObjectType::Room => {
+                            self.layout.rooms.retain(|r| r.id != selected_id);
+                        }
+                        ObjectType::Furniture => {
+                            self.layout.furniture.retain(|f| f.id != selected_id);
+                        }
+                        _ => {}
                     }
+                    self.edit_mode.selected_id = None;
+                    self.edit_mode.selected_type = None;
                 }
-                AlterRoom::MoveDown => {
-                    let index = self
-                        .layout
-                        .rooms
-                        .iter()
-                        .position(|r| r.id == *room_id)
-                        .unwrap();
-                    if index > 0 {
-                        self.layout.rooms.swap(index, index - 1);
+                AlterObject::MoveUp | AlterObject::MoveDown => match selected_type {
+                    ObjectType::Room => {
+                        let index = self
+                            .layout
+                            .rooms
+                            .iter()
+                            .position(|r| r.id == selected_id)
+                            .unwrap();
+                        match alter_type {
+                            AlterObject::MoveUp => {
+                                if index < self.layout.rooms.len() - 1 {
+                                    self.layout.rooms.swap(index, index + 1);
+                                }
+                            }
+                            AlterObject::MoveDown => {
+                                if index > 0 {
+                                    self.layout.rooms.swap(index, index - 1);
+                                }
+                            }
+                            _ => {}
+                        }
                     }
-                }
-                AlterRoom::None => {}
+                    ObjectType::Furniture => {
+                        let index = self
+                            .layout
+                            .furniture
+                            .iter()
+                            .position(|f| f.id == selected_id)
+                            .unwrap();
+                        match alter_type {
+                            AlterObject::MoveUp => {
+                                if index < self.layout.furniture.len() - 1 {
+                                    self.layout.furniture.swap(index, index + 1);
+                                }
+                            }
+                            AlterObject::MoveDown => {
+                                if index > 0 {
+                                    self.layout.furniture.swap(index, index - 1);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                },
+                AlterObject::None => {}
             }
         }
     }
 }
 
-enum AlterRoom {
+enum AlterObject {
     None,
     Delete,
     MoveUp,
@@ -876,19 +927,19 @@ fn room_edit_widgets(
     ui: &mut egui::Ui,
     materials: &Vec<GlobalMaterial>,
     room: &mut Room,
-) -> AlterRoom {
-    let mut alter_room = AlterRoom::None;
+) -> AlterObject {
+    let mut alter_type = AlterObject::None;
     ui.horizontal(|ui| {
         ui.label("Room ");
         ui.text_edit_singleline(&mut room.name);
         if ui.add(Button::new("Delete")).clicked() {
-            alter_room = AlterRoom::Delete;
+            alter_type = AlterObject::Delete;
         }
         if ui.add(Button::new("^")).clicked() {
-            alter_room = AlterRoom::MoveUp;
+            alter_type = AlterObject::MoveUp;
         }
         if ui.add(Button::new("v")).clicked() {
-            alter_room = AlterRoom::MoveDown;
+            alter_type = AlterObject::MoveDown;
         }
     });
     ui.separator();
@@ -1146,7 +1197,7 @@ fn room_edit_widgets(
         }
     });
 
-    alter_room
+    alter_type
 }
 
 // Helper function to create a combo box for an enum

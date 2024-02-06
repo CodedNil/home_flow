@@ -678,12 +678,6 @@ dependencies = [
 
 [[package]]
 name = "ecolor"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57539aabcdbb733b6806ef421b66dec158dc1582107ad6d51913db3600303354"
-
-[[package]]
-name = "ecolor"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "169a0e42e2b3d0f663e100f5c10710ffdb9748f7e7565305ecc09044d59e0fbd"
@@ -702,7 +696,7 @@ dependencies = [
  "cocoa",
  "directories-next",
  "document-features",
- "egui 0.26.0",
+ "egui",
  "egui-winit",
  "egui_glow",
  "glow",
@@ -730,24 +724,13 @@ dependencies = [
 
 [[package]]
 name = "egui"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0bf640ed7f3bf3d14ebf00d73bacc09c886443ee84ca6494bde37953012c9e3"
-dependencies = [
- "ahash",
- "epaint 0.25.0",
- "nohash-hasher",
-]
-
-[[package]]
-name = "egui"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5493685c2ca33e06b5ad45ae304b13bc084c395f422268bff1377633552f69ac"
 dependencies = [
  "accesskit",
  "ahash",
- "epaint 0.26.0",
+ "epaint",
  "log",
  "nohash-hasher",
  "ron",
@@ -757,10 +740,9 @@ dependencies = [
 [[package]]
 name = "egui-notify"
 version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e978910d93935cb5a73322d885a9804616c9b15570428a9c5cd68fb3b5cd1e8"
+source = "git+https://github.com/CodedNil/egui-notify?branch=master#d82bad8598da73ae0f3f27a00e47014c1f676b86"
 dependencies = [
- "egui 0.25.0",
+ "egui",
 ]
 
 [[package]]
@@ -770,7 +752,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d85f8f89d6a937535e164a5bd6e31719fd7db01bc188d7b59425414b160a2ee1"
 dependencies = [
  "arboard",
- "egui 0.26.0",
+ "egui",
  "log",
  "raw-window-handle 0.6.0",
  "serde",
@@ -787,7 +769,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3b8d8d33da3d2ae4db39b30ddcbc5f31e9b0d74e65dc028cf711e94b68ec4d6"
 dependencies = [
  "bytemuck",
- "egui 0.26.0",
+ "egui",
  "glow",
  "log",
  "memoffset",
@@ -802,7 +784,7 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c9fb26a588e070434a0b23783d8fc22a4c359ac5177401c9029add9dd2685f7"
 dependencies = [
- "egui 0.26.0",
+ "egui",
 ]
 
 [[package]]
@@ -827,12 +809,6 @@ checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
 
 [[package]]
 name = "emath"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ee58355767587db7ba3738930d93cad3052cd834c2b48b9ef6ef26fe4823b7e"
-
-[[package]]
-name = "emath"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ba2475f57a416ce2a05e557f3d18e465c7aef23f3f6da2252b428eaaaaa6a65"
@@ -854,20 +830,6 @@ dependencies = [
 
 [[package]]
 name = "epaint"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e638cb066bff0903bbb6143116cfd134a42279c7d68f19c0352a94f15a402de7"
-dependencies = [
- "ab_glyph",
- "ahash",
- "ecolor 0.25.0",
- "emath 0.25.0",
- "nohash-hasher",
- "parking_lot",
-]
-
-[[package]]
-name = "epaint"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b823734a8b7e81302a5f1a8ba041ab4ed7805a43d8dfec4dac0c72b933699bbc"
@@ -875,8 +837,8 @@ dependencies = [
  "ab_glyph",
  "ahash",
  "bytemuck",
- "ecolor 0.26.0",
- "emath 0.26.0",
+ "ecolor",
+ "emath",
  "log",
  "nohash-hasher",
  "parking_lot",
@@ -1258,9 +1220,9 @@ checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "hermit-abi"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d3d0e0f38255e7fa3cf31335b3a56f05febd18025f4db5ef7a0cfb4f8da651f"
+checksum = "d0c62115964e08cb8039170eb33c1d0e2388a256930279edca206fff675f82c3"
 
 [[package]]
 name = "home"
@@ -1281,7 +1243,7 @@ dependencies = [
  "diff",
  "earcutr",
  "eframe",
- "egui 0.26.0",
+ "egui",
  "egui-notify",
  "egui_plot",
  "ehttp",
@@ -1923,9 +1885,9 @@ dependencies = [
 
 [[package]]
 name = "polling"
-version = "3.3.2"
+version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "545c980a3880efd47b2e262f6a4bb6daad6555cf3367aa9c4e52895f69537a41"
+checksum = "30054e72317ab98eddd8561db0f6524df3367636884b7b21b703e4b280a84a14"
 dependencies = [
  "cfg-if",
  "concurrent-queue",

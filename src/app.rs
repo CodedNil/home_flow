@@ -309,8 +309,7 @@ impl eframe::App for HomeFlow {
                         );
                     });
 
-                // TODO: reimplement this once toasts updates
-                // self.toasts.lock().show(ctx);
+                self.toasts.lock().show(ctx);
             });
     }
 }

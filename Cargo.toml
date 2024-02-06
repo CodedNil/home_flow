@@ -23,7 +23,7 @@ diff = "0.1.13"
 egui = { version = "0.26.0", features = ["serde", "rayon"] }
 egui_plot = "0.26.0"
 ehttp = "0.4.0"
-egui-notify = "0.12.0"
+egui-notify = { git = "https://github.com/CodedNil/egui-notify", branch = "master" }
 image = { version = "0.24", default-features = false, features = ["png"] }
 
 geo = "0.27.0"
