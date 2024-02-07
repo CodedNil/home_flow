@@ -6,6 +6,7 @@ use super::{
     HomeFlow,
 };
 use crate::common::{
+    furniture::{Furniture, FurnitureType},
     layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
     utils::vec2_to_egui_pos,
 };
@@ -35,7 +36,7 @@ pub struct DragData {
     pub object_size: Vec2,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ObjectType {
     Room,
     Operation,
@@ -43,7 +44,7 @@ pub enum ObjectType {
     Furniture,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ManipulationType {
     Move,
     ResizeLeft,
@@ -173,10 +174,10 @@ impl HomeFlow {
         let hover_details = self.hover_select(response, ui);
 
         // Cursor for hovered
-        let can_drag = self.edit_mode.selected_id.is_some()
-            || hover_details
-                .as_ref()
-                .is_some_and(|h| h.object_type == ObjectType::Furniture);
+        let hover_type = hover_details.as_ref().map(|h| h.object_type);
+        let can_drag = (hover_type == Some(ObjectType::Room)
+            && self.edit_mode.selected_id == hover_details.as_ref().map(|h| h.id))
+            || hover_type == Some(ObjectType::Furniture);
 
         if can_drag || self.edit_mode.drag_data.is_some() {
             if let Some(hover_details) = &hover_details {
@@ -234,10 +235,10 @@ impl HomeFlow {
                     .resizable(false)
                     .interactable(false)
                     .show(ctx, |ui| {
-                        ui.label(format!("Pos: ({:.1}, {:.1})", new_pos.x, new_pos.y));
+                        ui.label(format!("Pos: ({:.3}m, {:.3}m)", new_pos.x, new_pos.y));
                         if drag_data.object_size.length() > 0.0 {
                             ui.label(format!(
-                                "Size: ({:.1}, {:.1})",
+                                "Size: ({:.3}m, {:.3}m)",
                                 drag_data.object_size.x, drag_data.object_size.y
                             ));
                         }
@@ -351,15 +352,37 @@ impl HomeFlow {
             }
             ObjectType::Furniture => {
                 let furniture_and_index =
-                    self.layout.rooms.iter_mut().enumerate().find_map(|obj| {
-                        if obj.1.id == selected_id {
-                            Some(obj)
-                        } else {
-                            None
-                        }
-                    });
+                    self.layout
+                        .furniture
+                        .iter_mut()
+                        .enumerate()
+                        .find_map(|obj| {
+                            if obj.1.id == selected_id {
+                                Some(obj)
+                            } else {
+                                None
+                            }
+                        });
                 if let Some((index, furniture)) = furniture_and_index {
-                    // let alter_type = furniture_edit_widgets(ui, furniture);
+                    let alter_type = furniture_edit_widgets(ui, furniture);
+                    match alter_type {
+                        AlterObject::Delete => {
+                            self.layout.furniture.retain(|r| r.id != selected_id);
+                            self.edit_mode.selected_id = None;
+                            self.edit_mode.selected_type = None;
+                        }
+                        AlterObject::MoveUp => {
+                            if index < self.layout.furniture.len() - 1 {
+                                self.layout.furniture.swap(index, index + 1);
+                            }
+                        }
+                        AlterObject::MoveDown => {
+                            if index > 0 {
+                                self.layout.furniture.swap(index, index - 1);
+                            }
+                        }
+                        AlterObject::None => {}
+                    }
                 }
             }
             _ => {}
@@ -377,7 +400,7 @@ enum AlterObject {
 
 fn room_edit_widgets(
     ui: &mut egui::Ui,
-    materials: &Vec<GlobalMaterial>,
+    materials: &[GlobalMaterial],
     room: &mut Room,
 ) -> AlterObject {
     let mut alter_type = AlterObject::None;
@@ -591,6 +614,53 @@ fn room_edit_widgets(
             }
         }
     });
+
+    alter_type
+}
+
+fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> AlterObject {
+    let mut alter_type = AlterObject::None;
+    ui.horizontal(|ui| {
+        ui.label("Furniture ");
+        combo_box_for_enum(
+            ui,
+            format!("Furniture {}", furniture.id),
+            &mut furniture.furniture_type,
+            "",
+        );
+        match &mut furniture.furniture_type {
+            FurnitureType::Chair(ref mut chair_type) => {
+                combo_box_for_enum(ui, "Chair Type", chair_type, "");
+            }
+            FurnitureType::Table(ref mut table_type) => {
+                combo_box_for_enum(ui, "Table Type", table_type, "");
+            }
+            _ => {}
+        }
+        if ui.add(Button::new("Delete")).clicked() {
+            alter_type = AlterObject::Delete;
+        }
+        if ui.add(Button::new("^")).clicked() {
+            alter_type = AlterObject::MoveUp;
+        }
+        if ui.add(Button::new("v")).clicked() {
+            alter_type = AlterObject::MoveDown;
+        }
+    });
+    ui.separator();
+
+    egui::Grid::new("Furniture Edit Grid")
+        .num_columns(4)
+        .spacing([20.0, 4.0])
+        .striped(true)
+        .show(ui, |ui| {
+            edit_vec2(ui, "Pos", &mut furniture.pos, 0.1, 2);
+            edit_vec2(ui, "Size", &mut furniture.size, 0.1, 2);
+            edit_rotation(ui, &mut furniture.rotation);
+            ui.end_row();
+        });
+
+    ui.separator();
 
     alter_type
 }

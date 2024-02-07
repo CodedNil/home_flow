@@ -1,4 +1,7 @@
-use super::utils::{clone_as_none, Material};
+use super::{
+    furniture::Furniture,
+    utils::{clone_as_none, Material},
+};
 use derivative::Derivative;
 use egui::Color32;
 use geo_types::MultiPolygon;
@@ -48,15 +51,6 @@ pub struct Walls {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct Furniture {
-    pub id: Uuid,
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub rotation: f64,
-    pub children: Vec<Furniture>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
 pub struct Opening {
     pub id: Uuid,
     pub opening_type: OpeningType,
@@ -78,8 +72,9 @@ pub struct Operation {
     pub rotation: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum OpeningType {
+    #[default]
     Door,
     Window,
 }
@@ -264,7 +259,7 @@ impl Home {
                     vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0)).rotate(180.0)],
                 ),
             ],
-            furniture: vec![Furniture::new(vec2(0.0, 0.0), vec2(1.0, 1.0), 0.0)],
+            furniture: vec![],
             rendered_data: None,
         }
     }

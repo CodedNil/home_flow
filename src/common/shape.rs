@@ -1,7 +1,8 @@
 use super::{
+    furniture::Furniture,
     layout::{
-        Action, Furniture, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape,
-        Triangles, Walls,
+        Action, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles,
+        Walls,
     },
     utils::{rotate_point, Material},
 };

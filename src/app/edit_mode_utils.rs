@@ -8,6 +8,7 @@ use glam::{dvec2 as vec2, DVec2 as Vec2};
 use strum::IntoEnumIterator;
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct HoverDetails {
     pub id: Uuid,
     pub object_type: ObjectType,
@@ -18,17 +19,6 @@ pub struct HoverDetails {
 
 impl HomeFlow {
     pub fn hover_select(&mut self, response: &egui::Response, ui: &Ui) -> Option<HoverDetails> {
-        // If dragging use drag_data
-        if let Some(drag_data) = &self.edit_mode.drag_data {
-            return Some(HoverDetails {
-                id: drag_data.id,
-                object_type: drag_data.object_type,
-                pos: drag_data.object_start_pos,
-                size: drag_data.object_size,
-                manipulation_type: drag_data.manipulation_type,
-            });
-        }
-
         // Hover over rooms and furniture
         let mut hovered_data = None;
         for room in self.layout.rooms.iter().rev() {
@@ -44,11 +34,22 @@ impl HomeFlow {
             }
         }
 
-        // Double click to select room
+        // Click to select room
         if response.clicked() {
             self.edit_mode.selected_id = hovered_data.map(|(id, _, _, _)| id);
             self.edit_mode.selected_type = hovered_data.map(|(_, t, _, _)| t);
             self.edit_mode.drag_data = None;
+        }
+
+        // If dragging use drag_data
+        if let Some(drag_data) = &self.edit_mode.drag_data {
+            return Some(HoverDetails {
+                id: drag_data.id,
+                object_type: drag_data.object_type,
+                pos: drag_data.object_start_pos,
+                size: drag_data.object_size,
+                manipulation_type: drag_data.manipulation_type,
+            });
         }
 
         // Selected room limits hover scope
@@ -343,7 +344,7 @@ pub fn combo_box_for_enum<T>(
 pub fn combo_box_for_materials(
     ui: &mut egui::Ui,
     id: Uuid,
-    materials: &Vec<GlobalMaterial>,
+    materials: &[GlobalMaterial],
     selected: &mut String,
 ) {
     ComboBox::from_id_source(format!("Materials {id}"))

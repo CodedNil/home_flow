@@ -1,6 +1,7 @@
 use super::{edit_mode::EditResponse, HomeFlow};
 use crate::common::{
-    layout::{Action, Furniture, OpeningType, Room, Shape},
+    furniture::Furniture,
+    layout::{Action, OpeningType, Room, Shape},
     shape::coord_to_vec2,
     utils::vec2_to_egui_pos,
 };

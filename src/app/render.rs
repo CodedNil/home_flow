@@ -148,6 +148,9 @@ impl HomeFlow {
             }
         }
 
+        // Render furniture
+        for furniture in &self.layout.furniture {}
+
         // Render walls
         let rendered_data = self.layout.rendered_data.as_ref().unwrap();
         for wall in &rendered_data.wall_triangles {
