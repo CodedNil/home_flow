@@ -143,8 +143,8 @@ impl Hash for Furniture {
 impl FurnitureType {
     fn fancy_display(self) -> String {
         match self {
-            Self::Chair(chair_type) => format!("Chair: {chair_type}"),
-            Self::Table(table_type) => format!("Table: {table_type}"),
+            Self::Chair(sub) => format!("{self}: {sub}"),
+            Self::Table(sub) => format!("{self}: {sub}"),
             _ => self.to_string(),
         }
     }
