@@ -26,10 +26,9 @@ ehttp = "0.4.0"
 egui-notify = { git = "https://github.com/CodedNil/egui-notify", branch = "master" }
 image = { version = "0.24", default-features = false, features = ["png"] }
 
-geo = "0.27.0"
+geo = { version = "0.27.0", default-features = false, features = ["earcutr"] }
 geo-types = "0.7.12"
-geo-buffer = { git = "https://github.com/1011-git/geo-buffer.git", rev = "899c4dba1e0d8fdd99bd8ae1ce6efcaf482176a3" }
-earcutr = "0.4.3"
+geo-buffer = { git = "https://github.com/CodedNil/geo-buffer" }
 
 # GUI dependencies
 eframe = { version = "0.26.0", default-features = false, features = [

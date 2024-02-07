@@ -7,7 +7,7 @@ use super::{
     utils::{rotate_point, Material},
 };
 use egui::Color32;
-use geo::BooleanOps;
+use geo::{BooleanOps, TriangulateEarcut};
 use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use rayon::prelude::*;
@@ -413,27 +413,15 @@ pub fn create_multipolygon(vertices: &[Vec2]) -> MultiPolygon {
 pub const EMPTY_MULTI_POLYGON: MultiPolygon = MultiPolygon(vec![]);
 
 pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
-    // Prepare polygon data for triangulation
-    let data = std::iter::once(polygon.exterior())
-        .chain(polygon.interiors())
-        .map(|ring| ring.points().map(|p| vec![p.x(), p.y()]).collect())
-        .collect();
+    let triangles = polygon.earcut_triangles_raw();
+    let (indices, vertices) = (triangles.triangle_indices, triangles.vertices);
 
-    // Use the flatten function to prepare data for earcut
-    let (vertices, hole_indices, dims) = earcutr::flatten(&data);
-    let triangle_indices = earcutr::earcut(&vertices, &hole_indices, dims);
-
-    triangle_indices.map_or_else(
-        |_| (vec![], vec![]),
-        |indices| {
-            (
-                indices.iter().map(|&i| i as u32).collect(),
-                vertices
-                    .chunks(dims)
-                    .map(|chunk| vec2(chunk[0], chunk[1]))
-                    .collect(),
-            )
-        },
+    (
+        indices.iter().map(|&i| i as u32).collect(),
+        vertices
+            .chunks(2)
+            .map(|chunk| vec2(chunk[0], chunk[1]))
+            .collect(),
     )
 }
 
