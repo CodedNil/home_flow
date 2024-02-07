@@ -14,7 +14,6 @@
 #[cfg(feature = "gui")]
 mod app;
 
-#[cfg(not(target_arch = "wasm32"))]
 mod server;
 
 mod common;
@@ -32,7 +31,7 @@ async fn main() {
         .nest_service("/", tower_http::services::ServeDir::new("dist"))
         .layer(tower_http::compression::CompressionLayer::new());
 
-    let app = server::setup_routes(app);
+    let app = server::routing::setup_routes(app);
 
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Listening on {addr}");

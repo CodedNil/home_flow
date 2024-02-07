@@ -5,10 +5,13 @@ use super::{
     },
     HomeFlow,
 };
-use crate::common::{
-    furniture::{Furniture, FurnitureType},
-    layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
-    utils::vec2_to_egui_pos,
+use crate::{
+    common::{
+        furniture::{Furniture, FurnitureType},
+        layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
+        utils::vec2_to_egui_pos,
+    },
+    server::common_api::save_layout,
 };
 use egui::{
     collapsing_header::CollapsingState, Align2, Button, Color32, Context, CursorIcon, DragValue,
@@ -71,15 +74,6 @@ pub struct EditResponse {
     pub snap_line_y: Option<f64>,
 }
 
-pub fn post_json(url: &impl ToString, body: &String) -> ehttp::Request {
-    ehttp::Request {
-        method: "POST".to_owned(),
-        url: url.to_string(),
-        body: body.as_bytes().to_vec(),
-        headers: ehttp::Headers::new(&[("Accept", "*/*"), ("Content-Type", "application/json")]),
-    }
-}
-
 impl HomeFlow {
     pub fn edit_mode_settings(&mut self, ctx: &Context, ui: &mut Ui) {
         // If in edit mode, show button to view save and discard changes
@@ -94,10 +88,7 @@ impl HomeFlow {
                     .info("Saving Layout")
                     .set_duration(Some(Duration::from_secs(2)));
                 ehttp::fetch(
-                    post_json(
-                        &format!("http://{}/save_layout", self.host),
-                        &serde_json::to_string(&self.layout).unwrap(),
-                    ),
+                    save_layout(&self.host, &self.layout),
                     move |result| match result {
                         Ok(_) => {
                             toasts_store
