@@ -340,26 +340,30 @@ pub fn apply_standard_transform(
     drag_data: &DragData,
     delta: Vec2,
     new_pos: Vec2,
+    offset: Vec2,
 ) {
     let sign = drag_data.manipulation_type.sign();
 
     let rotated_delta = rotate_point(delta, Vec2::ZERO, drag_data.start_rotation);
     match drag_data.manipulation_type {
         ManipulationType::Move => {
-            *pos = new_pos;
+            *pos = new_pos - offset;
         }
         ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
             let new_size = drag_data.start_size.x + rotated_delta.x * sign;
             size.x = new_size.abs();
             let left_dir = rotate_point(vec2(-1.0, 0.0), Vec2::ZERO, -drag_data.start_rotation);
-            *pos =
-                drag_data.start_pos + left_dir * new_size * 0.5 * sign - left_dir * rotated_delta.x;
+            *pos = drag_data.start_pos + left_dir * new_size * 0.5 * sign
+                - left_dir * rotated_delta.x
+                - offset;
         }
         ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
             let new_size = drag_data.start_size.y + rotated_delta.y * sign;
             size.y = new_size.abs();
             let up_dir = rotate_point(vec2(0.0, -1.0), Vec2::ZERO, -drag_data.start_rotation);
-            *pos = drag_data.start_pos + up_dir * new_size * 0.5 * sign - up_dir * rotated_delta.y;
+            *pos = drag_data.start_pos + up_dir * new_size * 0.5 * sign
+                - up_dir * rotated_delta.y
+                - offset;
         }
     }
 }

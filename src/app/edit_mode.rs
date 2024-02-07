@@ -263,6 +263,7 @@ impl HomeFlow {
                             drag_data,
                             delta,
                             new_pos,
+                            Vec2::ZERO,
                         );
                     } else {
                         for operation in &mut room.operations {
@@ -272,7 +273,8 @@ impl HomeFlow {
                                     &mut operation.size,
                                     drag_data,
                                     delta,
-                                    new_pos - room.pos,
+                                    new_pos,
+                                    room.pos,
                                 );
                             }
                         }
@@ -292,6 +294,7 @@ impl HomeFlow {
                             drag_data,
                             delta,
                             new_pos,
+                            Vec2::ZERO,
                         );
                     }
                 }
