@@ -353,17 +353,19 @@ impl GlobalMaterial {
         Self {
             name: name.to_owned(),
             material,
-            tint: Some(tint),
+            tint,
         }
     }
 }
 impl std::fmt::Display for GlobalMaterial {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!("Global Material: {}; {}", self.name, self.material);
-        if let Some(tint) = self.tint {
-            string.push_str(format!(" {}", color_to_string(tint)).as_str());
-        }
-        write!(f, "{string}")
+        write!(
+            f,
+            "Global Material: {}; {} {}",
+            self.name,
+            self.material,
+            color_to_string(self.tint)
+        )
     }
 }
 impl Hash for GlobalMaterial {

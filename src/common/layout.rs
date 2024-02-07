@@ -1,5 +1,5 @@
 use super::{
-    furniture::Furniture,
+    furniture::{Furniture, FurnitureType},
     utils::{clone_as_none, Material},
 };
 use derivative::Derivative;
@@ -106,7 +106,7 @@ pub enum Shape {
 pub struct GlobalMaterial {
     pub name: String,
     pub material: Material,
-    pub tint: Option<Color32>,
+    pub tint: Color32,
 }
 
 pub struct HomeRender {
@@ -259,7 +259,12 @@ impl Home {
                     vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0)).rotate(180.0)],
                 ),
             ],
-            furniture: vec![],
+            furniture: vec![Furniture::new(
+                FurnitureType::Bed,
+                vec2(4.65, -1.4),
+                vec2(1.4, 2.1),
+                90.0,
+            )],
             rendered_data: None,
         }
     }

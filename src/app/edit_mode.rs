@@ -32,8 +32,9 @@ pub struct DragData {
     pub object_type: ObjectType,
     pub manipulation_type: ManipulationType,
     pub mouse_start_pos: Vec2,
-    pub object_start_pos: Vec2,
-    pub object_size: Vec2,
+    pub start_pos: Vec2,
+    pub start_size: Vec2,
+    pub start_rotation: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -174,11 +175,7 @@ impl HomeFlow {
         let hover_details = self.hover_select(response, ui);
 
         // Cursor for hovered
-        let hover_type = hover_details.as_ref().map(|h| h.object_type);
-        let can_drag = (hover_type == Some(ObjectType::Room)
-            && self.edit_mode.selected_id == hover_details.as_ref().map(|h| h.id))
-            || hover_type == Some(ObjectType::Furniture);
-
+        let can_drag = hover_details.as_ref().is_some_and(|h| h.can_drag);
         if can_drag || self.edit_mode.drag_data.is_some() {
             if let Some(hover_details) = &hover_details {
                 match hover_details.manipulation_type {
@@ -209,8 +206,9 @@ impl HomeFlow {
                     object_type: hover_details.object_type,
                     manipulation_type: hover_details.manipulation_type,
                     mouse_start_pos: self.mouse_pos_world,
-                    object_start_pos: hover_details.pos,
-                    object_size: hover_details.size,
+                    start_pos: hover_details.pos,
+                    start_size: hover_details.size,
+                    start_rotation: hover_details.rotation,
                 });
             }
         }
@@ -236,15 +234,15 @@ impl HomeFlow {
                     .interactable(false)
                     .show(ctx, |ui| {
                         ui.label(format!("Pos: ({:.3}m, {:.3}m)", new_pos.x, new_pos.y));
-                        if drag_data.object_size.length() > 0.0 {
+                        if drag_data.start_size.length() > 0.0 {
                             ui.label(format!(
                                 "Size: ({:.3}m, {:.3}m)",
-                                drag_data.object_size.x, drag_data.object_size.y
+                                drag_data.start_size.x, drag_data.start_size.y
                             ));
                         }
                     });
 
-                let delta = new_pos - drag_data.object_start_pos;
+                let delta = new_pos - drag_data.start_pos;
                 for room in &mut self.layout.rooms {
                     if drag_data.id == room.id {
                         apply_standard_transform(

@@ -1,11 +1,22 @@
-use super::utils::{display_vec2, hash_vec2};
+use super::{
+    layout::{Shape, Triangles},
+    shape::{create_multipolygon, triangulate_polygon},
+    utils::{clone_as_none, display_vec2, hash_vec2, Material},
+};
+use derivative::Derivative;
+use egui::Color32;
+use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Clone)]
 pub struct Furniture {
     pub id: Uuid,
     pub furniture_type: FurnitureType,
@@ -13,6 +24,9 @@ pub struct Furniture {
     pub size: Vec2,
     pub rotation: f64,
     pub children: Vec<Furniture>,
+    #[serde(skip)]
+    #[derivative(Clone(clone_with = "clone_as_none"))]
+    pub rendered_data: Option<FurnitureRender>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
@@ -21,6 +35,7 @@ pub enum FurnitureType {
     Table(TableType),
     Bed,
     Wardrobe,
+    Rug,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
@@ -47,6 +62,7 @@ impl Furniture {
             size,
             rotation,
             children: Vec::new(),
+            rendered_data: None,
         }
     }
 
@@ -58,9 +74,40 @@ impl Furniture {
             size: vec2(1.0, 1.0),
             rotation: 0.0,
             children: Vec::new(),
+            rendered_data: None,
         }
     }
+
+    pub fn polygons(
+        &self,
+    ) -> (
+        HashMap<FurnitureMaterial, MultiPolygon>,
+        HashMap<FurnitureMaterial, Vec<Triangles>>,
+    ) {
+        let mut polygons = HashMap::new();
+
+        let first_material = FurnitureMaterial {
+            material: Material::Wood,
+            tint: Color32::from_rgb(190, 120, 80),
+        };
+        let vertices = Shape::Rectangle.vertices(self.pos, self.size, self.rotation);
+        polygons.insert(first_material, create_multipolygon(&vertices));
+
+        // Create triangles for each material
+        let mut triangles = HashMap::new();
+        for (material, poly) in &polygons {
+            let mut material_triangles = Vec::new();
+            for polygon in &poly.0 {
+                let (indices, vertices) = triangulate_polygon(polygon);
+                material_triangles.push(Triangles { indices, vertices });
+            }
+            triangles.insert(material.clone(), material_triangles);
+        }
+
+        (polygons, triangles)
+    }
 }
+
 impl std::fmt::Display for Furniture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!(
@@ -90,4 +137,16 @@ impl Hash for Furniture {
             child.hash(state);
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub struct FurnitureMaterial {
+    pub material: Material,
+    pub tint: Color32,
+}
+
+pub struct FurnitureRender {
+    pub hash: u64,
+    pub polygons: HashMap<FurnitureMaterial, MultiPolygon>,
+    pub triangles: HashMap<FurnitureMaterial, Vec<Triangles>>,
 }

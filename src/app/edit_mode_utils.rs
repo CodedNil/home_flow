@@ -12,8 +12,10 @@ use uuid::Uuid;
 pub struct HoverDetails {
     pub id: Uuid,
     pub object_type: ObjectType,
+    pub can_drag: bool,
     pub pos: Vec2,
     pub size: Vec2,
+    pub rotation: f64,
     pub manipulation_type: ManipulationType,
 }
 
@@ -23,21 +25,37 @@ impl HomeFlow {
         let mut hovered_data = None;
         for room in self.layout.rooms.iter().rev() {
             if room.contains(self.mouse_pos_world) {
-                hovered_data = Some((room.id, ObjectType::Room, room.pos, room.size));
+                hovered_data = Some(HoverDetails {
+                    id: room.id,
+                    object_type: ObjectType::Room,
+                    can_drag: true,
+                    pos: room.pos,
+                    size: room.size,
+                    rotation: 0.0,
+                    manipulation_type: ManipulationType::Move,
+                });
                 break;
             }
         }
         for obj in self.layout.furniture.iter().rev() {
             if obj.contains(self.mouse_pos_world) {
-                hovered_data = Some((obj.id, ObjectType::Furniture, obj.pos, obj.size));
+                hovered_data = Some(HoverDetails {
+                    id: obj.id,
+                    object_type: ObjectType::Furniture,
+                    can_drag: true,
+                    pos: obj.pos,
+                    size: obj.size,
+                    rotation: obj.rotation,
+                    manipulation_type: ManipulationType::Move,
+                });
                 break;
             }
         }
 
         // Click to select room
         if response.clicked() {
-            self.edit_mode.selected_id = hovered_data.map(|(id, _, _, _)| id);
-            self.edit_mode.selected_type = hovered_data.map(|(_, t, _, _)| t);
+            self.edit_mode.selected_id = hovered_data.as_ref().map(|d| d.id);
+            self.edit_mode.selected_type = hovered_data.as_ref().map(|d| d.object_type);
             self.edit_mode.drag_data = None;
         }
 
@@ -46,8 +64,10 @@ impl HomeFlow {
             return Some(HoverDetails {
                 id: drag_data.id,
                 object_type: drag_data.object_type,
-                pos: drag_data.object_start_pos,
-                size: drag_data.object_size,
+                can_drag: true,
+                pos: drag_data.start_pos,
+                size: drag_data.start_size,
+                rotation: drag_data.start_rotation,
                 manipulation_type: drag_data.manipulation_type,
             });
         }
@@ -59,19 +79,41 @@ impl HomeFlow {
             let room = self.layout.rooms.iter().find(|r| r.id == selected_id);
             if let Some(room) = room {
                 if room.contains(self.mouse_pos_world) {
-                    hovered_data = Some((room.id, ObjectType::Room, room.pos, room.size));
+                    hovered_data = Some(HoverDetails {
+                        id: room.id,
+                        object_type: ObjectType::Room,
+                        can_drag: true,
+                        pos: room.pos,
+                        size: room.size,
+                        rotation: 0.0,
+                        manipulation_type: ManipulationType::Move,
+                    });
                 }
                 for obj in room.operations.iter().rev() {
                     if obj.contains(room.pos, self.mouse_pos_world) {
-                        hovered_data =
-                            Some((obj.id, ObjectType::Operation, room.pos + obj.pos, obj.size));
+                        hovered_data = Some(HoverDetails {
+                            id: obj.id,
+                            object_type: ObjectType::Operation,
+                            can_drag: true,
+                            pos: room.pos + obj.pos,
+                            size: obj.size,
+                            rotation: obj.rotation,
+                            manipulation_type: ManipulationType::Move,
+                        });
                         break;
                     }
                 }
                 for obj in room.openings.iter().rev() {
                     if (self.mouse_pos_world - (room.pos + obj.pos)).length() < 0.2 {
-                        hovered_data =
-                            Some((obj.id, ObjectType::Opening, room.pos + obj.pos, Vec2::ZERO));
+                        hovered_data = Some(HoverDetails {
+                            id: obj.id,
+                            object_type: ObjectType::Opening,
+                            can_drag: true,
+                            pos: room.pos + obj.pos,
+                            size: Vec2::ZERO,
+                            rotation: obj.rotation,
+                            manipulation_type: ManipulationType::Move,
+                        });
                         break;
                     }
                 }
@@ -86,17 +128,13 @@ impl HomeFlow {
         }
 
         // If room or operation or furniture, check if at the edge of bounds to resize
-        let mut manipulation_type = ManipulationType::Move;
-        if let Some((_, object_type, hovered_pos, hovered_size)) = &mut hovered_data {
+        if let Some(data) = &mut hovered_data {
             if matches!(
-                object_type,
+                data.object_type,
                 ObjectType::Room | ObjectType::Operation | ObjectType::Furniture
             ) {
-                let (min, max) = (
-                    *hovered_pos - *hovered_size / 2.0,
-                    *hovered_pos + *hovered_size / 2.0,
-                );
-                let size = max - min;
+                let (min, max) = (data.pos - data.size / 2.0, data.pos + data.size / 2.0);
+                let bounds_size = max - min;
                 // Min and max for y are swapped because of the coordinate system
                 let (min, max) = (
                     self.world_to_pixels_xy(min.x, max.y),
@@ -104,28 +142,22 @@ impl HomeFlow {
                 );
                 let threshold = 20.0;
                 if (self.mouse_pos.x - min.x).abs() < threshold {
-                    manipulation_type = ManipulationType::ResizeLeft;
-                    *hovered_pos -= vec2(size.x / 2.0, 0.0);
+                    data.manipulation_type = ManipulationType::ResizeLeft;
+                    data.pos -= vec2(bounds_size.x / 2.0, 0.0);
                 } else if (self.mouse_pos.x - max.x).abs() < threshold {
-                    manipulation_type = ManipulationType::ResizeRight;
-                    *hovered_pos += vec2(size.x / 2.0, 0.0);
+                    data.manipulation_type = ManipulationType::ResizeRight;
+                    data.pos += vec2(bounds_size.x / 2.0, 0.0);
                 } else if (self.mouse_pos.y - min.y).abs() < threshold {
-                    manipulation_type = ManipulationType::ResizeBottom;
-                    *hovered_pos += vec2(0.0, size.y / 2.0);
+                    data.manipulation_type = ManipulationType::ResizeBottom;
+                    data.pos += vec2(0.0, bounds_size.y / 2.0);
                 } else if (self.mouse_pos.y - max.y).abs() < threshold {
-                    manipulation_type = ManipulationType::ResizeTop;
-                    *hovered_pos -= vec2(0.0, size.y / 2.0);
+                    data.manipulation_type = ManipulationType::ResizeTop;
+                    data.pos -= vec2(0.0, bounds_size.y / 2.0);
                 }
             }
         }
 
-        hovered_data.map(|(id, object_type, pos, size)| HoverDetails {
-            id,
-            object_type,
-            pos,
-            size,
-            manipulation_type,
-        })
+        hovered_data
     }
 
     pub fn handle_drag(
@@ -137,7 +169,7 @@ impl HomeFlow {
         let mut snap_line_y = None;
 
         let delta = self.mouse_pos_world - drag_data.mouse_start_pos;
-        let mut new_pos = drag_data.object_start_pos + vec2(delta.x, delta.y);
+        let mut new_pos = drag_data.start_pos + vec2(delta.x, delta.y);
         let mut new_rotation = 0.0;
 
         let snap_amount = match drag_data.object_type {
@@ -210,16 +242,14 @@ impl HomeFlow {
             let mut closest_vertical_snap_line: Option<(f64, f64, usize)> = None;
             let (bounds_min, bounds_max) = match drag_data.manipulation_type {
                 ManipulationType::ResizeLeft | ManipulationType::ResizeRight => (
-                    -vec2(0.0, drag_data.object_size.y / 2.0),
-                    vec2(0.0, drag_data.object_size.y / 2.0),
+                    -vec2(0.0, drag_data.start_size.y / 2.0),
+                    vec2(0.0, drag_data.start_size.y / 2.0),
                 ),
                 ManipulationType::ResizeTop | ManipulationType::ResizeBottom => (
-                    -vec2(drag_data.object_size.x / 2.0, 0.0),
-                    vec2(drag_data.object_size.x / 2.0, 0.0),
+                    -vec2(drag_data.start_size.x / 2.0, 0.0),
+                    vec2(drag_data.start_size.x / 2.0, 0.0),
                 ),
-                ManipulationType::Move => {
-                    (-drag_data.object_size / 2.0, drag_data.object_size / 2.0)
-                }
+                ManipulationType::Move => (-drag_data.start_size / 2.0, drag_data.start_size / 2.0),
             };
             let (bounds_min, bounds_max) = (bounds_min + new_pos, bounds_max + new_pos);
             let snap_threshold = 0.1;
@@ -308,12 +338,12 @@ pub fn apply_standard_transform(
             *pos = new_pos;
         }
         ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
-            let new_size = drag_data.object_size.x + delta.x * sign;
+            let new_size = drag_data.start_size.x + delta.x * sign;
             size.x = new_size.abs();
             pos.x = new_pos.x - new_size / 2.0 * sign;
         }
         ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
-            let new_size = drag_data.object_size.y + delta.y * sign;
+            let new_size = drag_data.start_size.y + delta.y * sign;
             size.y = new_size.abs();
             pos.y = new_pos.y - new_size / 2.0 * sign;
         }

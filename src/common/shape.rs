@@ -1,5 +1,5 @@
 use super::{
-    furniture::Furniture,
+    furniture::{Furniture, FurnitureRender},
     layout::{
         Action, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles,
         Walls,
@@ -72,6 +72,49 @@ impl Home {
                     material_polygons,
                     material_triangles,
                     wall_polygons,
+                });
+            }
+        }
+
+        // Find furniture to update which have been modified, get (index, id, hash)
+        let furniture_to_update = self
+            .furniture
+            .iter()
+            .enumerate()
+            .filter_map(|(index, furniture)| {
+                let mut hasher = DefaultHasher::new();
+                furniture.hash(&mut hasher);
+                let hash = hasher.finish();
+                if furniture.rendered_data.is_none()
+                    || furniture.rendered_data.as_ref().unwrap().hash != hash
+                {
+                    Some((index, furniture.id, hash))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // Process all furniture in parallel
+        let new_data = furniture_to_update
+            .par_iter()
+            .map(|(index, id, hash)| {
+                let furniture = &self.furniture[*index];
+                let (polygons, triangles) = furniture.polygons();
+                (*id, *hash, polygons, triangles)
+            })
+            .collect::<Vec<_>>();
+        // Update furniture with new data
+        for (id, hash, polygons, triangles) in new_data {
+            if let Some(furniture) = self
+                .furniture
+                .iter_mut()
+                .find(|furniture| furniture.id == id)
+            {
+                furniture.rendered_data = Some(FurnitureRender {
+                    hash,
+                    polygons,
+                    triangles,
                 });
             }
         }

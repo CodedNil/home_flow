@@ -2,7 +2,7 @@ use super::HomeFlow;
 use crate::common::{
     layout::{OpeningType, Shape},
     shape::WALL_WIDTH,
-    utils::{rotate_point, vec2_to_egui_pos},
+    utils::{rotate_point, vec2_to_egui_pos, Material},
 };
 use egui::{
     epaint::Vertex, Color32, ColorImage, Mesh, Painter, Rect, Shape as EShape, Stroke, TextureId,
@@ -81,37 +81,62 @@ impl HomeFlow {
         }
     }
 
+    pub fn ready_texture(&mut self, material: Material, ctx: &egui::Context) {
+        self.textures
+            .entry(material.to_string())
+            .or_insert_with(|| {
+                let texture = image::load_from_memory(material.get_image())
+                    .unwrap()
+                    .into_rgba8();
+                let canvas_size = texture.dimensions();
+                let egui_image = ColorImage::from_rgba_unmultiplied(
+                    [canvas_size.0 as usize, canvas_size.1 as usize],
+                    &texture,
+                );
+                ctx.load_texture(
+                    material.to_string(),
+                    egui_image,
+                    TextureOptions::NEAREST_REPEAT,
+                )
+            });
+    }
+
+    pub fn load_texture(&self, material: Material) -> TextureId {
+        self.textures.get(&material.to_string()).unwrap().id()
+    }
+
     pub fn render_layout(&mut self, painter: &Painter, ctx: &egui::Context) {
         self.layout.render();
+
+        // Ready textures
+        let mut materials_to_ready = Vec::new();
+        for room in &self.layout.rooms {
+            for material in room
+                .rendered_data
+                .as_ref()
+                .unwrap()
+                .material_triangles
+                .keys()
+            {
+                materials_to_ready.push(self.layout.get_global_material(material).material);
+            }
+        }
+        for furniture in &self.layout.furniture {
+            for material in furniture.rendered_data.as_ref().unwrap().triangles.keys() {
+                materials_to_ready.push(material.material);
+            }
+        }
+        for material in materials_to_ready {
+            self.ready_texture(material, ctx);
+        }
 
         // Render rooms
         for room in &self.layout.rooms {
             let rendered_data = room.rendered_data.as_ref().unwrap();
             for (material, multi_triangles) in &rendered_data.material_triangles {
+                let global_material = self.layout.get_global_material(material);
+                let texture_id = self.load_texture(global_material.material);
                 for triangles in multi_triangles {
-                    let global_material = self.layout.get_global_material(material);
-                    let texture_id = self
-                        .textures
-                        .entry(material.to_string())
-                        .or_insert_with(|| {
-                            let texture =
-                                image::load_from_memory(global_material.material.get_image())
-                                    .unwrap()
-                                    .into_rgba8();
-                            let canvas_size = texture.dimensions();
-                            let egui_image = ColorImage::from_rgba_unmultiplied(
-                                [canvas_size.0 as usize, canvas_size.1 as usize],
-                                &texture,
-                            );
-                            ctx.load_texture(
-                                material.to_string(),
-                                egui_image,
-                                TextureOptions::NEAREST_REPEAT,
-                            )
-                        })
-                        .id();
-
-                    let color = global_material.tint.unwrap_or(Color32::WHITE);
                     let vertices = triangles
                         .vertices
                         .iter()
@@ -120,7 +145,7 @@ impl HomeFlow {
                             Vertex {
                                 pos: vec2_to_egui_pos(self.world_to_pixels(v)),
                                 uv: egui::pos2(local_pos.x as f32, local_pos.y as f32),
-                                color,
+                                color: global_material.tint,
                             }
                         })
                         .collect();
@@ -149,7 +174,31 @@ impl HomeFlow {
         }
 
         // Render furniture
-        for furniture in &self.layout.furniture {}
+        for furniture in &self.layout.furniture {
+            let rendered_data = furniture.rendered_data.as_ref().unwrap();
+            for (material, multi_triangles) in &rendered_data.triangles {
+                let texture_id = self.load_texture(material.material);
+                for triangles in multi_triangles {
+                    let vertices = triangles
+                        .vertices
+                        .iter()
+                        .map(|&v| {
+                            let local_pos = v * 0.2;
+                            Vertex {
+                                pos: vec2_to_egui_pos(self.world_to_pixels(v)),
+                                uv: egui::pos2(local_pos.x as f32, local_pos.y as f32),
+                                color: material.tint,
+                            }
+                        })
+                        .collect();
+                    painter.add(EShape::mesh(Mesh {
+                        indices: triangles.indices.clone(),
+                        vertices,
+                        texture_id,
+                    }));
+                }
+            }
+        }
 
         // Render walls
         let rendered_data = self.layout.rendered_data.as_ref().unwrap();
