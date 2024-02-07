@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use std::{fs, path::Path};
 use time::{format_description, OffsetDateTime};
@@ -17,20 +17,18 @@ pub fn setup_routes(app: Router) -> Router {
 }
 
 pub async fn load_layout() -> impl IntoResponse {
-    let home_json = fs::read_to_string(LAYOUT_PATH).map_or_else(
-        |_| serde_json::to_string(&Home::template()).unwrap_or_default(),
-        |contents| match serde_json::from_str::<Home>(&contents) {
-            Ok(_) => contents,
-            Err(_) => serde_json::to_string(&Home::template()).unwrap_or_default(),
+    let home_struct = fs::read_to_string(LAYOUT_PATH).map_or_else(
+        |_| Home::template(),
+        |contents| {
+            serde_json::from_str::<Home>(&contents).map_or_else(|_| Home::template(), |home| home)
         },
     );
-
-    (StatusCode::OK, home_json).into_response()
+    (StatusCode::OK, Json(home_struct))
 }
 
-pub async fn save_layout(home: String) -> impl IntoResponse {
+pub async fn save_layout(Json(home): Json<Home>) -> impl IntoResponse {
     log::info!("Saving layout");
-    match save_layout_impl(&home) {
+    match save_layout_impl(&serde_json::to_string(&home).unwrap()) {
         Ok(()) => StatusCode::OK.into_response(),
         Err(e) => {
             log::error!("Failed to save layout: {:?}", e);

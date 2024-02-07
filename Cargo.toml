@@ -44,7 +44,11 @@ wasm-bindgen-futures = "0.4.40"
 # Server dependencies
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 simple_logger = "4.3.3"
-axum = "0.7.4"
+axum = { version = "0.7.4", default-features = false, features = [
+    "http1",
+    "tokio",
+    "json",
+] }
 tokio = { version = "1.36.0", features = ["full"] }
 tower-http = { version = "0.5.1", features = [
     "fs",
