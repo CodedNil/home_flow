@@ -58,8 +58,8 @@ impl ManipulationType {
     pub const fn sign(self) -> f64 {
         match self {
             Self::Move => 0.0,
-            Self::ResizeLeft | Self::ResizeTop => -1.0,
-            Self::ResizeRight | Self::ResizeBottom => 1.0,
+            Self::ResizeLeft | Self::ResizeBottom => -1.0,
+            Self::ResizeRight | Self::ResizeTop => 1.0,
         }
     }
 }
@@ -178,6 +178,10 @@ impl HomeFlow {
         let can_drag = hover_details.as_ref().is_some_and(|h| h.can_drag);
         if can_drag || self.edit_mode.drag_data.is_some() {
             if let Some(hover_details) = &hover_details {
+                let rotation_normalized = hover_details.rotation.rem_euclid(360.0);
+                let flip_cursor = (rotation_normalized > 45.0 && rotation_normalized < 135.0)
+                    || (rotation_normalized > 225.0 && rotation_normalized < 315.0);
+
                 match hover_details.manipulation_type {
                     ManipulationType::Move => {
                         ui.ctx()
@@ -188,10 +192,18 @@ impl HomeFlow {
                             });
                     }
                     ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
-                        ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
+                        ui.ctx().set_cursor_icon(if flip_cursor {
+                            CursorIcon::ResizeVertical
+                        } else {
+                            CursorIcon::ResizeHorizontal
+                        });
                     }
                     ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
-                        ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+                        ui.ctx().set_cursor_icon(if flip_cursor {
+                            CursorIcon::ResizeHorizontal
+                        } else {
+                            CursorIcon::ResizeVertical
+                        });
                     }
                 }
             }

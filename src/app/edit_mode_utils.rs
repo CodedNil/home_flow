@@ -144,28 +144,24 @@ impl HomeFlow {
                     * 2.0;
 
                 // Calculate the rotated direction vectors for the four directions
-                let right_dir = rotate_point(vec2(1.0, 0.0), Vec2::ZERO, data.rotation);
-                let up_dir = rotate_point(vec2(0.0, 1.0), Vec2::ZERO, data.rotation);
+                let right_dir = rotate_point(vec2(1.0, 0.0), Vec2::ZERO, -data.rotation);
+                let up_dir = rotate_point(vec2(0.0, 1.0), Vec2::ZERO, -data.rotation);
+                let screen_size = data.size / 2.0 * self.zoom;
 
                 let threshold = 20.0;
 
-                if (local_mouse_pos.x + 1.0).abs() * data.size.x / 2.0 * self.zoom < threshold {
+                if (local_mouse_pos.x + 1.0).abs() * screen_size.x < threshold {
                     data.manipulation_type = ManipulationType::ResizeLeft;
                     data.pos -= right_dir * data.size.x / 2.0;
-                }
-                if (local_mouse_pos.x - 1.0).abs() * data.size.x / 2.0 * self.zoom < threshold {
+                } else if (local_mouse_pos.x - 1.0).abs() * screen_size.x < threshold {
                     data.manipulation_type = ManipulationType::ResizeRight;
                     data.pos += right_dir * data.size.x / 2.0;
-                }
-
-                // y is swapped because of the coordinate system
-                if (local_mouse_pos.y + 1.0).abs() * data.size.y / 2.0 * self.zoom < threshold {
+                } else if (local_mouse_pos.y - 1.0).abs() * screen_size.y < threshold {
                     data.manipulation_type = ManipulationType::ResizeTop;
-                    data.pos -= up_dir * data.size.y / 2.0;
-                }
-                if (local_mouse_pos.y - 1.0).abs() * data.size.y / 2.0 * self.zoom < threshold {
-                    data.manipulation_type = ManipulationType::ResizeBottom;
                     data.pos += up_dir * data.size.y / 2.0;
+                } else if (local_mouse_pos.y + 1.0).abs() * screen_size.y < threshold {
+                    data.manipulation_type = ManipulationType::ResizeBottom;
+                    data.pos -= up_dir * data.size.y / 2.0;
                 }
             }
         }
@@ -347,27 +343,23 @@ pub fn apply_standard_transform(
 ) {
     let sign = drag_data.manipulation_type.sign();
 
+    let rotated_delta = rotate_point(delta, Vec2::ZERO, drag_data.start_rotation);
     match drag_data.manipulation_type {
         ManipulationType::Move => {
             *pos = new_pos;
         }
         ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
-            let new_size = drag_data.start_size.x + delta.x * sign;
+            let new_size = drag_data.start_size.x + rotated_delta.x * sign;
             size.x = new_size.abs();
-            // pos.x = new_pos.x - new_size / 2.0 * sign;
-
-            // Project new_pos onto the axis of rotation
-            let unrotated_pos =
-                rotate_point(new_pos, drag_data.start_pos, -drag_data.start_rotation);
-            println!("unrotated_pos: {:?}", unrotated_pos);
-
-            let right_dir = rotate_point(vec2(0.5, 0.0), Vec2::ZERO, drag_data.start_rotation);
-            *pos = new_pos - right_dir * new_size * sign;
+            let left_dir = rotate_point(vec2(-1.0, 0.0), Vec2::ZERO, -drag_data.start_rotation);
+            *pos =
+                drag_data.start_pos + left_dir * new_size * 0.5 * sign - left_dir * rotated_delta.x;
         }
         ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
-            let new_size = drag_data.start_size.y + delta.y * sign;
+            let new_size = drag_data.start_size.y + rotated_delta.y * sign;
             size.y = new_size.abs();
-            pos.y = new_pos.y - new_size / 2.0 * sign;
+            let up_dir = rotate_point(vec2(0.0, -1.0), Vec2::ZERO, -drag_data.start_rotation);
+            *pos = drag_data.start_pos + up_dir * new_size * 0.5 * sign - up_dir * rotated_delta.y;
         }
     }
 }
