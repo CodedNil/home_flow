@@ -111,7 +111,8 @@ impl Furniture {
 impl std::fmt::Display for Furniture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut string = format!(
-            "Furniture: {}m @ {}m",
+            "Furniture: {} {}m @ {}m",
+            self.furniture_type.fancy_display(),
             display_vec2(self.size),
             display_vec2(self.pos)
         );
@@ -135,6 +136,16 @@ impl Hash for Furniture {
         self.rotation.to_bits().hash(state);
         for child in &self.children {
             child.hash(state);
+        }
+    }
+}
+
+impl FurnitureType {
+    fn fancy_display(self) -> String {
+        match self {
+            Self::Chair(chair_type) => format!("Chair: {chair_type}"),
+            Self::Table(table_type) => format!("Table: {table_type}"),
+            _ => self.to_string(),
         }
     }
 }

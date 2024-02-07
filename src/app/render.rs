@@ -140,13 +140,10 @@ impl HomeFlow {
                     let vertices = triangles
                         .vertices
                         .iter()
-                        .map(|&v| {
-                            let local_pos = v * 0.2;
-                            Vertex {
-                                pos: vec2_to_egui_pos(self.world_to_pixels(v)),
-                                uv: egui::pos2(local_pos.x as f32, local_pos.y as f32),
-                                color: global_material.tint,
-                            }
+                        .map(|&v| Vertex {
+                            pos: vec2_to_egui_pos(self.world_to_pixels(v)),
+                            uv: vec2_to_egui_pos(v * 0.2),
+                            color: global_material.tint,
                         })
                         .collect();
                     painter.add(EShape::mesh(Mesh {
@@ -182,13 +179,14 @@ impl HomeFlow {
                     let vertices = triangles
                         .vertices
                         .iter()
-                        .map(|&v| {
-                            let local_pos = v * 0.2;
-                            Vertex {
-                                pos: vec2_to_egui_pos(self.world_to_pixels(v)),
-                                uv: egui::pos2(local_pos.x as f32, local_pos.y as f32),
-                                color: material.tint,
-                            }
+                        .map(|&v| Vertex {
+                            pos: vec2_to_egui_pos(self.world_to_pixels(v)),
+                            uv: vec2_to_egui_pos(rotate_point(
+                                v * 0.2,
+                                furniture.pos,
+                                furniture.rotation,
+                            )),
+                            color: material.tint,
                         })
                         .collect();
                     painter.add(EShape::mesh(Mesh {
