@@ -2,7 +2,11 @@ use super::{
     edit_mode::{DragData, ManipulationType, ObjectType},
     HomeFlow,
 };
-use crate::common::{layout::GlobalMaterial, shape::coord_to_vec2, utils::RoundFactor};
+use crate::common::{
+    layout::GlobalMaterial,
+    shape::coord_to_vec2,
+    utils::{rotate_point, RoundFactor},
+};
 use egui::{ComboBox, DragValue, Key, Ui};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use strum::IntoEnumIterator;
@@ -133,26 +137,35 @@ impl HomeFlow {
                 data.object_type,
                 ObjectType::Room | ObjectType::Operation | ObjectType::Furniture
             ) {
-                let (min, max) = (data.pos - data.size / 2.0, data.pos + data.size / 2.0);
-                let bounds_size = max - min;
-                // Min and max for y are swapped because of the coordinate system
-                let (min, max) = (
-                    self.world_to_pixels_xy(min.x, max.y),
-                    self.world_to_pixels_xy(max.x, min.y),
-                );
+                // Local mouse pos is -1 to 1 in x and y
+                let local_mouse_pos = (rotate_point(self.mouse_pos_world, data.pos, data.rotation)
+                    - data.pos)
+                    / data.size
+                    * 2.0;
+
+                // Calculate the rotated direction vectors for the four directions
+                let right_dir = rotate_point(vec2(1.0, 0.0), Vec2::ZERO, data.rotation);
+                let up_dir = rotate_point(vec2(0.0, 1.0), Vec2::ZERO, data.rotation);
+
                 let threshold = 20.0;
-                if (self.mouse_pos.x - min.x).abs() < threshold {
+
+                if (local_mouse_pos.x + 1.0).abs() * data.size.x / 2.0 * self.zoom < threshold {
                     data.manipulation_type = ManipulationType::ResizeLeft;
-                    data.pos -= vec2(bounds_size.x / 2.0, 0.0);
-                } else if (self.mouse_pos.x - max.x).abs() < threshold {
+                    data.pos -= right_dir * data.size.x / 2.0;
+                }
+                if (local_mouse_pos.x - 1.0).abs() * data.size.x / 2.0 * self.zoom < threshold {
                     data.manipulation_type = ManipulationType::ResizeRight;
-                    data.pos += vec2(bounds_size.x / 2.0, 0.0);
-                } else if (self.mouse_pos.y - min.y).abs() < threshold {
-                    data.manipulation_type = ManipulationType::ResizeBottom;
-                    data.pos += vec2(0.0, bounds_size.y / 2.0);
-                } else if (self.mouse_pos.y - max.y).abs() < threshold {
+                    data.pos += right_dir * data.size.x / 2.0;
+                }
+
+                // y is swapped because of the coordinate system
+                if (local_mouse_pos.y + 1.0).abs() * data.size.y / 2.0 * self.zoom < threshold {
                     data.manipulation_type = ManipulationType::ResizeTop;
-                    data.pos -= vec2(0.0, bounds_size.y / 2.0);
+                    data.pos -= up_dir * data.size.y / 2.0;
+                }
+                if (local_mouse_pos.y - 1.0).abs() * data.size.y / 2.0 * self.zoom < threshold {
+                    data.manipulation_type = ManipulationType::ResizeBottom;
+                    data.pos += up_dir * data.size.y / 2.0;
                 }
             }
         }
@@ -333,6 +346,7 @@ pub fn apply_standard_transform(
     new_pos: Vec2,
 ) {
     let sign = drag_data.manipulation_type.sign();
+
     match drag_data.manipulation_type {
         ManipulationType::Move => {
             *pos = new_pos;
@@ -340,7 +354,15 @@ pub fn apply_standard_transform(
         ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
             let new_size = drag_data.start_size.x + delta.x * sign;
             size.x = new_size.abs();
-            pos.x = new_pos.x - new_size / 2.0 * sign;
+            // pos.x = new_pos.x - new_size / 2.0 * sign;
+
+            // Project new_pos onto the axis of rotation
+            let unrotated_pos =
+                rotate_point(new_pos, drag_data.start_pos, -drag_data.start_rotation);
+            println!("unrotated_pos: {:?}", unrotated_pos);
+
+            let right_dir = rotate_point(vec2(0.5, 0.0), Vec2::ZERO, drag_data.start_rotation);
+            *pos = new_pos - right_dir * new_size * sign;
         }
         ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
             let new_size = drag_data.start_size.y + delta.y * sign;
