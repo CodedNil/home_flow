@@ -644,10 +644,7 @@ fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> Alter
             FurnitureType::Table(ref mut table_type) => {
                 combo_box_for_enum(ui, "Table Type", table_type, "");
             }
-            FurnitureType::Bed(ref mut color) => {
-                ui.color_edit_button_srgba_unmultiplied(color.mut_array());
-            }
-            FurnitureType::Rug(ref mut color) => {
+            FurnitureType::Bed(ref mut color) | FurnitureType::Rug(ref mut color) => {
                 ui.color_edit_button_srgba_unmultiplied(color.mut_array());
             }
             _ => {}
