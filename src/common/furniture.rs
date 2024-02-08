@@ -1,8 +1,8 @@
 use super::{
     color::Color,
     layout::{Shape, Triangles},
-    shape::triangulate_polygon,
-    utils::{clone_as_none, display_vec2, hash_vec2, Material},
+    shape::{triangulate_polygon, EMPTY_MULTI_POLYGON},
+    utils::{clone_as_none, display_vec2, hash_vec2, rotate_point, Material},
 };
 use derivative::Derivative;
 use geo_types::MultiPolygon;
@@ -31,7 +31,7 @@ pub struct Furniture {
 pub enum FurnitureType {
     Chair(ChairType),
     Table(TableType),
-    Bed,
+    Bed(Color),
     Wardrobe,
     Rug(Color),
 }
@@ -82,7 +82,7 @@ impl Furniture {
         match self.furniture_type {
             FurnitureType::Chair(sub_type) => self.chair_render(&mut polygons, sub_type),
             FurnitureType::Table(sub_type) => self.table_render(&mut polygons, sub_type),
-            FurnitureType::Bed => self.bed_render(&mut polygons),
+            FurnitureType::Bed(color) => self.bed_render(&mut polygons, color),
             FurnitureType::Wardrobe => self.wardrobe_render(&mut polygons),
             FurnitureType::Rug(color) => self.rug_render(&mut polygons, color),
         }
@@ -102,11 +102,11 @@ impl Furniture {
     }
 
     fn full_shape(&self) -> MultiPolygon {
-        Shape::Rectangle.polygon(self.pos, self.size, self.rotation)
+        Shape::Rectangle.polygons(self.pos, self.size, self.rotation)
     }
 
     fn inlayed_shape(&self) -> MultiPolygon {
-        Shape::Rectangle.polygon(self.pos, self.size - vec2(0.1, 0.1), self.rotation)
+        Shape::Rectangle.polygons(self.pos, self.size - vec2(0.1, 0.1), self.rotation)
     }
 
     fn chair_render(&self, polygons: &mut FurniturePolygons, sub_type: ChairType) {
@@ -123,10 +123,62 @@ impl Furniture {
         );
     }
 
-    fn bed_render(&self, polygons: &mut FurniturePolygons) {
+    fn bed_render(&self, polygons: &mut FurniturePolygons, color: Color) {
+        let sheet_color = Color::from_rgb(250, 230, 210);
+        let pillow_color = Color::from_rgb(255, 255, 255);
+
+        let right_dir = rotate_point(vec2(1.0, 0.0), Vec2::ZERO, -self.rotation);
+        let up_dir = rotate_point(vec2(0.0, 1.0), Vec2::ZERO, -self.rotation);
+
+        // Add sheets
         polygons.insert(
-            FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
+            FurnitureMaterial::new(Material::Empty, sheet_color),
             self.full_shape(),
+        );
+
+        // Add pillows, 65x50cm
+        let pillow_spacing = 0.05;
+        let available_width = self.size.x - pillow_spacing;
+        let (pillow_width, pillow_height) = (0.62, 0.45);
+        let pillow_full_width = pillow_width + 0.05;
+        let num_pillows = (available_width / pillow_full_width).floor().max(1.0) as usize;
+        let mut pillow_polygon = EMPTY_MULTI_POLYGON;
+        for i in 0..num_pillows {
+            let pillow_pos = self.pos
+                + right_dir
+                    * (pillow_full_width * i as f64
+                        - ((num_pillows - 1) as f64 * pillow_full_width) * 0.5)
+                + up_dir * ((self.size.y - pillow_height) * 0.5 - pillow_spacing);
+            let pillow = Shape::Rectangle.polygon(
+                pillow_pos,
+                vec2(pillow_width, pillow_height),
+                self.rotation,
+            );
+            pillow_polygon.0.push(pillow);
+        }
+        fancy_inlay(
+            polygons,
+            pillow_polygon,
+            Material::Empty,
+            pillow_color,
+            -0.015,
+            0.03,
+        );
+
+        // Add covers
+        let covers_size = (self.size.y - pillow_height - pillow_spacing * 2.0) / self.size.y;
+        let cover_polygon = Shape::Rectangle.polygons(
+            self.pos - up_dir * self.size.y * (1.0 - covers_size) / 2.0,
+            vec2(self.size.x, self.size.y * covers_size),
+            self.rotation,
+        );
+        fancy_inlay(
+            polygons,
+            cover_polygon,
+            Material::Empty,
+            color,
+            -0.025,
+            0.05,
         );
     }
 
@@ -147,6 +199,26 @@ impl Furniture {
             self.inlayed_shape(),
         );
     }
+}
+
+fn fancy_inlay(
+    polygons: &mut FurniturePolygons,
+    poly: MultiPolygon,
+    material: Material,
+    color: Color,
+    lighten: f64,
+    inset: f64,
+) {
+    let inset_poly = inset_polygon(&poly, inset);
+    polygons.insert(FurnitureMaterial::new(material, color), poly);
+    polygons.insert(
+        FurnitureMaterial::new(material, color.lighten(lighten)),
+        inset_poly,
+    );
+}
+
+fn inset_polygon(polygon: &MultiPolygon, inset: f64) -> MultiPolygon {
+    geo_buffer::buffer_multi_polygon(polygon, -inset)
 }
 
 impl std::fmt::Display for Furniture {

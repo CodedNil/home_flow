@@ -135,8 +135,16 @@ impl Home {
             materials: vec![
                 GlobalMaterial::new("Carpet", Material::Carpet, Color::from_rgb(240, 225, 192)),
                 GlobalMaterial::new("Wood", Material::Wood, Color::from_rgb(190, 120, 80)),
-                GlobalMaterial::new("Marble", Material::Marble, Color::from_rgb(255, 250, 230)),
-                GlobalMaterial::new("Granite", Material::Granite, Color::from_rgb(50, 50, 50)),
+                GlobalMaterial::new(
+                    "KitchenTiles",
+                    Material::Marble,
+                    Color::from_rgb(255, 250, 230),
+                ),
+                GlobalMaterial::new(
+                    "BathroomTiles",
+                    Material::Granite,
+                    Color::from_rgb(50, 50, 50),
+                ),
             ],
             rooms: vec![
                 Room::new(
@@ -170,7 +178,7 @@ impl Home {
                     "Kitchen",
                     vec2(-4.05, 1.5),
                     vec2(3.5, 3.1),
-                    "Marble",
+                    "KitchenTiles",
                     Walls::WALL.right(false).bottom(false),
                     vec![],
                     vec![Opening::new(OpeningType::Window, vec2(0.0, 1.55))],
@@ -215,7 +223,7 @@ impl Home {
                     "Ensuite",
                     vec2(1.1, -1.4),
                     vec2(1.6, 2.7),
-                    "Granite",
+                    "BathroomTiles",
                     Walls::WALL,
                     vec![],
                     vec![
@@ -253,14 +261,14 @@ impl Home {
                     "Bathroom",
                     vec2(1.4, 2.05),
                     vec2(2.4, 2.0),
-                    "Granite",
+                    "BathroomTiles",
                     Walls::WALL,
                     vec![],
                     vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0)).rotate(180.0)],
                 ),
             ],
             furniture: vec![Furniture::new(
-                FurnitureType::Bed,
+                FurnitureType::Bed(Color::from_rgb(110, 120, 130)),
                 vec2(4.65, -1.4),
                 vec2(1.4, 2.1),
                 90.0,

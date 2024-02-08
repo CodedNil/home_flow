@@ -130,12 +130,12 @@ impl Home {
         // Subtract doors and windows
         for room in &self.rooms {
             for opening in &room.openings {
-                let operation_polygon = Shape::Rectangle.polygon(
+                let opening_polygon = Shape::Rectangle.polygons(
                     room.pos + opening.pos,
                     vec2(opening.width, WALL_WIDTH * 1.01),
                     opening.rotation,
                 );
-                wall_polygons = wall_polygons.difference(&operation_polygon);
+                wall_polygons = wall_polygons.difference(&opening_polygon);
             }
         }
 
@@ -209,7 +209,7 @@ impl Room {
     }
 
     pub fn polygons(&self) -> MultiPolygon {
-        let mut polygons = Shape::Rectangle.polygon(self.pos, self.size, 0.0);
+        let mut polygons = Shape::Rectangle.polygons(self.pos, self.size, 0.0);
         for operation in &self.operations {
             let operation_polygon = operation.polygon(self.pos);
             match operation.action {
@@ -234,7 +234,7 @@ impl Room {
         let mut polygons = HashMap::new();
         polygons.insert(
             self.material.clone(),
-            Shape::Rectangle.polygon(self.pos, self.size, 0.0),
+            Shape::Rectangle.polygons(self.pos, self.size, 0.0),
         );
         for operation in &self.operations {
             let op_polygon = operation.polygon(self.pos);
@@ -481,7 +481,19 @@ impl Shape {
         vertices
     }
 
-    pub fn polygon(self, pos: Vec2, size: Vec2, rotation: f64) -> MultiPolygon {
+    pub fn polygon(self, pos: Vec2, size: Vec2, rotation: f64) -> Polygon {
+        Polygon::new(
+            geo::LineString::from(
+                self.vertices(pos, size, rotation)
+                    .iter()
+                    .map(vec2_to_coord)
+                    .collect::<Vec<_>>(),
+            ),
+            vec![],
+        )
+    }
+
+    pub fn polygons(self, pos: Vec2, size: Vec2, rotation: f64) -> MultiPolygon {
         MultiPolygon(vec![Polygon::new(
             geo::LineString::from(
                 self.vertices(pos, size, rotation)

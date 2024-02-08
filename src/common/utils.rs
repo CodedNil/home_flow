@@ -368,6 +368,7 @@ impl Hash for GlobalMaterial {
 
 #[derive(Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, EnumIter)]
 pub enum Material {
+    Empty,
     Carpet,
     Marble,
     Granite,
@@ -378,6 +379,7 @@ pub enum Material {
 impl Material {
     pub const fn get_image(&self) -> &[u8] {
         match self {
+            Self::Empty => include_bytes!("../../assets/textures/empty.png"),
             Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
