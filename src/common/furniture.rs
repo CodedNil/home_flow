@@ -5,7 +5,7 @@ use super::{
     utils::{clone_as_none, display_vec2, hash_vec2, rotate_point, Material},
 };
 use derivative::Derivative;
-use geo::BooleanOps;
+use geo::{triangulate_spade::SpadeTriangulationConfig, BooleanOps, TriangulateSpade};
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use indexmap::IndexMap;
@@ -93,7 +93,10 @@ impl Furniture {
     }
 
     pub fn render(&self) -> (FurniturePolygons, FurnitureTriangles, FurnitureShadows) {
-        let polygons = self.polygons();
+        let mut new_furniture = self.clone();
+        new_furniture.rotation = 0.0;
+        new_furniture.pos = Vec2::ZERO;
+        let polygons = new_furniture.polygons();
 
         // Create triangles for each material
         let mut triangles = IndexMap::new();
@@ -106,19 +109,16 @@ impl Furniture {
             triangles.insert(material.clone(), material_triangles);
         }
 
-        // Create unrotated shape to join for shadow
-        let mut new_furniture = self.clone();
-        new_furniture.rotation = 0.0;
-        new_furniture.pos = Vec2::ZERO;
-        let new_polygons = new_furniture.polygons();
-        let mut shadow_polygons = EMPTY_MULTI_POLYGON;
-        for (_, poly) in &new_polygons {
-            shadow_polygons = shadow_polygons.union(&geo_buffer::buffer_multi_polygon(poly, 0.01));
+        let mut shadow_exterior = EMPTY_MULTI_POLYGON;
+        let mut shadow_interior = EMPTY_MULTI_POLYGON;
+        for (_, poly) in &polygons {
+            shadow_exterior =
+                shadow_exterior.union(&geo_buffer::buffer_multi_polygon_rounded(poly, 0.05));
+            shadow_interior =
+                shadow_interior.union(&geo_buffer::buffer_multi_polygon_rounded(poly, -0.025));
         }
 
         // Create shadow triangles
-        let shadow_exterior = geo_buffer::buffer_multi_polygon(&shadow_polygons, 0.05);
-        let shadow_interior = geo_buffer::buffer_multi_polygon(&shadow_polygons, -0.02);
         let interior_points = shadow_interior
             .0
             .iter()
@@ -129,7 +129,21 @@ impl Furniture {
 
         let mut shadow_triangles = Vec::new();
         for polygon in &shadow_polygons {
-            let (indices, vertices) = triangulate_polygon(polygon);
+            let (indices, vertices) = {
+                let triangles = polygon
+                    .constrained_triangulation(SpadeTriangulationConfig::default())
+                    .unwrap();
+                let mut indices = Vec::new();
+                let mut vertices = Vec::new();
+                for triangle in triangles {
+                    for point in triangle.to_array() {
+                        let index = vertices.len() as u32;
+                        indices.push(index);
+                        vertices.push(vec2(point.x, point.y));
+                    }
+                }
+                (indices, vertices)
+            };
             let mut vertex_position_map = HashMap::new();
             for (index, vertex) in vertices.iter().enumerate() {
                 let is_interior = interior_points
@@ -137,11 +151,6 @@ impl Furniture {
                     .any(|p| p.distance(*vertex) < f64::EPSILON);
                 vertex_position_map.insert(index, is_interior);
             }
-            // Add back position and rotation
-            let vertices = vertices
-                .iter()
-                .map(|v| rotate_point(*v, Vec2::ZERO, -self.rotation) + self.pos)
-                .collect();
             shadow_triangles.push((Triangles { indices, vertices }, vertex_position_map));
         }
 
@@ -149,7 +158,7 @@ impl Furniture {
     }
 
     fn full_shape(&self) -> MultiPolygon {
-        Shape::Rectangle.polygons(self.pos, self.size, self.rotation)
+        Shape::Rectangle.polygons(Vec2::ZERO, self.size, 0.0)
     }
 
     fn chair_render(&self, polygons: &mut FurniturePolygons, sub_type: ChairType) {
@@ -170,9 +179,6 @@ impl Furniture {
         let sheet_color = Color::from_rgb(250, 230, 210);
         let pillow_color = Color::from_rgb(255, 255, 255);
 
-        let right_dir = rotate_point(vec2(1.0, 0.0), Vec2::ZERO, -self.rotation);
-        let up_dir = rotate_point(vec2(0.0, 1.0), Vec2::ZERO, -self.rotation);
-
         // Add sheets
         polygons.insert(
             FurnitureMaterial::new(Material::Empty, sheet_color),
@@ -188,15 +194,13 @@ impl Furniture {
         let mut pillow_polygon = EMPTY_MULTI_POLYGON;
         for i in 0..num_pillows {
             let pillow_pos = self.pos
-                + right_dir
-                    * (pillow_full_width * i as f64
-                        - ((num_pillows - 1) as f64 * pillow_full_width) * 0.5)
-                + up_dir * ((self.size.y - pillow_height) * 0.5 - pillow_spacing);
-            let pillow = Shape::Rectangle.polygon(
-                pillow_pos,
-                vec2(pillow_width, pillow_height),
-                self.rotation,
-            );
+                + vec2(
+                    pillow_full_width * i as f64
+                        - ((num_pillows - 1) as f64 * pillow_full_width) * 0.5,
+                    (self.size.y - pillow_height) * 0.5 - pillow_spacing,
+                );
+            let pillow =
+                Shape::Rectangle.polygon(pillow_pos, vec2(pillow_width, pillow_height), 0.0);
             pillow_polygon.0.push(pillow);
         }
         fancy_inlay(
@@ -211,7 +215,7 @@ impl Furniture {
         // Add covers
         let covers_size = (self.size.y - pillow_height - pillow_spacing * 2.0) / self.size.y;
         let cover_polygon = Shape::Rectangle.polygons(
-            self.pos - up_dir * self.size.y * (1.0 - covers_size) / 2.0,
+            self.pos - vec2(0.0, self.size.y * (1.0 - covers_size) / 2.0),
             vec2(self.size.x, self.size.y * covers_size),
             self.rotation,
         );
@@ -226,7 +230,7 @@ impl Furniture {
 
         // Add backboard
         let backboard_polygon = Shape::Rectangle.polygons(
-            self.pos + up_dir * (self.size.y * 0.5 + 0.025),
+            self.pos + vec2(0.0, self.size.y * 0.5 + 0.025),
             vec2(self.size.x + 0.05, 0.05),
             self.rotation,
         );
@@ -298,9 +302,7 @@ impl std::fmt::Display for Furniture {
 impl Hash for Furniture {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.furniture_type.hash(state);
-        hash_vec2(self.pos, state);
         hash_vec2(self.size, state);
-        self.rotation.to_bits().hash(state);
         for child in &self.children {
             child.hash(state);
         }

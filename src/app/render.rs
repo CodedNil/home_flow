@@ -9,7 +9,7 @@ use egui::{
     epaint::Vertex, Color32, ColorImage, Mesh, Painter, Rect, Shape as EShape, Stroke, TextureId,
     TextureOptions,
 };
-use glam::dvec2 as vec2;
+use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::collections::HashSet;
 
 const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
@@ -179,6 +179,7 @@ impl HomeFlow {
             let rendered_data = furniture.rendered_data.as_ref().unwrap();
 
             // Render shadow
+            let shadow_offset = vec2(0.01, -0.02);
             for (triangles, interior_points) in &rendered_data.shadow_triangles {
                 let vertices = triangles
                     .vertices
@@ -186,11 +187,14 @@ impl HomeFlow {
                     .enumerate()
                     .map(|(i, &v)| {
                         let is_interior = interior_points.get(&i).is_some_and(|&b| b);
+                        let adjusted_v = rotate_point(v, Vec2::ZERO, -furniture.rotation)
+                            + furniture.pos
+                            + shadow_offset;
                         Vertex {
-                            pos: vec2_to_egui_pos(self.world_to_pixels(v)),
+                            pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
                             uv: egui::Pos2::ZERO,
                             color: if is_interior {
-                                Color::BLACK
+                                Color::from_rgba(0, 0, 0, 150)
                             } else {
                                 Color::TRANSPARENT
                             }
@@ -211,14 +215,14 @@ impl HomeFlow {
                     let vertices = triangles
                         .vertices
                         .iter()
-                        .map(|&v| Vertex {
-                            pos: vec2_to_egui_pos(self.world_to_pixels(v)),
-                            uv: vec2_to_egui_pos(rotate_point(
-                                v * 0.2,
-                                furniture.pos,
-                                furniture.rotation,
-                            )),
-                            color: material.tint.to_egui(),
+                        .map(|&v| {
+                            let adjusted_v =
+                                rotate_point(v, Vec2::ZERO, -furniture.rotation) + furniture.pos;
+                            Vertex {
+                                pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
+                                uv: vec2_to_egui_pos(v * 0.2),
+                                color: material.tint.to_egui(),
+                            }
                         })
                         .collect();
                     painter.add(EShape::mesh(Mesh {
