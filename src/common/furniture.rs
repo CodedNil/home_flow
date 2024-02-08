@@ -7,11 +7,9 @@ use super::{
 use derivative::Derivative;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-};
+use std::hash::{Hash, Hasher};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
@@ -79,7 +77,7 @@ impl Furniture {
     }
 
     pub fn polygons(&self) -> (FurniturePolygons, FurnitureTriangles) {
-        let mut polygons = HashMap::new();
+        let mut polygons = IndexMap::new();
 
         match self.furniture_type {
             FurnitureType::Chair(sub_type) => self.chair_render(&mut polygons, sub_type),
@@ -90,7 +88,7 @@ impl Furniture {
         }
 
         // Create triangles for each material
-        let mut triangles = HashMap::new();
+        let mut triangles = IndexMap::new();
         for (material, poly) in &polygons {
             let mut material_triangles = Vec::new();
             for polygon in &poly.0 {
@@ -141,10 +139,9 @@ impl Furniture {
 
     fn rug_render(&self, polygons: &mut FurniturePolygons, color: Color) {
         polygons.insert(
-            FurnitureMaterial::new(Material::Carpet, color.lighten(0.5)),
+            FurnitureMaterial::new(Material::Carpet, color.lighten(-0.1)),
             self.full_shape(),
         );
-
         polygons.insert(
             FurnitureMaterial::new(Material::Carpet, color),
             self.inlayed_shape(),
@@ -206,8 +203,8 @@ impl FurnitureMaterial {
     }
 }
 
-type FurniturePolygons = HashMap<FurnitureMaterial, MultiPolygon>;
-type FurnitureTriangles = HashMap<FurnitureMaterial, Vec<Triangles>>;
+type FurniturePolygons = IndexMap<FurnitureMaterial, MultiPolygon>;
+type FurnitureTriangles = IndexMap<FurnitureMaterial, Vec<Triangles>>;
 
 pub struct FurnitureRender {
     pub hash: u64,
