@@ -1,8 +1,5 @@
 use self::edit_mode::EditDetails;
-use crate::common::{
-    layout,
-    utils::{egui_pos_to_vec2, egui_to_vec2},
-};
+use crate::common::layout;
 use egui::{
     util::History, Align2, CentralPanel, Color32, Context, Frame, Sense, TextureHandle, Window,
 };
@@ -326,4 +323,16 @@ impl eframe::App for HomeFlow {
                 self.toasts.lock().show(ctx);
             });
     }
+}
+
+pub const fn vec2_to_egui_pos(vec: Vec2) -> egui::Pos2 {
+    egui::pos2(vec.x as f32, vec.y as f32)
+}
+
+pub const fn egui_to_vec2(vec: egui::Vec2) -> Vec2 {
+    vec2(vec.x as f64, vec.y as f64)
+}
+
+pub const fn egui_pos_to_vec2(vec: egui::Pos2) -> Vec2 {
+    vec2(vec.x as f64, vec.y as f64)
 }

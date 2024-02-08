@@ -1,10 +1,10 @@
 use super::{
+    color::Color,
     layout::{Shape, Triangles},
-    shape::{create_multipolygon, triangulate_polygon},
+    shape::triangulate_polygon,
     utils::{clone_as_none, display_vec2, hash_vec2, Material},
 };
 use derivative::Derivative;
-use egui::Color32;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,7 @@ pub enum FurnitureType {
     Table(TableType),
     Bed,
     Wardrobe,
-    Rug,
+    Rug(Color),
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
@@ -78,20 +78,16 @@ impl Furniture {
         }
     }
 
-    pub fn polygons(
-        &self,
-    ) -> (
-        HashMap<FurnitureMaterial, MultiPolygon>,
-        HashMap<FurnitureMaterial, Vec<Triangles>>,
-    ) {
+    pub fn polygons(&self) -> (FurniturePolygons, FurnitureTriangles) {
         let mut polygons = HashMap::new();
 
-        let first_material = FurnitureMaterial {
-            material: Material::Wood,
-            tint: Color32::from_rgb(190, 120, 80),
-        };
-        let vertices = Shape::Rectangle.vertices(self.pos, self.size, self.rotation);
-        polygons.insert(first_material, create_multipolygon(&vertices));
+        match self.furniture_type {
+            FurnitureType::Chair(sub_type) => self.chair_render(&mut polygons, sub_type),
+            FurnitureType::Table(sub_type) => self.table_render(&mut polygons, sub_type),
+            FurnitureType::Bed => self.bed_render(&mut polygons),
+            FurnitureType::Wardrobe => self.wardrobe_render(&mut polygons),
+            FurnitureType::Rug(color) => self.rug_render(&mut polygons, color),
+        }
 
         // Create triangles for each material
         let mut triangles = HashMap::new();
@@ -105,6 +101,54 @@ impl Furniture {
         }
 
         (polygons, triangles)
+    }
+
+    fn full_shape(&self) -> MultiPolygon {
+        Shape::Rectangle.polygon(self.pos, self.size, self.rotation)
+    }
+
+    fn inlayed_shape(&self) -> MultiPolygon {
+        Shape::Rectangle.polygon(self.pos, self.size - vec2(0.1, 0.1), self.rotation)
+    }
+
+    fn chair_render(&self, polygons: &mut FurniturePolygons, sub_type: ChairType) {
+        polygons.insert(
+            FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
+            self.full_shape(),
+        );
+    }
+
+    fn table_render(&self, polygons: &mut FurniturePolygons, sub_type: TableType) {
+        polygons.insert(
+            FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
+            self.full_shape(),
+        );
+    }
+
+    fn bed_render(&self, polygons: &mut FurniturePolygons) {
+        polygons.insert(
+            FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
+            self.full_shape(),
+        );
+    }
+
+    fn wardrobe_render(&self, polygons: &mut FurniturePolygons) {
+        polygons.insert(
+            FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
+            self.full_shape(),
+        );
+    }
+
+    fn rug_render(&self, polygons: &mut FurniturePolygons, color: Color) {
+        polygons.insert(
+            FurnitureMaterial::new(Material::Carpet, color.lighten(0.5)),
+            self.full_shape(),
+        );
+
+        polygons.insert(
+            FurnitureMaterial::new(Material::Carpet, color),
+            self.inlayed_shape(),
+        );
     }
 }
 
@@ -153,11 +197,20 @@ impl FurnitureType {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct FurnitureMaterial {
     pub material: Material,
-    pub tint: Color32,
+    pub tint: Color,
 }
+
+impl FurnitureMaterial {
+    pub const fn new(material: Material, tint: Color) -> Self {
+        Self { material, tint }
+    }
+}
+
+type FurniturePolygons = HashMap<FurnitureMaterial, MultiPolygon>;
+type FurnitureTriangles = HashMap<FurnitureMaterial, Vec<Triangles>>;
 
 pub struct FurnitureRender {
     pub hash: u64,
-    pub polygons: HashMap<FurnitureMaterial, MultiPolygon>,
-    pub triangles: HashMap<FurnitureMaterial, Vec<Triangles>>,
+    pub polygons: FurniturePolygons,
+    pub triangles: FurnitureTriangles,
 }

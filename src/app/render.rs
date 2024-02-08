@@ -1,8 +1,8 @@
-use super::HomeFlow;
+use super::{vec2_to_egui_pos, HomeFlow};
 use crate::common::{
     layout::{OpeningType, Shape},
     shape::WALL_WIDTH,
-    utils::{rotate_point, vec2_to_egui_pos, Material},
+    utils::{rotate_point, Material},
 };
 use egui::{
     epaint::Vertex, Color32, ColorImage, Mesh, Painter, Rect, Shape as EShape, Stroke, TextureId,
@@ -143,7 +143,7 @@ impl HomeFlow {
                         .map(|&v| Vertex {
                             pos: vec2_to_egui_pos(self.world_to_pixels(v)),
                             uv: vec2_to_egui_pos(v * 0.2),
-                            color: global_material.tint,
+                            color: global_material.tint.to_egui(),
                         })
                         .collect();
                     painter.add(EShape::mesh(Mesh {
@@ -164,7 +164,10 @@ impl HomeFlow {
                         .collect();
                     painter.add(EShape::closed_line(
                         vertices,
-                        Stroke::new((outline.thickness * self.zoom) as f32, outline.color),
+                        Stroke::new(
+                            (outline.thickness * self.zoom) as f32,
+                            outline.color.to_egui(),
+                        ),
                     ));
                 }
             }
@@ -186,7 +189,7 @@ impl HomeFlow {
                                 furniture.pos,
                                 furniture.rotation,
                             )),
-                            color: material.tint,
+                            color: material.tint.to_egui(),
                         })
                         .collect();
                     painter.add(EShape::mesh(Mesh {

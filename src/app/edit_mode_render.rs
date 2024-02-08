@@ -1,9 +1,8 @@
-use super::{edit_mode::EditResponse, HomeFlow};
+use super::{edit_mode::EditResponse, vec2_to_egui_pos, HomeFlow};
 use crate::common::{
     furniture::Furniture,
     layout::{Action, OpeningType, Room, Shape},
     shape::coord_to_vec2,
-    utils::vec2_to_egui_pos,
 };
 use egui::{Align2, Color32, Context, Painter, Shape as EShape, Stroke, Window};
 use glam::{dvec2 as vec2, DVec2 as Vec2};

@@ -1,4 +1,5 @@
 use super::{
+    color::Color,
     furniture::{Furniture, FurnitureRender},
     layout::{
         Action, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles,
@@ -6,7 +7,6 @@ use super::{
     },
     utils::{rotate_point, Material},
 };
-use egui::Color32;
 use geo::{BooleanOps, TriangulateEarcut};
 use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -130,11 +130,11 @@ impl Home {
         // Subtract doors and windows
         for room in &self.rooms {
             for opening in &room.openings {
-                let operation_polygon = create_multipolygon(&Shape::Rectangle.vertices(
+                let operation_polygon = Shape::Rectangle.polygon(
                     room.pos + opening.pos,
                     vec2(opening.width, WALL_WIDTH * 1.01),
                     opening.rotation,
-                ));
+                );
                 wall_polygons = wall_polygons.difference(&operation_polygon);
             }
         }
@@ -159,7 +159,7 @@ impl Home {
                 return material.clone();
             }
         }
-        GlobalMaterial::new(string, Material::Carpet, Color32::WHITE)
+        GlobalMaterial::new(string, Material::Carpet, Color::WHITE)
     }
 }
 
@@ -209,10 +209,9 @@ impl Room {
     }
 
     pub fn polygons(&self) -> MultiPolygon {
-        let mut polygons =
-            create_multipolygon(&Shape::Rectangle.vertices(self.pos, self.size, 0.0));
+        let mut polygons = Shape::Rectangle.polygon(self.pos, self.size, 0.0);
         for operation in &self.operations {
-            let operation_polygon = operation.polygons(self.pos);
+            let operation_polygon = operation.polygon(self.pos);
             match operation.action {
                 Action::Add => {
                     polygons = polygons.union(&operation_polygon);
@@ -235,10 +234,10 @@ impl Room {
         let mut polygons = HashMap::new();
         polygons.insert(
             self.material.clone(),
-            create_multipolygon(&Shape::Rectangle.vertices(self.pos, self.size, 0.0)),
+            Shape::Rectangle.polygon(self.pos, self.size, 0.0),
         );
         for operation in &self.operations {
-            let op_polygon = operation.polygons(self.pos);
+            let op_polygon = operation.polygon(self.pos);
             match operation.action {
                 Action::Add => {
                     let material = operation
@@ -305,7 +304,7 @@ impl Room {
         // Subtract operations that are SubtractWall
         for operation in &self.operations {
             if operation.action == Action::SubtractWall {
-                new_polys = new_polys.difference(&operation.polygons(self.pos));
+                new_polys = new_polys.difference(&operation.polygon(self.pos));
             }
         }
 
@@ -364,7 +363,7 @@ impl Room {
         // Add back operations that are AddWall
         for operation in &self.operations {
             if operation.action == Action::AddWall {
-                let operation_polygon = operation.polygons(self.pos);
+                let operation_polygon = operation.polygon(self.pos);
                 subtract_shape = subtract_shape.difference(&operation_polygon);
             }
         }
@@ -384,8 +383,16 @@ impl Operation {
             .vertices(room_pos + self.pos, self.size, self.rotation)
     }
 
-    pub fn polygons(&self, room_pos: Vec2) -> MultiPolygon {
-        create_multipolygon(&self.vertices(room_pos))
+    pub fn polygon(&self, room_pos: Vec2) -> MultiPolygon {
+        MultiPolygon(vec![Polygon::new(
+            geo::LineString::from(
+                self.vertices(room_pos)
+                    .iter()
+                    .map(vec2_to_coord)
+                    .collect::<Vec<_>>(),
+            ),
+            vec![],
+        )])
     }
 }
 
@@ -472,6 +479,18 @@ impl Shape {
             .iter_mut()
             .for_each(|vertex| *vertex = rotate_point(*vertex, pos, -rotation));
         vertices
+    }
+
+    pub fn polygon(self, pos: Vec2, size: Vec2, rotation: f64) -> MultiPolygon {
+        MultiPolygon(vec![Polygon::new(
+            geo::LineString::from(
+                self.vertices(pos, size, rotation)
+                    .iter()
+                    .map(vec2_to_coord)
+                    .collect::<Vec<_>>(),
+            ),
+            vec![],
+        )])
     }
 }
 

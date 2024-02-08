@@ -1,7 +1,9 @@
-use super::layout::{
-    Action, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room, Shape, Walls,
+use super::{
+    color::Color,
+    layout::{
+        Action, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room, Shape, Walls,
+    },
 };
-use egui::Color32;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
@@ -37,18 +39,6 @@ pub fn display_vec2(vec: Vec2) -> String {
     format!("[{}x{}]", format_float(vec.x), format_float(vec.y))
 }
 
-pub const fn vec2_to_egui_pos(vec: Vec2) -> egui::Pos2 {
-    egui::pos2(vec.x as f32, vec.y as f32)
-}
-
-pub const fn egui_to_vec2(vec: egui::Vec2) -> Vec2 {
-    vec2(vec.x as f64, vec.y as f64)
-}
-
-pub const fn egui_pos_to_vec2(vec: egui::Pos2) -> Vec2 {
-    vec2(vec.x as f64, vec.y as f64)
-}
-
 pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
     let cos_theta = angle.to_radians().cos();
     let sin_theta = angle.to_radians().sin();
@@ -59,7 +49,7 @@ pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
     )
 }
 
-fn color_to_string(color: Color32) -> String {
+fn color_to_string(color: Color) -> String {
     format!(
         "#{:02x}{:02x}{:02x}{:02x}",
         color.r(),
@@ -320,14 +310,14 @@ impl Hash for Operation {
 }
 
 impl Outline {
-    pub const fn new(thickness: f64, color: Color32) -> Self {
+    pub const fn new(thickness: f64, color: Color) -> Self {
         Self { thickness, color }
     }
 
     pub const fn default() -> Self {
         Self {
             thickness: 0.05,
-            color: Color32::WHITE,
+            color: Color::WHITE,
         }
     }
 }
@@ -349,7 +339,7 @@ impl Hash for Outline {
 }
 
 impl GlobalMaterial {
-    pub fn new(name: &str, material: Material, tint: Color32) -> Self {
+    pub fn new(name: &str, material: Material, tint: Color) -> Self {
         Self {
             name: name.to_owned(),
             material,

@@ -1,9 +1,9 @@
 use super::{
+    color::Color,
     furniture::{Furniture, FurnitureType},
     utils::{clone_as_none, Material},
 };
 use derivative::Derivative;
-use egui::Color32;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
@@ -82,7 +82,7 @@ pub enum OpeningType {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Outline {
     pub thickness: f64,
-    pub color: Color32,
+    pub color: Color,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
@@ -106,7 +106,7 @@ pub enum Shape {
 pub struct GlobalMaterial {
     pub name: String,
     pub material: Material,
-    pub tint: Color32,
+    pub tint: Color,
 }
 
 pub struct HomeRender {
@@ -133,10 +133,10 @@ impl Home {
         Self {
             version: LAYOUT_VERSION.to_string(),
             materials: vec![
-                GlobalMaterial::new("Carpet", Material::Carpet, Color32::from_rgb(240, 225, 192)),
-                GlobalMaterial::new("Wood", Material::Wood, Color32::from_rgb(190, 120, 80)),
-                GlobalMaterial::new("Marble", Material::Marble, Color32::from_rgb(255, 250, 230)),
-                GlobalMaterial::new("Granite", Material::Granite, Color32::from_rgb(50, 50, 50)),
+                GlobalMaterial::new("Carpet", Material::Carpet, Color::from_rgb(240, 225, 192)),
+                GlobalMaterial::new("Wood", Material::Wood, Color::from_rgb(190, 120, 80)),
+                GlobalMaterial::new("Marble", Material::Marble, Color::from_rgb(255, 250, 230)),
+                GlobalMaterial::new("Granite", Material::Granite, Color::from_rgb(50, 50, 50)),
             ],
             rooms: vec![
                 Room::new(
@@ -175,7 +175,7 @@ impl Home {
                     vec![],
                     vec![Opening::new(OpeningType::Window, vec2(0.0, 1.55))],
                 )
-                .outline(Outline::new(0.05, Color32::from_rgb(200, 170, 150))),
+                .outline(Outline::new(0.05, Color::from_rgb(200, 170, 150))),
                 Room::new(
                     "Storage1",
                     vec2(-1.6, 2.55),

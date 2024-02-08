@@ -16,7 +16,7 @@ pub fn setup_routes(app: Router) -> Router {
         .route("/save_layout", post(save_layout_server))
 }
 
-pub async fn load_layout_server() -> impl IntoResponse {
+async fn load_layout_server() -> impl IntoResponse {
     let home_struct = fs::read_to_string(LAYOUT_PATH).map_or_else(
         |_| Home::template(),
         |contents| {
@@ -26,7 +26,7 @@ pub async fn load_layout_server() -> impl IntoResponse {
     (StatusCode::OK, Json(home_struct))
 }
 
-pub async fn save_layout_server(Json(home): Json<Home>) -> impl IntoResponse {
+async fn save_layout_server(Json(home): Json<Home>) -> impl IntoResponse {
     log::info!("Saving layout");
     match save_layout_impl(&serde_json::to_string(&home).unwrap()) {
         Ok(()) => StatusCode::OK.into_response(),
