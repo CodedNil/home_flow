@@ -100,12 +100,12 @@ impl Home {
             .par_iter()
             .map(|(index, id, hash)| {
                 let furniture = &self.furniture[*index];
-                let (polygons, triangles) = furniture.polygons();
-                (*id, *hash, polygons, triangles)
+                let (polygons, triangles, shadow_triangles) = furniture.render();
+                (*id, *hash, polygons, triangles, shadow_triangles)
             })
             .collect::<Vec<_>>();
         // Update furniture with new data
-        for (id, hash, polygons, triangles) in new_data {
+        for (id, hash, polygons, triangles, shadow_triangles) in new_data {
             if let Some(furniture) = self
                 .furniture
                 .iter_mut()
@@ -115,6 +115,7 @@ impl Home {
                     hash,
                     polygons,
                     triangles,
+                    shadow_triangles,
                 });
             }
         }

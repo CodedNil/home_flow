@@ -1,5 +1,6 @@
 use super::{vec2_to_egui_pos, HomeFlow};
 use crate::common::{
+    color::Color,
     layout::{OpeningType, Shape},
     shape::WALL_WIDTH,
     utils::{rotate_point, Material},
@@ -176,6 +177,34 @@ impl HomeFlow {
         // Render furniture
         for furniture in &self.layout.furniture {
             let rendered_data = furniture.rendered_data.as_ref().unwrap();
+
+            // Render shadow
+            for (triangles, interior_points) in &rendered_data.shadow_triangles {
+                let vertices = triangles
+                    .vertices
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &v)| {
+                        let is_interior = interior_points.get(&i).is_some_and(|&b| b);
+                        Vertex {
+                            pos: vec2_to_egui_pos(self.world_to_pixels(v)),
+                            uv: egui::Pos2::ZERO,
+                            color: if is_interior {
+                                Color::BLACK
+                            } else {
+                                Color::TRANSPARENT
+                            }
+                            .to_egui(),
+                        }
+                    })
+                    .collect();
+                painter.add(EShape::mesh(Mesh {
+                    indices: triangles.indices.clone(),
+                    vertices,
+                    texture_id: TextureId::Managed(0),
+                }));
+            }
+
             for (material, multi_triangles) in &rendered_data.triangles {
                 let texture_id = self.load_texture(material.material);
                 for triangles in multi_triangles {
