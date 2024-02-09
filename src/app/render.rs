@@ -123,7 +123,7 @@ impl HomeFlow {
             }
         }
         for furniture in &self.layout.furniture {
-            for material in furniture.rendered_data.as_ref().unwrap().triangles.keys() {
+            for (material, _) in &furniture.rendered_data.as_ref().unwrap().triangles {
                 materials_to_ready.push(material.material);
             }
         }

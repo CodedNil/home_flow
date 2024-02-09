@@ -8,7 +8,6 @@ use derivative::Derivative;
 use geo::{triangulate_spade::SpadeTriangulationConfig, BooleanOps, TriangulateSpade};
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -82,7 +81,7 @@ impl Furniture {
     }
 
     pub fn polygons(&self) -> FurniturePolygons {
-        let mut polygons = IndexMap::new();
+        let mut polygons = Vec::new();
         match self.furniture_type {
             FurnitureType::Chair(sub_type) => self.chair_render(&mut polygons, sub_type),
             FurnitureType::Table(sub_type) => self.table_render(&mut polygons, sub_type),
@@ -100,14 +99,14 @@ impl Furniture {
         let polygons = new_furniture.polygons();
 
         // Create triangles for each material
-        let mut triangles = IndexMap::new();
+        let mut triangles = Vec::new();
         for (material, poly) in &polygons {
             let mut material_triangles = Vec::new();
             for polygon in &poly.0 {
                 let (indices, vertices) = triangulate_polygon(polygon);
                 material_triangles.push(Triangles { indices, vertices });
             }
-            triangles.insert(material.clone(), material_triangles);
+            triangles.push((material.clone(), material_triangles));
         }
 
         let mut shadow_exterior = EMPTY_MULTI_POLYGON;
@@ -163,17 +162,17 @@ impl Furniture {
     }
 
     fn chair_render(&self, polygons: &mut FurniturePolygons, sub_type: ChairType) {
-        polygons.insert(
+        polygons.push((
             FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
             self.full_shape(),
-        );
+        ));
     }
 
     fn table_render(&self, polygons: &mut FurniturePolygons, sub_type: TableType) {
-        polygons.insert(
+        polygons.push((
             FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
             self.full_shape(),
-        );
+        ));
     }
 
     fn bed_render(&self, polygons: &mut FurniturePolygons, color: Color) {
@@ -181,10 +180,10 @@ impl Furniture {
         let pillow_color = Color::from_rgb(255, 255, 255);
 
         // Add sheets
-        polygons.insert(
+        polygons.push((
             FurnitureMaterial::new(Material::Empty, sheet_color),
             self.full_shape(),
-        );
+        ));
 
         // Add pillows, 65x50cm
         let pillow_spacing = 0.05;
@@ -235,17 +234,17 @@ impl Furniture {
             vec2(self.size.x + 0.05, 0.05),
             self.rotation,
         );
-        polygons.insert(
+        polygons.push((
             FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
             backboard_polygon,
-        );
+        ));
     }
 
     fn wardrobe_render(&self, polygons: &mut FurniturePolygons) {
-        polygons.insert(
+        polygons.push((
             FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
             self.full_shape(),
-        );
+        ));
     }
 
     fn rug_render(&self, polygons: &mut FurniturePolygons, color: Color) {
@@ -269,11 +268,11 @@ fn fancy_inlay(
     inset: f64,
 ) {
     let inset_poly = inset_polygon(&poly, inset);
-    polygons.insert(FurnitureMaterial::new(material, color), poly);
-    polygons.insert(
+    polygons.push((FurnitureMaterial::new(material, color), poly));
+    polygons.push((
         FurnitureMaterial::new(material, color.lighten(lighten)),
         inset_poly,
-    );
+    ));
 }
 
 fn inset_polygon(polygon: &MultiPolygon, inset: f64) -> MultiPolygon {
@@ -332,8 +331,8 @@ impl FurnitureMaterial {
     }
 }
 
-type FurniturePolygons = IndexMap<FurnitureMaterial, MultiPolygon>;
-type FurnitureTriangles = IndexMap<FurnitureMaterial, Vec<Triangles>>;
+type FurniturePolygons = Vec<(FurnitureMaterial, MultiPolygon)>;
+type FurnitureTriangles = Vec<(FurnitureMaterial, Vec<Triangles>)>;
 type FurnitureShadows = Vec<(Triangles, HashMap<usize, bool>)>;
 
 pub struct FurnitureRender {
