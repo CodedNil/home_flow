@@ -49,6 +49,10 @@ pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
     )
 }
 
+pub const fn clone_as_none<T>(_x: &Option<T>) -> Option<T> {
+    None
+}
+
 fn color_to_string(color: Color) -> String {
     format!(
         "#{:02x}{:02x}{:02x}{:02x}",
@@ -387,8 +391,4 @@ impl Material {
             Self::Wood => include_bytes!("../../assets/textures/wood.png"),
         }
     }
-}
-
-pub const fn clone_as_none<T>(_x: &Option<T>) -> Option<T> {
-    None
 }

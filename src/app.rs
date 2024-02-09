@@ -95,29 +95,24 @@ impl HomeFlow {
     }
 
     fn pixels_to_world(&self, v: Vec2) -> Vec2 {
-        vec2(v.x - self.canvas_center.x, self.canvas_center.y - v.y) / self.zoom
-            - vec2(self.translation.x, -self.translation.y)
+        vec2(self.pixels_to_world_x(v.x), self.pixels_to_world_y(v.y))
     }
-
-    fn pixels_to_world_xy(&self, x: f64, y: f64) -> Vec2 {
-        vec2(x - self.canvas_center.x, self.canvas_center.y - y) / self.zoom
-            - vec2(self.translation.x, -self.translation.y)
+    fn pixels_to_world_x(&self, x: f64) -> f64 {
+        (x - self.canvas_center.x) / self.zoom - self.translation.x
+    }
+    fn pixels_to_world_y(&self, y: f64) -> f64 {
+        (self.canvas_center.y - y) / self.zoom + self.translation.y
     }
 
     fn world_to_pixels(&self, v: Vec2) -> Vec2 {
-        vec2(v.x + self.translation.x, self.translation.y - v.y) * self.zoom
-            + vec2(self.canvas_center.x, self.canvas_center.y)
+        vec2(self.world_to_pixels_x(v.x), self.world_to_pixels_y(v.y))
     }
-
     fn world_to_pixels_xy(&self, x: f64, y: f64) -> Vec2 {
-        vec2(x + self.translation.x, self.translation.y - y) * self.zoom
-            + vec2(self.canvas_center.x, self.canvas_center.y)
+        vec2(self.world_to_pixels_x(x), self.world_to_pixels_y(y))
     }
-
     fn world_to_pixels_x(&self, x: f64) -> f64 {
         (x + self.translation.x) * self.zoom + self.canvas_center.x
     }
-
     fn world_to_pixels_y(&self, y: f64) -> f64 {
         (self.translation.y - y) * self.zoom + self.canvas_center.y
     }

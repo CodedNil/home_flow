@@ -24,29 +24,13 @@ impl std::ops::IndexMut<usize> for Color {
 impl Color {
     pub const TRANSPARENT: Self = Self::from_rgba_premultiplied(0, 0, 0, 0);
     pub const BLACK: Self = Self::from_rgb(0, 0, 0);
-    pub const DARK_GRAY: Self = Self::from_rgb(96, 96, 96);
     pub const GRAY: Self = Self::from_rgb(160, 160, 160);
-    pub const LIGHT_GRAY: Self = Self::from_rgb(220, 220, 220);
     pub const WHITE: Self = Self::from_rgb(255, 255, 255);
 
-    pub const BROWN: Self = Self::from_rgb(165, 42, 42);
-    pub const DARK_RED: Self = Self::from_rgb(0x8B, 0, 0);
     pub const RED: Self = Self::from_rgb(255, 0, 0);
-    pub const LIGHT_RED: Self = Self::from_rgb(255, 128, 128);
-
-    pub const YELLOW: Self = Self::from_rgb(255, 255, 0);
-    pub const LIGHT_YELLOW: Self = Self::from_rgb(255, 255, 0xE0);
-    pub const KHAKI: Self = Self::from_rgb(240, 230, 140);
-
-    pub const DARK_GREEN: Self = Self::from_rgb(0, 0x64, 0);
     pub const GREEN: Self = Self::from_rgb(0, 255, 0);
-    pub const LIGHT_GREEN: Self = Self::from_rgb(0x90, 0xEE, 0x90);
-
-    pub const DARK_BLUE: Self = Self::from_rgb(0, 0, 0x8B);
     pub const BLUE: Self = Self::from_rgb(0, 0, 255);
-    pub const LIGHT_BLUE: Self = Self::from_rgb(0xAD, 0xD8, 0xE6);
-
-    pub const GOLD: Self = Self::from_rgb(255, 215, 0);
+    pub const YELLOW: Self = Self::from_rgb(255, 255, 0);
 
     #[inline]
     pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
@@ -81,6 +65,11 @@ impl Color {
     #[inline]
     pub const fn from_gray(l: u8) -> Self {
         Self([l, l, l, 255])
+    }
+
+    #[inline]
+    pub const fn from_alpha(a: u8) -> Self {
+        Self([0, 0, 0, a])
     }
 
     #[inline]

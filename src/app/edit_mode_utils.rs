@@ -249,18 +249,15 @@ impl HomeFlow {
             // Snap to other rooms
             let mut closest_horizontal_snap_line = None;
             let mut closest_vertical_snap_line: Option<(f64, f64, usize)> = None;
-            let (bounds_min, bounds_max) = match drag_data.manipulation_type {
-                ManipulationType::ResizeLeft | ManipulationType::ResizeRight => (
-                    -vec2(0.0, drag_data.start_size.y / 2.0),
-                    vec2(0.0, drag_data.start_size.y / 2.0),
-                ),
-                ManipulationType::ResizeTop | ManipulationType::ResizeBottom => (
-                    -vec2(drag_data.start_size.x / 2.0, 0.0),
-                    vec2(drag_data.start_size.x / 2.0, 0.0),
-                ),
-                ManipulationType::Move => (-drag_data.start_size / 2.0, drag_data.start_size / 2.0),
+            let bounds = match drag_data.manipulation_type {
+                ManipulationType::Move => vec2(0.5, 0.5),
+                ManipulationType::ResizeLeft | ManipulationType::ResizeRight => vec2(0.0, 0.5),
+                ManipulationType::ResizeTop | ManipulationType::ResizeBottom => vec2(0.5, 0.0),
             };
-            let (bounds_min, bounds_max) = (bounds_min + new_pos, bounds_max + new_pos);
+            let (bounds_min, bounds_max) = (
+                new_pos - bounds * drag_data.start_size,
+                new_pos + bounds * drag_data.start_size,
+            );
             let snap_threshold = 0.1;
 
             for other_room in &self.layout.rooms {
