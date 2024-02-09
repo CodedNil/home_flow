@@ -2,7 +2,7 @@ use super::{
     color::Color,
     layout::{Shape, Triangles},
     shape::{triangulate_polygon, EMPTY_MULTI_POLYGON},
-    utils::{clone_as_none, display_vec2, hash_vec2, Material},
+    utils::{clone_as_none, hash_vec2, Material},
 };
 use derivative::Derivative;
 use geo::{triangulate_spade::SpadeTriangulationConfig, BooleanOps, TriangulateSpade};
@@ -279,42 +279,12 @@ fn inset_polygon(polygon: &MultiPolygon, inset: f64) -> MultiPolygon {
     geo_buffer::buffer_multi_polygon(polygon, -inset)
 }
 
-impl std::fmt::Display for Furniture {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut string = format!(
-            "Furniture: {} {}m @ {}m",
-            self.furniture_type.fancy_display(),
-            display_vec2(self.size),
-            display_vec2(self.pos)
-        );
-        if self.rotation != 0.0 {
-            string.push_str(format!(" {}°", self.rotation).as_str());
-        }
-        string.push('\n');
-
-        for child in &self.children {
-            string.push_str(format!("    Child: {child}\n").as_str());
-        }
-
-        write!(f, "{string}")
-    }
-}
 impl Hash for Furniture {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.furniture_type.hash(state);
         hash_vec2(self.size, state);
         for child in &self.children {
             child.hash(state);
-        }
-    }
-}
-
-impl FurnitureType {
-    fn fancy_display(self) -> String {
-        match self {
-            Self::Chair(sub) => format!("{self}: {sub}"),
-            Self::Table(sub) => format!("{self}: {sub}"),
-            _ => self.to_string(),
         }
     }
 }

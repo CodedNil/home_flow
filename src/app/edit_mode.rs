@@ -119,8 +119,8 @@ impl HomeFlow {
                 .max_height(500.0)
                 .open(&mut self.edit_mode.preview_edits)
                 .show(ctx, |ui| {
-                    let current_layout = self.layout.to_string();
-                    let initial_layout = self.layout_server.to_string();
+                    let initial_layout = toml::to_string(&self.layout_server).unwrap();
+                    let current_layout = toml::to_string(&self.layout).unwrap();
                     let diffs = diff::lines(&initial_layout, &current_layout);
                     egui::ScrollArea::vertical()
                         .auto_shrink(true)
