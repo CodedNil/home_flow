@@ -1,6 +1,6 @@
 use super::{
     color::Color,
-    furniture::{Furniture, FurnitureRender},
+    furniture::FurnitureRender,
     layout::{
         Action, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles,
         Walls,
@@ -12,8 +12,8 @@ use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use rayon::prelude::*;
 use std::{
-    collections::{hash_map::DefaultHasher, HashMap},
-    hash::{Hash, Hasher},
+    collections::HashMap,
+    hash::{DefaultHasher, Hash, Hasher},
 };
 
 pub const WALL_WIDTH: f64 = 0.1;
@@ -29,10 +29,10 @@ impl Home {
             }
         }
 
-        // Find rooms to update which have been modified, get (index, id, hash)
-        let rooms_to_update = self
+        // Process all rooms in parallel
+        for (index, hash, polygons, material_polygons, material_triangles, wall_polygons) in self
             .rooms
-            .iter()
+            .par_iter()
             .enumerate()
             .filter_map(|(index, room)| {
                 let mut hasher = DefaultHasher::new();
@@ -40,32 +40,22 @@ impl Home {
                 let hash = hasher.finish();
                 if room.rendered_data.is_none() || room.rendered_data.as_ref().unwrap().hash != hash
                 {
-                    Some((index, room.id, hash))
+                    let polygons = room.polygons();
+                    let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
+                    let wall_polygons = if room.walls == Walls::NONE && !any_add {
+                        EMPTY_MULTI_POLYGON
+                    } else {
+                        room.wall_polygons(&polygons)
+                    };
+                    let (mat_polys, mat_tris) = room.material_polygons();
+                    Some((index, hash, polygons, mat_polys, mat_tris, wall_polygons))
                 } else {
                     None
                 }
             })
-            .collect::<Vec<_>>();
-
-        // Process all rooms in parallel
-        let new_data = rooms_to_update
-            .par_iter()
-            .map(|(index, id, hash)| {
-                let room = &self.rooms[*index];
-                let polygons = room.polygons();
-                let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
-                let wall_polygons = if room.walls == Walls::NONE && !any_add {
-                    EMPTY_MULTI_POLYGON
-                } else {
-                    room.wall_polygons(&polygons)
-                };
-                let (mat_polys, mat_tris) = room.material_polygons();
-                (*id, *hash, polygons, mat_polys, mat_tris, wall_polygons)
-            })
-            .collect::<Vec<_>>();
-        // Update rooms with new data
-        for (id, hash, polygons, material_polygons, material_triangles, wall_polygons) in new_data {
-            if let Some(room) = self.rooms.iter_mut().find(|room| room.id == id) {
+            .collect::<Vec<_>>()
+        {
+            if let Some(room) = self.rooms.get_mut(index) {
                 room.rendered_data = Some(RoomRender {
                     hash,
                     polygons,
@@ -76,10 +66,10 @@ impl Home {
             }
         }
 
-        // Find furniture to update which have been modified, get (index, id, hash)
-        let furniture_to_update = self
+        // Process all furniture in parallel
+        for (index, hash, (polygons, triangles, shadow_triangles)) in self
             .furniture
-            .iter()
+            .par_iter()
             .enumerate()
             .filter_map(|(index, furniture)| {
                 let mut hasher = DefaultHasher::new();
@@ -88,29 +78,14 @@ impl Home {
                 if furniture.rendered_data.is_none()
                     || furniture.rendered_data.as_ref().unwrap().hash != hash
                 {
-                    Some((index, furniture.id, hash))
+                    Some((index, hash, furniture.render()))
                 } else {
                     None
                 }
             })
-            .collect::<Vec<_>>();
-
-        // Process all furniture in parallel
-        let new_data = furniture_to_update
-            .par_iter()
-            .map(|(index, id, hash)| {
-                let furniture = &self.furniture[*index];
-                let (polygons, triangles, shadow_triangles) = furniture.render();
-                (*id, *hash, polygons, triangles, shadow_triangles)
-            })
-            .collect::<Vec<_>>();
-        // Update furniture with new data
-        for (id, hash, polygons, triangles, shadow_triangles) in new_data {
-            if let Some(furniture) = self
-                .furniture
-                .iter_mut()
-                .find(|furniture| furniture.id == id)
-            {
+            .collect::<Vec<_>>()
+        {
+            if let Some(furniture) = self.furniture.get_mut(index) {
                 furniture.rendered_data = Some(FurnitureRender {
                     hash,
                     polygons,
@@ -171,7 +146,6 @@ impl Room {
 
     pub fn bounds(&self) -> (Vec2, Vec2) {
         let (mut min, mut max) = self.self_bounds();
-
         for operation in &self.operations {
             if operation.action == Action::Add {
                 for corner in operation.vertices(self.pos) {
@@ -180,15 +154,12 @@ impl Room {
                 }
             }
         }
-
         (min, max)
     }
 
     pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
-        let (mut min, mut max) = self.bounds();
-        min -= vec2(WALL_WIDTH, WALL_WIDTH);
-        max += vec2(WALL_WIDTH, WALL_WIDTH);
-        (min, max)
+        let (min, max) = self.bounds();
+        (min - Vec2::ONE * WALL_WIDTH, max + Vec2::ONE * WALL_WIDTH)
     }
 
     pub fn contains(&self, point: Vec2) -> bool {
@@ -212,13 +183,12 @@ impl Room {
     pub fn polygons(&self) -> MultiPolygon {
         let mut polygons = Shape::Rectangle.polygons(self.pos, self.size, 0.0);
         for operation in &self.operations {
-            let operation_polygon = operation.polygon(self.pos);
             match operation.action {
                 Action::Add => {
-                    polygons = polygons.union(&operation_polygon);
+                    polygons = polygons.union(&operation.polygon(self.pos).into());
                 }
                 Action::Subtract => {
-                    polygons = polygons.difference(&operation_polygon);
+                    polygons = polygons.difference(&operation.polygon(self.pos).into());
                 }
                 _ => {}
             }
@@ -238,7 +208,6 @@ impl Room {
             Shape::Rectangle.polygons(self.pos, self.size, 0.0),
         );
         for operation in &self.operations {
-            let op_polygon = operation.polygon(self.pos);
             match operation.action {
                 Action::Add => {
                     let material = operation
@@ -247,18 +216,18 @@ impl Room {
                         .unwrap_or_else(|| self.material.clone());
                     polygons
                         .entry(material.clone())
-                        .and_modify(|poly| *poly = poly.union(&op_polygon))
-                        .or_insert_with(|| op_polygon.clone());
+                        .and_modify(|poly| *poly = poly.union(&operation.polygon(self.pos).into()))
+                        .or_insert_with(|| operation.polygon(self.pos).into());
                     // Remove from all other polygons
                     for (other_material, poly) in &mut polygons {
                         if other_material != &material {
-                            *poly = poly.difference(&op_polygon);
+                            *poly = poly.difference(&operation.polygon(self.pos).into());
                         }
                     }
                 }
                 Action::Subtract => {
                     for poly in polygons.values_mut() {
-                        *poly = poly.difference(&op_polygon);
+                        *poly = poly.difference(&operation.polygon(self.pos).into());
                     }
                 }
                 _ => {}
@@ -305,7 +274,7 @@ impl Room {
         // Subtract operations that are SubtractWall
         for operation in &self.operations {
             if operation.action == Action::SubtractWall {
-                new_polys = new_polys.difference(&operation.polygon(self.pos));
+                new_polys = new_polys.difference(&operation.polygon(self.pos).into());
             }
         }
 
@@ -342,7 +311,7 @@ impl Room {
                 vertices[index]
                     .iter_mut()
                     .for_each(|vertex| *vertex = center + *vertex * vec2(right, up));
-                subtract_shape = subtract_shape.union(&create_multipolygon(&vertices[index]));
+                subtract_shape = subtract_shape.union(&create_polygon(&vertices[index]).into());
             }
         }
         // Add corners
@@ -351,12 +320,15 @@ impl Room {
         for (wall_horizontal, horizontal_multiplier) in &directions {
             for (wall_vertical, vertical_multiplier) in &verticals {
                 if !wall_horizontal && !wall_vertical {
-                    subtract_shape = subtract_shape.union(&create_multipolygon(&[
-                        center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
-                        center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
-                        center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
-                        center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
-                    ]));
+                    subtract_shape = subtract_shape.union(
+                        &create_polygon(&[
+                            center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
+                            center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
+                            center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
+                            center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
+                        ])
+                        .into(),
+                    );
                 }
             }
         }
@@ -365,7 +337,7 @@ impl Room {
         for operation in &self.operations {
             if operation.action == Action::AddWall {
                 let operation_polygon = operation.polygon(self.pos);
-                subtract_shape = subtract_shape.difference(&operation_polygon);
+                subtract_shape = subtract_shape.difference(&operation_polygon.into());
             }
         }
 
@@ -384,22 +356,8 @@ impl Operation {
             .vertices(room_pos + self.pos, self.size, self.rotation)
     }
 
-    pub fn polygon(&self, room_pos: Vec2) -> MultiPolygon {
-        MultiPolygon(vec![Polygon::new(
-            geo::LineString::from(
-                self.vertices(room_pos)
-                    .iter()
-                    .map(vec2_to_coord)
-                    .collect::<Vec<_>>(),
-            ),
-            vec![],
-        )])
-    }
-}
-
-impl Furniture {
-    pub fn contains(&self, point: Vec2) -> bool {
-        Shape::Rectangle.contains(point, self.pos, self.size, self.rotation)
+    pub fn polygon(&self, room_pos: Vec2) -> Polygon {
+        create_polygon(&self.vertices(room_pos))
     }
 }
 
@@ -411,11 +369,11 @@ pub const fn vec2_to_coord(v: &Vec2) -> geo_types::Coord {
     geo_types::Coord { x: v.x, y: v.y }
 }
 
-pub fn create_multipolygon(vertices: &[Vec2]) -> MultiPolygon {
-    MultiPolygon(vec![Polygon::new(
+pub fn create_polygon(vertices: &[Vec2]) -> Polygon {
+    Polygon::new(
         geo::LineString::from(vertices.iter().map(vec2_to_coord).collect::<Vec<_>>()),
         vec![],
-    )])
+    )
 }
 
 pub const EMPTY_MULTI_POLYGON: MultiPolygon = MultiPolygon(vec![]);
@@ -437,17 +395,8 @@ impl Shape {
     pub fn contains(self, point: Vec2, center: Vec2, size: Vec2, rotation: f64) -> bool {
         let point = rotate_point(point, center, rotation);
         match self {
-            Self::Rectangle => {
-                point.x >= center.x - size.x / 2.0
-                    && point.x <= center.x + size.x / 2.0
-                    && point.y >= center.y - size.y / 2.0
-                    && point.y <= center.y + size.y / 2.0
-            }
-            Self::Circle => {
-                let dx = (point.x - center.x) / (size.x / 2.0);
-                let dy = (point.y - center.y) / (size.y / 2.0);
-                dx * dx + dy * dy <= 1.0
-            }
+            Self::Rectangle => (point - center).abs().cmple(size * 0.5).all(),
+            Self::Circle => ((point - center) / (size * 0.5)).length_squared() <= 1.0,
             Self::Triangle => {
                 let relative_x = point.x - center.x + size.x / 2.0;
                 let relative_y = center.y - point.y + size.y / 2.0;
@@ -460,7 +409,7 @@ impl Shape {
     }
 
     pub fn vertices(self, pos: Vec2, size: Vec2, rotation: f64) -> Vec<Vec2> {
-        let mut vertices = match self {
+        match self {
             Self::Rectangle => vec![(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)],
             Self::Circle => {
                 let quality = 90;
@@ -474,36 +423,22 @@ impl Shape {
             Self::Triangle => vec![(-0.5, 0.5), (0.5, 0.5), (-0.5, -0.5)],
         }
         .iter()
-        .map(|(x_offset, y_offset)| vec2(pos.x + x_offset * size.x, pos.y + y_offset * size.y))
-        .collect::<Vec<_>>();
-        vertices
-            .iter_mut()
-            .for_each(|vertex| *vertex = rotate_point(*vertex, pos, -rotation));
-        vertices
+        .map(|(x_offset, y_offset)| {
+            rotate_point(
+                vec2(x_offset * size.x, y_offset * size.y),
+                Vec2::ZERO,
+                -rotation,
+            ) + pos
+        })
+        .collect()
     }
 
     pub fn polygon(self, pos: Vec2, size: Vec2, rotation: f64) -> Polygon {
-        Polygon::new(
-            geo::LineString::from(
-                self.vertices(pos, size, rotation)
-                    .iter()
-                    .map(vec2_to_coord)
-                    .collect::<Vec<_>>(),
-            ),
-            vec![],
-        )
+        create_polygon(&self.vertices(pos, size, rotation))
     }
 
     pub fn polygons(self, pos: Vec2, size: Vec2, rotation: f64) -> MultiPolygon {
-        MultiPolygon(vec![Polygon::new(
-            geo::LineString::from(
-                self.vertices(pos, size, rotation)
-                    .iter()
-                    .map(vec2_to_coord)
-                    .collect::<Vec<_>>(),
-            ),
-            vec![],
-        )])
+        self.polygon(pos, size, rotation).into()
     }
 }
 

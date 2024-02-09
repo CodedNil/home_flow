@@ -2,7 +2,7 @@ use super::{
     color::Color,
     layout::{Shape, Triangles},
     shape::{triangulate_polygon, EMPTY_MULTI_POLYGON},
-    utils::{clone_as_none, display_vec2, hash_vec2, rotate_point, Material},
+    utils::{clone_as_none, display_vec2, hash_vec2, Material},
 };
 use derivative::Derivative;
 use geo::{triangulate_spade::SpadeTriangulationConfig, BooleanOps, TriangulateSpade};
@@ -69,15 +69,16 @@ impl Furniture {
     }
 
     pub fn default() -> Self {
-        Self {
-            id: uuid::Uuid::new_v4(),
-            furniture_type: FurnitureType::Chair(ChairType::default()),
-            pos: Vec2::ZERO,
-            size: vec2(1.0, 1.0),
-            rotation: 0.0,
-            children: Vec::new(),
-            rendered_data: None,
-        }
+        Self::new(
+            FurnitureType::Chair(ChairType::default()),
+            Vec2::ZERO,
+            vec2(1.0, 1.0),
+            0.0,
+        )
+    }
+
+    pub fn contains(&self, point: Vec2) -> bool {
+        Shape::Rectangle.contains(point, self.pos, self.size, self.rotation)
     }
 
     pub fn polygons(&self) -> FurniturePolygons {
