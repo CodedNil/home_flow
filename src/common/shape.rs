@@ -7,7 +7,10 @@ use super::{
     },
     utils::{rotate_point, Material},
 };
-use geo::{BooleanOps, TriangulateEarcut};
+use geo::{
+    triangulate_spade::SpadeTriangulationConfig, BooleanOps, TriangulateEarcut, TriangulateSpade,
+};
+use geo_buffer::{buffer_multi_polygon, buffer_multi_polygon_rounded};
 use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use rayon::prelude::*;
@@ -96,11 +99,15 @@ impl Home {
         }
 
         // Collect all the rooms together to build up the walls
-        let mut wall_polygons = MultiPolygon(vec![]);
+        let mut wall_polygons: Vec<MultiPolygon> = vec![];
         for room in &self.rooms {
             if let Some(rendered_data) = &room.rendered_data {
-                wall_polygons = wall_polygons.difference(&rendered_data.polygons);
-                wall_polygons = wall_polygons.union(&rendered_data.wall_polygons);
+                for poly in &mut wall_polygons {
+                    *poly = poly.difference(&rendered_data.polygons);
+                }
+                for poly in &rendered_data.wall_polygons {
+                    wall_polygons.push(poly.clone().into());
+                }
             }
         }
         // Subtract doors and windows
@@ -111,20 +118,23 @@ impl Home {
                     vec2(opening.width, WALL_WIDTH * 1.01),
                     opening.rotation,
                 );
-                wall_polygons = wall_polygons.difference(&opening_polygon);
+                for poly in &mut wall_polygons {
+                    *poly = poly.difference(&opening_polygon);
+                }
             }
         }
 
         // Create triangles for each polygon
         let mut wall_triangles = Vec::new();
-        for polygon in &wall_polygons.0 {
-            let (indices, vertices) = triangulate_polygon(polygon);
-            wall_triangles.push(Triangles { indices, vertices });
+        for multipolygon in &wall_polygons {
+            for polygon in multipolygon {
+                let (indices, vertices) = triangulate_polygon(polygon);
+                wall_triangles.push(Triangles { indices, vertices });
+            }
         }
 
         self.rendered_data = Some(HomeRender {
             hash: home_hash,
-            wall_polygons,
             wall_triangles,
         });
     }
@@ -265,8 +275,8 @@ impl Room {
         let width_half = WALL_WIDTH / 2.0;
         let mut new_polys = MultiPolygon(vec![]);
 
-        let polygon_outside = geo_buffer::buffer_multi_polygon(&new_polygons, width_half);
-        let polygon_inside = geo_buffer::buffer_multi_polygon(&new_polygons, -width_half);
+        let polygon_outside = buffer_multi_polygon(&new_polygons, width_half);
+        let polygon_inside = buffer_multi_polygon(&new_polygons, -width_half);
 
         let diff = polygon_outside.difference(&polygon_inside);
         new_polys = new_polys.union(&diff);
@@ -389,6 +399,54 @@ pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
             .map(|chunk| vec2(chunk[0], chunk[1]))
             .collect(),
     )
+}
+
+pub type ShadowsData = Vec<(Triangles, HashMap<usize, bool>)>;
+
+pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>) -> ShadowsData {
+    let mut shadow_exterior = EMPTY_MULTI_POLYGON;
+    let mut shadow_interior = EMPTY_MULTI_POLYGON;
+    for poly in polygons {
+        shadow_exterior = shadow_exterior.union(&buffer_multi_polygon_rounded(poly, 0.05));
+        shadow_interior = shadow_interior.union(&buffer_multi_polygon_rounded(poly, -0.025));
+    }
+
+    // Create shadow triangles
+    let interior_points = shadow_interior
+        .0
+        .iter()
+        .flat_map(|p| p.exterior().points())
+        .map(|p| vec2(p.x(), p.y()))
+        .collect::<Vec<_>>();
+    let shadow_polygons = shadow_exterior.difference(&shadow_interior);
+
+    let mut shadow_triangles = Vec::new();
+    for polygon in &shadow_polygons {
+        let (indices, vertices) = {
+            let triangles = polygon
+                .constrained_triangulation(SpadeTriangulationConfig::default())
+                .unwrap();
+            let mut indices = Vec::new();
+            let mut vertices = Vec::new();
+            for triangle in triangles {
+                for point in triangle.to_array() {
+                    let index = vertices.len() as u32;
+                    indices.push(index);
+                    vertices.push(vec2(point.x, point.y));
+                }
+            }
+            (indices, vertices)
+        };
+        let mut vertex_position_map = HashMap::new();
+        for (index, vertex) in vertices.iter().enumerate() {
+            let is_interior = interior_points
+                .iter()
+                .any(|p| p.distance(*vertex) < f64::EPSILON);
+            vertex_position_map.insert(index, is_interior);
+        }
+        shadow_triangles.push((Triangles { indices, vertices }, vertex_position_map));
+    }
+    shadow_triangles
 }
 
 impl Shape {

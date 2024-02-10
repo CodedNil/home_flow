@@ -111,7 +111,6 @@ pub struct GlobalMaterial {
 
 pub struct HomeRender {
     pub hash: u64,
-    pub wall_polygons: MultiPolygon,
     pub wall_triangles: Vec<Triangles>,
 }
 

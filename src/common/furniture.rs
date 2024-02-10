@@ -1,18 +1,14 @@
 use super::{
     color::Color,
     layout::{Shape, Triangles},
-    shape::{triangulate_polygon, EMPTY_MULTI_POLYGON},
+    shape::{polygons_to_shadows, triangulate_polygon, ShadowsData, EMPTY_MULTI_POLYGON},
     utils::{clone_as_none, hash_vec2, Material},
 };
 use derivative::Derivative;
-use geo::{triangulate_spade::SpadeTriangulationConfig, BooleanOps, TriangulateSpade};
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-};
+use std::hash::{Hash, Hasher};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
@@ -92,7 +88,7 @@ impl Furniture {
         polygons
     }
 
-    pub fn render(&self) -> (FurniturePolygons, FurnitureTriangles, FurnitureShadows) {
+    pub fn render(&self) -> (FurniturePolygons, FurnitureTriangles, ShadowsData) {
         let mut new_furniture = self.clone();
         new_furniture.rotation = 0.0;
         new_furniture.pos = Vec2::ZERO;
@@ -109,52 +105,9 @@ impl Furniture {
             triangles.push((material.clone(), material_triangles));
         }
 
-        let mut shadow_exterior = EMPTY_MULTI_POLYGON;
-        let mut shadow_interior = EMPTY_MULTI_POLYGON;
-        for (_, poly) in &polygons {
-            shadow_exterior =
-                shadow_exterior.union(&geo_buffer::buffer_multi_polygon_rounded(poly, 0.05));
-            shadow_interior =
-                shadow_interior.union(&geo_buffer::buffer_multi_polygon_rounded(poly, -0.025));
-        }
+        let shadows_data = polygons_to_shadows(polygons.iter().map(|(_, p)| p).collect::<Vec<_>>());
 
-        // Create shadow triangles
-        let interior_points = shadow_interior
-            .0
-            .iter()
-            .flat_map(|p| p.exterior().points())
-            .map(|p| vec2(p.x(), p.y()))
-            .collect::<Vec<_>>();
-        let shadow_polygons = shadow_exterior.difference(&shadow_interior);
-
-        let mut shadow_triangles = Vec::new();
-        for polygon in &shadow_polygons {
-            let (indices, vertices) = {
-                let triangles = polygon
-                    .constrained_triangulation(SpadeTriangulationConfig::default())
-                    .unwrap();
-                let mut indices = Vec::new();
-                let mut vertices = Vec::new();
-                for triangle in triangles {
-                    for point in triangle.to_array() {
-                        let index = vertices.len() as u32;
-                        indices.push(index);
-                        vertices.push(vec2(point.x, point.y));
-                    }
-                }
-                (indices, vertices)
-            };
-            let mut vertex_position_map = HashMap::new();
-            for (index, vertex) in vertices.iter().enumerate() {
-                let is_interior = interior_points
-                    .iter()
-                    .any(|p| p.distance(*vertex) < f64::EPSILON);
-                vertex_position_map.insert(index, is_interior);
-            }
-            shadow_triangles.push((Triangles { indices, vertices }, vertex_position_map));
-        }
-
-        (polygons, triangles, shadow_triangles)
+        (polygons, triangles, shadows_data)
     }
 
     fn full_shape(&self) -> MultiPolygon {
@@ -303,11 +256,10 @@ impl FurnitureMaterial {
 
 type FurniturePolygons = Vec<(FurnitureMaterial, MultiPolygon)>;
 type FurnitureTriangles = Vec<(FurnitureMaterial, Vec<Triangles>)>;
-type FurnitureShadows = Vec<(Triangles, HashMap<usize, bool>)>;
 
 pub struct FurnitureRender {
     pub hash: u64,
     pub polygons: FurniturePolygons,
     pub triangles: FurnitureTriangles,
-    pub shadow_triangles: FurnitureShadows,
+    pub shadow_triangles: ShadowsData,
 }
