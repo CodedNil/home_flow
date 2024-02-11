@@ -36,6 +36,7 @@ eframe = { version = "0.26.0", default-features = false, features = [
 # WebAssembly dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4.41"
+ehttp = "0.4.0"
 
 # Server dependencies
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -51,7 +52,6 @@ tower-http = { version = "0.5.1", features = [
     "compression-deflate",
     "compression-gzip",
 ] }
-ehttp = "0.4.0"
 time = "0.3.34"
 
 [features]
