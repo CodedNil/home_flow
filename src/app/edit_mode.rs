@@ -86,23 +86,20 @@ impl HomeFlow {
                     .lock()
                     .info("Saving Layout")
                     .set_duration(Some(Duration::from_secs(2)));
-                ehttp::fetch(
-                    save_layout(&self.host, &self.layout),
-                    move |result| match result {
-                        Ok(_) => {
-                            toasts_store
-                                .lock()
-                                .success("Layout Saved")
-                                .set_duration(Some(Duration::from_secs(2)));
-                        }
-                        Err(_) => {
-                            toasts_store
-                                .lock()
-                                .error("Failed to save layout")
-                                .set_duration(Some(Duration::from_secs(2)));
-                        }
-                    },
-                );
+                save_layout(&self.host, &self.layout, move |result| match result {
+                    Ok(()) => {
+                        toasts_store
+                            .lock()
+                            .success("Layout Saved")
+                            .set_duration(Some(Duration::from_secs(2)));
+                    }
+                    Err(_) => {
+                        toasts_store
+                            .lock()
+                            .error("Failed to save layout")
+                            .set_duration(Some(Duration::from_secs(2)));
+                    }
+                });
                 self.layout_server = self.layout.clone();
                 self.edit_mode.enabled = false;
             }

@@ -4,12 +4,12 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Router,
 };
 use std::{fs, path::Path};
 use time::{format_description, OffsetDateTime};
 
-const LAYOUT_PATH: &str = "home_layout.json";
+const LAYOUT_PATH: &str = "home_layout.toml";
 
 pub fn setup_routes(app: Router) -> Router {
     app.route("/load_layout", get(load_layout_server))
@@ -17,29 +17,44 @@ pub fn setup_routes(app: Router) -> Router {
 }
 
 async fn load_layout_server() -> impl IntoResponse {
-    let home_struct = fs::read_to_string(LAYOUT_PATH).map_or_else(
-        |_| Home::template(),
-        |contents| {
-            serde_json::from_str::<Home>(&contents).map_or_else(|_| Home::template(), |home| home)
-        },
-    );
-    (StatusCode::OK, Json(home_struct))
-}
-
-async fn save_layout_server(Json(home): Json<Home>) -> impl IntoResponse {
-    log::info!("Saving layout");
-    match save_layout_impl(&serde_json::to_string(&home).unwrap()) {
-        Ok(()) => StatusCode::OK.into_response(),
+    match bincode::serialize(&load_layout_impl()) {
+        Ok(serialised) => (StatusCode::OK, serialised),
         Err(e) => {
-            log::error!("Failed to save layout: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            log::error!("Failed to serialise layout: {:?}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
         }
     }
 }
 
-fn save_layout_impl(home: &str) -> Result<()> {
+async fn save_layout_server(body: axum::body::Bytes) -> impl IntoResponse {
+    log::info!("Saving layout");
+    match bincode::deserialize(&body) {
+        Ok(home) => match save_layout_impl(&home) {
+            Ok(()) => StatusCode::OK.into_response(),
+            Err(e) => {
+                log::error!("Failed to save layout: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        },
+        Err(e) => {
+            log::error!("Failed to deserialise layout: {:?}", e);
+            StatusCode::BAD_REQUEST.into_response()
+        }
+    }
+}
+
+pub fn load_layout_impl() -> Home {
+    fs::read_to_string(LAYOUT_PATH).map_or_else(
+        |_| Home::template(),
+        |contents| toml::from_str::<Home>(&contents).map_or_else(|_| Home::template(), |home| home),
+    )
+}
+
+pub fn save_layout_impl(home: &Home) -> Result<()> {
+    let home_toml = toml::to_string(home)?;
     let temp_path = Path::new(LAYOUT_PATH).with_extension("tmp");
-    fs::write(&temp_path, home).map_err(|e| anyhow!("Failed to write temporary layout: {}", e))?;
+    fs::write(&temp_path, home_toml)
+        .map_err(|e| anyhow!("Failed to write temporary layout: {}", e))?;
 
     if Path::new(LAYOUT_PATH).exists() {
         let metadata = fs::metadata(LAYOUT_PATH)?;
@@ -47,7 +62,7 @@ fn save_layout_impl(home: &str) -> Result<()> {
         let modified_time = OffsetDateTime::from(modified_time);
         let format = format_description::parse("[year]-[month]-[day]_[hour]-[minute]-[second]")?;
         let backup_filename = format!(
-            "backups/home_layout_{}.json",
+            "backups/home_layout_{}.toml",
             modified_time.format(&format)?
         );
 

@@ -1,5 +1,6 @@
 use self::edit_mode::EditDetails;
-use crate::common::layout;
+use crate::{common::layout::Home, server::common_api::get_layout};
+use anyhow::Result;
 use egui::{
     util::History, Align2, CentralPanel, Color32, Context, Frame, Sense, TextureHandle, Window,
 };
@@ -24,8 +25,8 @@ pub struct HomeFlow {
     mouse_pos: Vec2,
     mouse_pos_world: Vec2,
 
-    layout_server: layout::Home,
-    layout: layout::Home,
+    layout_server: Home,
+    layout: Home,
     textures: HashMap<String, TextureHandle>,
 
     toasts: Arc<Mutex<Toasts>>,
@@ -55,8 +56,8 @@ impl Default for HomeFlow {
             mouse_pos: Vec2::ZERO,
             mouse_pos_world: Vec2::ZERO,
 
-            layout_server: layout::Home::default(),
-            layout: layout::Home::default(),
+            layout_server: Home::default(),
+            layout: Home::default(),
             textures: HashMap::new(),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
@@ -79,7 +80,7 @@ enum DownloadLayout {
     #[default]
     None,
     InProgress,
-    Done(ehttp::Result<ehttp::Response>),
+    Done(Result<Home>),
 }
 
 impl HomeFlow {
@@ -171,8 +172,8 @@ impl HomeFlow {
         }
         // If on github use template instead of loading from server
         if self.host.contains("github.io") {
-            self.layout = layout::Home::template();
-            self.layout_server = layout::Home::template();
+            self.layout = Home::template();
+            self.layout_server = Home::template();
             return;
         }
         let download_store = self.download_data.clone();
@@ -182,12 +183,9 @@ impl HomeFlow {
                 log::info!("Loading layout from server");
                 download_data_guard.layout = DownloadLayout::InProgress;
                 drop(download_data_guard);
-                ehttp::fetch(
-                    ehttp::Request::get(format!("http://{}/load_layout", self.host)),
-                    move |response| {
-                        download_store.lock().layout = DownloadLayout::Done(response);
-                    },
-                );
+                get_layout(&self.host, move |res| {
+                    download_store.lock().layout = DownloadLayout::Done(res);
+                });
             }
             DownloadLayout::InProgress => {
                 Window::new("Layout Download")
@@ -204,14 +202,9 @@ impl HomeFlow {
                     });
             }
             DownloadLayout::Done(ref response) => {
-                let layout = response
-                    .as_ref()
-                    .ok()
-                    .and_then(|res| res.text())
-                    .and_then(|text| serde_json::from_str::<layout::Home>(text).ok());
-                if let Some(layout) = layout {
+                if let Ok(layout) = response {
                     self.layout_server = layout.clone();
-                    self.layout = layout;
+                    self.layout = layout.clone();
                 } else {
                     log::error!("Failed to fetch or parse layout from server");
                 }
