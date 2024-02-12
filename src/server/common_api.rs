@@ -6,15 +6,15 @@ pub fn get_layout(host: &str, on_done: impl 'static + Send + FnOnce(Result<Home>
     on_done(Ok(super::routing::load_layout_impl()));
 
     #[cfg(target_arch = "wasm32")]
-    ehttp::fetch(
-        ehttp::Request::get(format!("http://{host}/load_layout")),
-        move |res| {
+    super::fetch::fetch(
+        super::fetch::Request::get(format!("http://{host}/load_layout")),
+        Box::new(move |res| {
             on_done(match res {
                 Ok(res) => bincode::deserialize(&res.bytes)
                     .map_err(|e| anyhow::anyhow!("Failed to load layout: {}", e)),
                 Err(e) => Err(anyhow::anyhow!("Failed to load layout: {}", e)),
             });
-        },
+        }),
     );
 }
 
@@ -23,15 +23,13 @@ pub fn save_layout(host: &str, home: &Home, on_done: impl 'static + Send + FnOnc
     on_done(super::routing::save_layout_impl(home));
 
     #[cfg(target_arch = "wasm32")]
-    ehttp::fetch(
-        ehttp::Request {
-            method: "POST".to_owned(),
-            url: format!("http://{host}/save_layout"),
-            body: bincode::serialize(home).unwrap(),
-            headers: ehttp::Headers::new(&[("Accept", "*/*")]),
-        },
-        move |_| {
+    super::fetch::fetch(
+        super::fetch::Request::post(
+            format!("http://{host}/save_layout"),
+            bincode::serialize(home).unwrap(),
+        ),
+        Box::new(move |_| {
             on_done(Ok(()));
-        },
+        }),
     );
 }
