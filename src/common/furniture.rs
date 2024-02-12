@@ -40,7 +40,7 @@ pub enum ChairType {
     #[default]
     DiningChair,
     OfficeChair,
-    Sofa,
+    Sofa(Color),
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
@@ -115,10 +115,13 @@ impl Furniture {
     }
 
     fn chair_render(&self, polygons: &mut FurniturePolygons, sub_type: ChairType) {
-        polygons.push((
-            FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80)),
-            self.full_shape(),
-        ));
+        let material = match sub_type {
+            ChairType::DiningChair | ChairType::OfficeChair => {
+                FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80))
+            }
+            ChairType::Sofa(color) => FurnitureMaterial::new(Material::Empty, color),
+        };
+        polygons.push((material, self.full_shape()));
     }
 
     fn table_render(&self, polygons: &mut FurniturePolygons, sub_type: TableType) {
