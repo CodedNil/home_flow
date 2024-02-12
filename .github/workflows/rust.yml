@@ -1,79 +1,83 @@
 name: Rust
 
 on:
-    push:
-        branches: ["main"]
+  push:
+    branches: ["main"]
 
 env:
-    CARGO_TERM_COLOR: always
+  CARGO_TERM_COLOR: always
 
 permissions:
-    contents: write
+  contents: write
 
 jobs:
-    build-wasm:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-            - uses: dtolnay/rust-toolchain@stable
-              with:
-                  targets: wasm32-unknown-unknown
-            - uses: Swatinem/rust-cache@v2
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install Trunk
-              run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
-            - name: Build WASM
-              run: ./trunk build --release --public-url "${GITHUB_REPOSITORY#*/}"
+      - uses: Swatinem/rust-cache@v2
 
-            - name: Copy Wasm File
-              run: cp dist/home_flow-*_bg.wasm dist/home_flow.wasm
+      - name: Install Trunk
+        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
 
-            - name: Upload Dist Folder
-              uses: actions/upload-artifact@v2
-              with:
-                  name: wasm-dist
-                  path: dist
+      - name: Build WASM
+        run: ./trunk build --release --public-url "${GITHUB_REPOSITORY#*/}"
 
-    build-server:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-            - uses: dtolnay/rust-toolchain@stable
-            - uses: Swatinem/rust-cache@v2
+      - name: Copy Wasm File
+        run: cp dist/home_flow-*_bg.wasm dist/home_flow.wasm
 
-            - name: Build Server
-              run: cargo build --release --no-default-features --target-dir target/server --verbose
+      - name: Upload Dist Folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-dist
+          path: dist
 
-            - name: Upload Server File
-              uses: actions/upload-artifact@v2
-              with:
-                  name: server-artifact
-                  path: target/server/release/home_flow
+  build-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-    deploy:
-        needs: [build-wasm, build-server]
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
 
-            - name: Download WASM dist folder
-              uses: actions/download-artifact@v2
-              with:
-                  name: wasm-dist
-                  path: dist
+      - uses: Swatinem/rust-cache@v2
 
-            - name: Download Server Artifact
-              uses: actions/download-artifact@v2
-              with:
-                  name: server-artifact
-                  path: temp
+      - name: Build Server
+        run: cargo build --release --no-default-features --target-dir target/server --verbose
 
-            - name: Rename Server Artifact
-              run: mv temp/home_flow dist/home_flow_server
+      - name: Upload Server File
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-artifact
+          path: target/server/release/home_flow
 
-            - name: Deploy
-              uses: JamesIves/github-pages-deploy-action@v4
-              with:
-                  folder: dist
-                  single-commit: true
+  deploy:
+    needs: [build-wasm, build-server]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download WASM dist folder
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-dist
+          path: dist
+
+      - name: Download Server Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: server-artifact
+          path: temp
+
+      - name: Rename Server Artifact
+        run: mv temp/home_flow dist/home_flow_server
+
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          single-commit: true
