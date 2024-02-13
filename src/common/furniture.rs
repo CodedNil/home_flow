@@ -131,7 +131,18 @@ impl Furniture {
             triangles.push((*material, material_triangles));
         }
 
-        let shadows_data = polygons_to_shadows(polygons.iter().map(|(_, p)| p).collect::<Vec<_>>());
+        // Use simple shape for shadow unless complex is needed
+        let full_shape = self.full_shape();
+        let shadow_polys = polygons.iter().map(|(_, p)| p).collect::<Vec<_>>();
+        let shadow_polys = match self.furniture_type {
+            FurnitureType::Bed(_) => shadow_polys,
+            FurnitureType::Bathroom(sub_type) => match sub_type {
+                BathroomType::Toilet | BathroomType::Sink => shadow_polys,
+                _ => vec![&full_shape],
+            },
+            _ => vec![&full_shape],
+        };
+        let shadows_data = polygons_to_shadows(shadow_polys);
 
         let children = self.render_children();
 
@@ -149,10 +160,8 @@ impl Furniture {
             FurnitureType::Kitchen(sub_type) => self.kitchen_render(&mut polygons, sub_type),
             FurnitureType::Bathroom(sub_type) => self.bathroom_render(&mut polygons, sub_type),
             FurnitureType::Boiler => polygons.push((METAL_DARK, self.full_shape())),
-            _ => polygons.push((
-                FurnitureMaterial::new(Material::Empty, Color::from_rgb(255, 0, 0)),
-                self.full_shape(),
-            )),
+            FurnitureType::Radiator => self.radiator_render(&mut polygons),
+            FurnitureType::Display => self.display_render(&mut polygons),
         }
         polygons
     }
@@ -442,6 +451,44 @@ impl Furniture {
 
     fn wardrobe_render(&self, polygons: &mut FurniturePolygons) {
         polygons.push((WOOD, self.full_shape()));
+    }
+
+    fn radiator_render(&self, polygons: &mut FurniturePolygons) {
+        polygons.push((
+            FurnitureMaterial::new(Material::Empty, Color::from_rgb(255, 255, 255)),
+            self.full_shape(),
+        ));
+        if self.size.x > 0.2 && self.size.y > 0.05 {
+            let stripe_width = 0.1;
+            let total_stripe_width = self.size.x / 2.0 - stripe_width * 0.5;
+            let num_stripes = (total_stripe_width / stripe_width).floor() as usize;
+            let adjusted_stripe_width = total_stripe_width / num_stripes as f64;
+            for i in 0..num_stripes {
+                let x_pos =
+                    (i as f64 - (num_stripes - 1) as f64 / 2.0) * adjusted_stripe_width * 2.0;
+                polygons.push((
+                    FurnitureMaterial::new(Material::Empty, Color::from_rgb(200, 200, 200)),
+                    rect(vec2(x_pos, 0.0), vec2(adjusted_stripe_width, self.size.y)),
+                ));
+            }
+        }
+    }
+
+    fn display_render(&self, polygons: &mut FurniturePolygons) {
+        polygons.push((
+            METAL_DARK,
+            rect(
+                vec2(0.0, -self.size.y * 0.25),
+                vec2(self.size.x, self.size.y * 0.5),
+            ),
+        ));
+        polygons.push((
+            FurnitureMaterial::new(Material::Empty, Color::from_rgb(50, 150, 255)),
+            rect(
+                vec2(0.0, self.size.y * 0.25),
+                vec2(self.size.x, self.size.y * 0.5),
+            ),
+        ));
     }
 
     fn rug_render(&self, polygons: &mut FurniturePolygons, color: Color) {

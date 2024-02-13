@@ -301,6 +301,12 @@ impl Home {
                     Vec2::new(0.6, 1.7),
                     0.0,
                 ),
+                Furniture::new(
+                    FurnitureType::Radiator,
+                    Vec2::new(3.85, -2.65),
+                    Vec2::new(1.4, 0.1),
+                    0.0,
+                ),
                 // Ensuite
                 Furniture::new(
                     FurnitureType::Bathroom(BathroomType::Shower),
@@ -390,15 +396,21 @@ impl Home {
                     45.0,
                 ),
                 Furniture::new(
+                    FurnitureType::Table(TableType::Empty),
+                    Vec2::new(-2.0, -2.55),
+                    Vec2::new(1.1, 0.3),
+                    0.0,
+                ),
+                Furniture::new(
                     FurnitureType::Radiator,
                     Vec2::new(-3.75, -2.65),
                     Vec2::new(1.4, 0.1),
                     0.0,
                 ),
                 Furniture::new(
-                    FurnitureType::Table(TableType::Empty),
-                    Vec2::new(-2.0, -2.55),
-                    Vec2::new(1.1, 0.3),
+                    FurnitureType::Radiator,
+                    Vec2::new(0.95, 0.95),
+                    Vec2::new(1.4, 0.1),
                     0.0,
                 ),
                 // Misc
