@@ -237,7 +237,9 @@ impl Home {
                     "Carpet",
                     Walls::WALL,
                     vec![],
-                    vec![Opening::new(OpeningType::Door, vec2(0.0, 0.5)).width(0.6)],
+                    vec![Opening::new(OpeningType::Door, vec2(0.0, 0.5))
+                        .width(0.6)
+                        .rotate(180.0)],
                 ),
                 Room::new(
                     "Bedroom Two",
@@ -307,15 +309,15 @@ impl Home {
                     0.0,
                 ),
                 Furniture::new(
+                    FurnitureType::Bathroom(BathroomType::Toilet),
+                    Vec2::new(0.675, -2.3),
+                    Vec2::new(0.55, 0.65),
+                    -90.0,
+                ),
+                Furniture::new(
                     FurnitureType::Bathroom(BathroomType::Sink),
                     Vec2::new(1.45, -1.35),
                     Vec2::new(0.45, 0.5),
-                    0.0,
-                ),
-                Furniture::new(
-                    FurnitureType::Bathroom(BathroomType::Toilet),
-                    Vec2::new(0.65, -2.3),
-                    Vec2::new(0.6, 0.45),
                     0.0,
                 ),
                 // Office
@@ -352,40 +354,40 @@ impl Home {
                 ),
                 Furniture::new(
                     FurnitureType::Bathroom(BathroomType::Sink),
-                    Vec2::new(1.4375, 1.325),
-                    Vec2::new(0.475, 0.45),
-                    0.0,
+                    Vec2::new(1.4, 1.325),
+                    Vec2::new(0.45, 0.5),
+                    -180.0,
                 ),
                 // Living Room
                 Furniture::new(
                     FurnitureType::Table(TableType::Dining),
-                    Vec2::new(-1.55, -1.5),
+                    Vec2::new(-1.45, -1.15),
                     Vec2::new(1.8, 0.8),
                     0.0,
                 ),
                 Furniture::new(
                     FurnitureType::Rug(Color::from_rgba(60, 135, 136, 255)),
-                    Vec2::new(-4.45, -1.3),
-                    Vec2::new(1.9, 1.65),
+                    Vec2::new(-4.55, -1.5),
+                    Vec2::new(1.6, 1.6),
                     0.0,
                 ),
                 Furniture::new(
                     FurnitureType::Chair(ChairType::Sofa(Color::from_rgb(200, 200, 200))),
-                    Vec2::new(-4.6, -1.0),
+                    Vec2::new(-4.15, -1.1),
                     Vec2::new(1.2, 0.8),
-                    0.0,
+                    45.0,
                 ),
                 Furniture::new(
                     FurnitureType::Table(TableType::Empty),
-                    Vec2::new(-4.6, -2.2),
-                    Vec2::new(1.25, 0.55),
-                    0.0,
+                    Vec2::new(-5.3, -2.25),
+                    Vec2::new(0.8, 0.4),
+                    45.0,
                 ),
                 Furniture::new(
                     FurnitureType::Display,
-                    Vec2::new(-4.6, -2.2),
-                    Vec2::new(1.0, 0.25),
-                    0.0,
+                    Vec2::new(-5.3, -2.25),
+                    Vec2::new(1.0, 0.1),
+                    45.0,
                 ),
                 Furniture::new(
                     FurnitureType::Radiator,

@@ -179,7 +179,7 @@ impl Furniture {
             ChairType::Office => {
                 FurnitureMaterial::new(Material::Empty, Color::from_rgb(40, 40, 40))
             }
-            ChairType::Sofa(color) => FurnitureMaterial::new(Material::Empty, color),
+            ChairType::Sofa(color) => FurnitureMaterial::new(Material::Fabric, color),
         };
 
         polygons.push((
@@ -189,7 +189,7 @@ impl Furniture {
         let inset = 0.1;
         if self.size.x > inset * 3.0 && self.size.y > inset * 3.0 {
             polygons.push((
-                material.lighten(0.05),
+                material.lighten(0.1),
                 Shape::Rectangle.polygons(
                     vec2(0.0, -inset * 0.5),
                     self.size - vec2(inset * 2.0, inset),
@@ -217,7 +217,7 @@ impl Furniture {
     }
 
     fn table_children(&self, children: &mut Vec<Self>, sub_type: TableType) {
-        let chair_size = vec2(0.6, 0.5);
+        let chair_size = vec2(0.5, 0.5);
         let chair_push = 0.1;
         match sub_type {
             TableType::Desk(_) => {
@@ -229,7 +229,7 @@ impl Furniture {
                 ));
             }
             TableType::Dining => {
-                let spacing = 0.2;
+                let spacing = 0.1;
                 let chairs_wide = (self.size.x / (chair_size.x + spacing)).floor() as usize;
                 let chairs_high = (self.size.y / (chair_size.y + spacing)).floor() as usize;
                 for i in 0..chairs_wide {
@@ -329,7 +329,7 @@ impl Furniture {
             -vec2(0.0, self.size.y * (1.0 - covers_size) / 2.0),
             vec2(self.size.x, self.size.y * covers_size),
             0.0,
-            Material::Empty,
+            Material::Fabric,
             color,
             -0.025,
             0.05,

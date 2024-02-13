@@ -236,6 +236,7 @@ impl Hash for GlobalMaterial {
 pub enum Material {
     Empty,
     Carpet,
+    Fabric,
     Marble,
     Granite,
     Limestone,
@@ -247,6 +248,7 @@ impl Material {
         match self {
             Self::Empty => include_bytes!("../../assets/textures/empty.png"),
             Self::Carpet => include_bytes!("../../assets/textures/carpet.png"),
+            Self::Fabric => include_bytes!("../../assets/textures/fabric.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
             Self::Limestone => include_bytes!("../../assets/textures/limestone.png"),

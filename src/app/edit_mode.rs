@@ -600,7 +600,7 @@ fn room_edit_widgets(
                 if index > 0 && ui.button("^").clicked() {
                     alterations[index] = AlterObject::MoveUp;
                 }
-                if index < num_objects - 1 && ui.button("v").clicked() {
+                if num_objects > 0 && index < num_objects - 1 && ui.button("v").clicked() {
                     alterations[index] = AlterObject::MoveDown;
                 }
             });
