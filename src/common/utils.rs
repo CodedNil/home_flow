@@ -1,7 +1,8 @@
 use super::{
     color::Color,
     layout::{
-        Action, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room, Shape, Walls,
+        Action, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room, Shape,
+        TileOptions, Walls,
     },
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -221,6 +222,19 @@ impl GlobalMaterial {
             name: name.to_owned(),
             material,
             tint,
+            tiles: None,
+        }
+    }
+
+    pub fn tiles(&self, spacing: f64, grout_width: f64, grout_color: Color) -> Self {
+        Self {
+            name: self.name.clone(),
+            tiles: Some(TileOptions {
+                spacing,
+                grout_width,
+                grout_color,
+            }),
+            ..*self
         }
     }
 }

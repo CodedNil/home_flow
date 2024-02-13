@@ -6,8 +6,9 @@ use super::{
 use derivative::Derivative;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::hash::Hash;
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
@@ -107,6 +108,14 @@ pub struct GlobalMaterial {
     pub name: String,
     pub material: Material,
     pub tint: Color,
+    pub tiles: Option<TileOptions>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TileOptions {
+    pub spacing: f64,
+    pub grout_width: f64,
+    pub grout_color: Color,
 }
 
 pub struct HomeRender {
@@ -117,8 +126,8 @@ pub struct HomeRender {
 pub struct RoomRender {
     pub hash: u64,
     pub polygons: MultiPolygon,
-    pub material_polygons: HashMap<String, MultiPolygon>,
-    pub material_triangles: HashMap<String, Vec<Triangles>>,
+    pub material_polygons: IndexMap<String, MultiPolygon>,
+    pub material_triangles: IndexMap<String, Vec<Triangles>>,
     pub wall_polygons: MultiPolygon,
 }
 
@@ -138,12 +147,14 @@ impl Home {
                     "KitchenTiles",
                     Material::Marble,
                     Color::from_rgb(255, 250, 230),
-                ),
+                )
+                .tiles(0.4, 0.04, Color::from_rgba(80, 80, 80, 100)),
                 GlobalMaterial::new(
                     "BathroomTiles",
                     Material::Granite,
                     Color::from_rgb(50, 50, 50),
-                ),
+                )
+                .tiles(0.4, 0.04, Color::from_rgba(80, 80, 80, 200)),
             ],
             rooms: vec![
                 Room::new(

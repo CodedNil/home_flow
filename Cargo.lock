@@ -1248,6 +1248,7 @@ dependencies = [
  "geo-types",
  "glam",
  "image",
+ "indexmap",
  "js-sys",
  "log",
  "palette",

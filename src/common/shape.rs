@@ -8,11 +8,13 @@ use super::{
     utils::{rotate_point, Material},
 };
 use geo::{
-    triangulate_spade::SpadeTriangulationConfig, BooleanOps, TriangulateEarcut, TriangulateSpade,
+    triangulate_spade::SpadeTriangulationConfig, BooleanOps, BoundingRect, TriangulateEarcut,
+    TriangulateSpade,
 };
 use geo_buffer::{buffer_multi_polygon, buffer_multi_polygon_rounded};
 use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
+use indexmap::IndexMap;
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
@@ -50,7 +52,7 @@ impl Home {
                     } else {
                         room.wall_polygons(&polygons)
                     };
-                    let (mat_polys, mat_tris) = room.material_polygons();
+                    let (mat_polys, mat_tris) = room.material_polygons(&self.materials);
                     Some((index, hash, polygons, mat_polys, mat_tris, wall_polygons))
                 } else {
                     None
@@ -141,6 +143,19 @@ impl Home {
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
+        if string.ends_with("-grout") {
+            let string = string.trim_end_matches("-grout");
+            for material in &self.materials {
+                if material.name == string {
+                    let tiles_colour = material
+                        .tiles
+                        .as_ref()
+                        .map(|t| t.grout_color)
+                        .unwrap_or_default();
+                    return GlobalMaterial::new(string, material.material, tiles_colour);
+                }
+            }
+        }
         for material in &self.materials {
             if material.name == string {
                 return material.clone();
@@ -209,11 +224,12 @@ impl Room {
 
     pub fn material_polygons(
         &self,
+        global_materials: &[GlobalMaterial],
     ) -> (
-        HashMap<String, MultiPolygon>,
-        HashMap<String, Vec<Triangles>>,
+        IndexMap<String, MultiPolygon>,
+        IndexMap<String, Vec<Triangles>>,
     ) {
-        let mut polygons = HashMap::new();
+        let mut polygons = IndexMap::new();
         polygons.insert(
             self.material.clone(),
             Shape::Rectangle.polygons(self.pos, self.size, 0.0),
@@ -245,11 +261,57 @@ impl Room {
             }
         }
 
+        // Add grout lines every x units
+        let mut grout_polygons = Vec::new();
+        for (material, poly) in &polygons {
+            let global_material = global_materials.iter().find(|m| &m.name == material);
+            if let Some(global_material) = global_material {
+                if let Some(tile) = &global_material.tiles {
+                    let mut new_polygons = Vec::new();
+                    let bounds = poly.bounding_rect().unwrap();
+
+                    let (startx, endx) = (bounds.min().x, bounds.max().x);
+                    let num_grout_x = ((endx - startx) / tile.spacing).floor() as usize;
+                    for i in 0..num_grout_x {
+                        let x_pos = (i as f64 - (num_grout_x - 1) as f64 / 2.0) * tile.spacing;
+                        let line = Shape::Rectangle.polygon(
+                            self.pos + vec2(x_pos, 0.0),
+                            vec2(tile.grout_width, self.size.y),
+                            0.0,
+                        );
+                        new_polygons.push(line);
+                    }
+
+                    let (starty, endy) = (bounds.min().y, bounds.max().y);
+                    let num_grout_y = ((endy - starty) / tile.spacing).floor() as usize;
+                    for i in 0..num_grout_y {
+                        let y_pos = (i as f64 - (num_grout_y - 1) as f64 / 2.0) * tile.spacing;
+                        let line = Shape::Rectangle.polygon(
+                            self.pos + vec2(0.0, y_pos),
+                            vec2(self.size.x, tile.grout_width),
+                            0.0,
+                        );
+                        new_polygons.push(line);
+                    }
+
+                    grout_polygons.push((format!("{material}-grout"), new_polygons));
+                }
+            }
+        }
         // Create triangles for each material
-        let mut triangles = HashMap::new();
+        let mut triangles = IndexMap::new();
         for (material, poly) in &polygons {
             let mut material_triangles = Vec::new();
             for polygon in &poly.0 {
+                let (indices, vertices) = triangulate_polygon(polygon);
+                material_triangles.push(Triangles { indices, vertices });
+            }
+            triangles.insert(material.clone(), material_triangles);
+        }
+        // Add grout triangles
+        for (material, polys) in grout_polygons {
+            let mut material_triangles = Vec::new();
+            for polygon in &polys {
                 let (indices, vertices) = triangulate_polygon(polygon);
                 material_triangles.push(Triangles { indices, vertices });
             }
