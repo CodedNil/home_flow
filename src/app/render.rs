@@ -226,25 +226,6 @@ impl HomeFlow {
             }
         }
 
-        // Render walls
-        let rendered_data = self.layout.rendered_data.as_ref().unwrap();
-        for wall in &rendered_data.wall_triangles {
-            let vertices = wall
-                .vertices
-                .iter()
-                .map(|v| Vertex {
-                    pos: vec2_to_egui_pos(self.world_to_pixels(*v)),
-                    uv: egui::Pos2::default(),
-                    color: WALL_COLOR,
-                })
-                .collect();
-            painter.add(EShape::mesh(Mesh {
-                indices: wall.indices.clone(),
-                vertices,
-                texture_id: TextureId::Managed(0),
-            }));
-        }
-
         // Open the opening if mouse is nearby
         for room in &mut self.layout.rooms {
             for opening in &mut room.openings {
@@ -298,6 +279,25 @@ impl HomeFlow {
                     texture_id: TextureId::Managed(0),
                 }));
             }
+        }
+
+        // Render walls
+        let rendered_data = self.layout.rendered_data.as_ref().unwrap();
+        for wall in &rendered_data.wall_triangles {
+            let vertices = wall
+                .vertices
+                .iter()
+                .map(|v| Vertex {
+                    pos: vec2_to_egui_pos(self.world_to_pixels(*v)),
+                    uv: egui::Pos2::default(),
+                    color: WALL_COLOR,
+                })
+                .collect();
+            painter.add(EShape::mesh(Mesh {
+                indices: wall.indices.clone(),
+                vertices,
+                texture_id: TextureId::Managed(0),
+            }));
         }
     }
 }

@@ -339,6 +339,12 @@ impl Home {
                     Vec2::new(1.6, 0.8),
                     0.0,
                 ),
+                Furniture::new(
+                    FurnitureType::Radiator,
+                    Vec2::new(5.7, 1.95),
+                    Vec2::new(0.75, 0.1),
+                    90.0,
+                ),
                 // Bathroom
                 Furniture::new(
                     FurnitureType::Bathroom(BathroomType::Shower),
