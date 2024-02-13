@@ -289,7 +289,7 @@ impl Home {
                 ),
                 Furniture::new(
                     FurnitureType::Table(TableType::Empty),
-                    Vec2::new(-3.85, 1.45),
+                    Vec2::new(-3.85, 1.5),
                     Vec2::new(0.8, 0.8),
                     0.0,
                 ),

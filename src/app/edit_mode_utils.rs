@@ -133,10 +133,12 @@ impl HomeFlow {
 
         // If room or operation or furniture, check if at the edge of bounds to resize
         if let Some(data) = &mut hovered_data {
-            if matches!(
-                data.object_type,
-                ObjectType::Room | ObjectType::Operation | ObjectType::Furniture
-            ) {
+            if self.edit_mode.resize_enabled
+                && matches!(
+                    data.object_type,
+                    ObjectType::Room | ObjectType::Operation | ObjectType::Furniture
+                )
+            {
                 // Local mouse pos is -1 to 1 in x and y
                 let local_mouse_pos = (rotate_point(self.mouse_pos_world, data.pos, data.rotation)
                     - data.pos)

@@ -27,6 +27,7 @@ pub struct EditDetails {
     pub selected_id: Option<Uuid>,
     pub selected_type: Option<ObjectType>,
     pub preview_edits: bool,
+    pub resize_enabled: bool,
 }
 
 pub struct DragData {
@@ -107,6 +108,7 @@ impl HomeFlow {
                 self.layout = self.layout_server.clone();
                 self.edit_mode.enabled = false;
             }
+            ui.checkbox(&mut self.edit_mode.resize_enabled, "Resizing");
 
             // Show preview edits
             Window::new("Preview Edits")

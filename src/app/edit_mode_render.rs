@@ -154,20 +154,18 @@ impl HomeFlow {
         }
 
         // Render furniture
-        for furniture in &self.layout.furniture {
-            let selected = edit_response.hovered_id == Some(furniture.id)
-                || self.edit_mode.selected_id == Some(furniture.id);
-            painter.add(EShape::closed_line(
-                Shape::Rectangle
-                    .vertices(furniture.pos, furniture.size, furniture.rotation)
-                    .iter()
-                    .map(|v| vec2_to_egui_pos(self.world_to_pixels(*v)))
-                    .collect(),
-                Stroke::new(
-                    if selected { 8.0 } else { 4.0 },
-                    Color32::from_rgb(150, 0, 50).gamma_multiply(0.8),
-                ),
-            ));
+        if let Some(furniture) = [edit_response.hovered_id, self.edit_mode.selected_id]
+            .iter()
+            .filter_map(|&id| id)
+            .find_map(|id| self.layout.furniture.iter().find(|r| r.id == id))
+        {
+            self.closed_dashed_line_with_offset(
+                painter,
+                &Shape::Rectangle.vertices(furniture.pos, furniture.size, furniture.rotation),
+                Stroke::new(6.0, Color32::from_rgb(150, 0, 50).gamma_multiply(0.8)),
+                35.0,
+                self.time * 50.0,
+            );
         }
     }
 
