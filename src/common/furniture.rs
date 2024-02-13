@@ -36,7 +36,7 @@ pub enum FurnitureType {
     Kitchen(KitchenType),
     Bathroom(BathroomType),
     Bed(Color),
-    Wardrobe,
+    Storage(StorageType),
     Boiler,
 }
 
@@ -76,6 +76,17 @@ pub enum BathroomType {
     Shower,
     Bath,
     Sink,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
+pub enum StorageType {
+    #[default]
+    Wardrobe,
+    WardrobeColor(Color),
+    Cupboard,
+    CupboardColor(Color),
+    Drawer,
+    DrawerColor(Color),
 }
 
 const WOOD: FurnitureMaterial =
@@ -155,7 +166,7 @@ impl Furniture {
             FurnitureType::Chair(sub_type) => self.chair_render(&mut polygons, sub_type),
             FurnitureType::Table(sub_type) => self.table_render(&mut polygons, sub_type),
             FurnitureType::Bed(color) => self.bed_render(&mut polygons, color),
-            FurnitureType::Wardrobe => self.wardrobe_render(&mut polygons),
+            FurnitureType::Storage(sub_type) => self.storage_render(&mut polygons, sub_type),
             FurnitureType::Rug(color) => self.rug_render(&mut polygons, color),
             FurnitureType::Kitchen(sub_type) => self.kitchen_render(&mut polygons, sub_type),
             FurnitureType::Bathroom(sub_type) => self.bathroom_render(&mut polygons, sub_type),
@@ -449,8 +460,17 @@ impl Furniture {
         polygons.push((WOOD, backboard_polygon));
     }
 
-    fn wardrobe_render(&self, polygons: &mut FurniturePolygons) {
-        polygons.push((WOOD, self.full_shape()));
+    fn storage_render(&self, polygons: &mut FurniturePolygons, sub_type: StorageType) {
+        let color = match sub_type {
+            StorageType::WardrobeColor(color)
+            | StorageType::CupboardColor(color)
+            | StorageType::DrawerColor(color) => color,
+            _ => WOOD.tint,
+        };
+        polygons.push((
+            FurnitureMaterial::new(WOOD.material, color),
+            self.full_shape(),
+        ));
     }
 
     fn radiator_render(&self, polygons: &mut FurniturePolygons) {

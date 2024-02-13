@@ -1,6 +1,8 @@
 use super::{
     color::Color,
-    furniture::{BathroomType, ChairType, Furniture, FurnitureType, KitchenType, TableType},
+    furniture::{
+        BathroomType, ChairType, Furniture, FurnitureType, KitchenType, StorageType, TableType,
+    },
     utils::{clone_as_none, Material},
 };
 use derivative::Derivative;
@@ -301,16 +303,22 @@ impl Home {
                     90.0,
                 ),
                 Furniture::new(
-                    FurnitureType::Wardrobe,
+                    FurnitureType::Storage(StorageType::DrawerColor(Color::from_rgb(60, 60, 60))),
+                    Vec2::new(5.475, -2.4),
+                    Vec2::new(0.4, 0.55),
+                    90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Storage(StorageType::Wardrobe),
                     Vec2::new(5.075, 0.5),
                     Vec2::new(1.35, 0.6),
                     0.0,
                 ),
                 Furniture::new(
-                    FurnitureType::Wardrobe,
-                    Vec2::new(2.25, -0.95),
-                    Vec2::new(0.6, 1.7),
-                    0.0,
+                    FurnitureType::Storage(StorageType::DrawerColor(Color::from_rgb(60, 60, 60))),
+                    Vec2::new(2.35, -0.9),
+                    Vec2::new(1.6, 0.8),
+                    -90.0,
                 ),
                 Furniture::new(
                     FurnitureType::Radiator,
@@ -339,7 +347,7 @@ impl Home {
                 ),
                 // Office
                 Furniture::new(
-                    FurnitureType::Wardrobe,
+                    FurnitureType::Storage(StorageType::Wardrobe),
                     Vec2::new(4.2, 2.7),
                     Vec2::new(3.1, 0.6),
                     0.0,

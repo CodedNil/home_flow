@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     common::{
-        furniture::{ChairType, Furniture, FurnitureType, TableType},
+        furniture::{ChairType, Furniture, FurnitureType, StorageType, TableType},
         layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
     },
     server::common_api::save_layout,
@@ -658,7 +658,18 @@ fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> Alter
             FurnitureType::Bathroom(ref mut bathroom_type) => {
                 combo_box_for_enum(ui, "Bathroom Type", bathroom_type, "");
             }
-            _ => {}
+            FurnitureType::Storage(ref mut storage_type) => {
+                combo_box_for_enum(ui, "Storage Type", storage_type, "");
+                match storage_type {
+                    StorageType::WardrobeColor(ref mut color)
+                    | StorageType::CupboardColor(ref mut color)
+                    | StorageType::DrawerColor(ref mut color) => {
+                        ui.color_edit_button_srgba_unmultiplied(color.mut_array());
+                    }
+                    _ => {}
+                };
+            }
+            FurnitureType::Boiler | FurnitureType::Radiator | FurnitureType::Display => {}
         }
         if ui.add(Button::new("Delete")).clicked() {
             alter_type = AlterObject::Delete;
