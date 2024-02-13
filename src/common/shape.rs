@@ -274,24 +274,24 @@ impl Room {
                     let num_grout_x = ((endx - startx) / tile.spacing).floor() as usize;
                     for i in 0..num_grout_x {
                         let x_pos = (i as f64 - (num_grout_x - 1) as f64 / 2.0) * tile.spacing;
-                        let line = Shape::Rectangle.polygon(
+                        let line = Shape::Rectangle.polygons(
                             self.pos + vec2(x_pos, 0.0),
                             vec2(tile.grout_width, self.size.y),
                             0.0,
                         );
-                        new_polygons.push(line);
+                        new_polygons.push(line.intersection(poly));
                     }
 
                     let (starty, endy) = (bounds.min().y, bounds.max().y);
                     let num_grout_y = ((endy - starty) / tile.spacing).floor() as usize;
                     for i in 0..num_grout_y {
                         let y_pos = (i as f64 - (num_grout_y - 1) as f64 / 2.0) * tile.spacing;
-                        let line = Shape::Rectangle.polygon(
+                        let line = Shape::Rectangle.polygons(
                             self.pos + vec2(0.0, y_pos),
                             vec2(self.size.x, tile.grout_width),
                             0.0,
                         );
-                        new_polygons.push(line);
+                        new_polygons.push(line.intersection(poly));
                     }
 
                     grout_polygons.push((format!("{material}-grout"), new_polygons));
@@ -311,9 +311,11 @@ impl Room {
         // Add grout triangles
         for (material, polys) in grout_polygons {
             let mut material_triangles = Vec::new();
-            for polygon in &polys {
-                let (indices, vertices) = triangulate_polygon(polygon);
-                material_triangles.push(Triangles { indices, vertices });
+            for multipolygon in &polys {
+                for polygon in multipolygon {
+                    let (indices, vertices) = triangulate_polygon(polygon);
+                    material_triangles.push(Triangles { indices, vertices });
+                }
             }
             triangles.insert(material.clone(), material_triangles);
         }
