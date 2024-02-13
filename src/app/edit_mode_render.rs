@@ -196,7 +196,19 @@ impl HomeFlow {
         let gap_length = combined_length - dash_length;
 
         let offset = time % combined_length;
-        points.push(points[0] + (points[1] - points[0]).normalize() * offset);
+        // Go through points until reaching the offset
+        let mut current_length = 0.0;
+        for i in 0..points.len() {
+            let next_index = (i + 1) % points.len();
+            let dist = points[i].distance(points[next_index]);
+            if current_length + dist > offset {
+                let dir = (points[next_index] - points[i]).normalize();
+                points.push(points[i] + dir * (offset - current_length));
+                break;
+            }
+            current_length += dist;
+            points.push(points[next_index]);
+        }
 
         let points = points
             .iter()
