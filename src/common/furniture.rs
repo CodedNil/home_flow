@@ -148,6 +148,7 @@ impl Furniture {
             FurnitureType::Rug(color) => self.rug_render(&mut polygons, color),
             FurnitureType::Kitchen(sub_type) => self.kitchen_render(&mut polygons, sub_type),
             FurnitureType::Bathroom(sub_type) => self.bathroom_render(&mut polygons, sub_type),
+            FurnitureType::Boiler => polygons.push((METAL_DARK, self.full_shape())),
             _ => polygons.push((
                 FurnitureMaterial::new(Material::Empty, Color::from_rgb(255, 0, 0)),
                 self.full_shape(),
@@ -175,7 +176,7 @@ impl Furniture {
     }
 
     fn full_shape(&self) -> MultiPolygon {
-        Shape::Rectangle.polygons(Vec2::ZERO, self.size, 0.0)
+        rect(Vec2::ZERO, self.size)
     }
 
     fn chair_render(&self, polygons: &mut FurniturePolygons, sub_type: ChairType) {
@@ -187,18 +188,14 @@ impl Furniture {
             ChairType::Sofa(color) => FurnitureMaterial::new(Material::Fabric, color),
         };
 
-        polygons.push((
-            material,
-            Shape::Rectangle.polygons(Vec2::ZERO, self.size, 0.0),
-        ));
+        polygons.push((material, rect(Vec2::ZERO, self.size)));
         let inset = 0.1;
         if self.size.x > inset * 3.0 && self.size.y > inset * 3.0 {
             polygons.push((
                 material.lighten(0.1),
-                Shape::Rectangle.polygons(
+                rect(
                     vec2(0.0, -inset * 0.5),
                     self.size - vec2(inset * 2.0, inset),
-                    0.0,
                 ),
             ));
         }
@@ -297,28 +294,20 @@ impl Furniture {
         let ceramic_light = 0.06;
         match sub_type {
             BathroomType::Bath => {
-                polygons.push((
-                    CERAMIC,
-                    Shape::Rectangle.polygons(Vec2::ZERO, self.size, 0.0),
-                ));
+                polygons.push((CERAMIC, rect(Vec2::ZERO, self.size)));
                 let inset = 0.1;
                 if self.size.x > inset * 3.0 && self.size.y > inset * 4.0 {
                     polygons.push((
                         CERAMIC.lighten(ceramic_light),
-                        Shape::Rectangle.polygons(
+                        rect(
                             vec2(0.0, -inset * 0.5),
                             self.size - vec2(inset * 2.0, inset * 3.0),
-                            0.0,
                         ),
                     ));
                     // Tap
                     polygons.push((
                         METAL_DARK,
-                        Shape::Rectangle.polygons(
-                            vec2(0.0, self.size.y * 0.5 - 0.15),
-                            vec2(0.2, 0.1),
-                            0.0,
-                        ),
+                        rect(vec2(0.0, self.size.y * 0.5 - 0.15), vec2(0.2, 0.1)),
                     ));
                 }
             }
@@ -335,15 +324,66 @@ impl Furniture {
                 // Tap
                 polygons.push((
                     METAL_DARK,
-                    Shape::Rectangle.polygons(
-                        vec2(0.0, self.size.y * 0.5 - 0.05),
-                        vec2(0.2, 0.1),
-                        0.0,
-                    ),
+                    rect(vec2(0.0, self.size.y * 0.5 - 0.05), vec2(0.2, 0.1)),
                 ));
             }
-            _ => {
-                polygons.push((CERAMIC, self.full_shape()));
+            BathroomType::Toilet => {
+                let rounding_factor = 0.3;
+                polygons.push((
+                    CERAMIC.lighten(ceramic_light),
+                    rect(
+                        vec2(0.0, self.size.y * -0.5 + self.size.y * 0.35),
+                        vec2(self.size.x * (0.8 - rounding_factor), self.size.y * 0.7),
+                    ),
+                ));
+                polygons.push((
+                    CERAMIC.lighten(ceramic_light),
+                    rect(
+                        vec2(0.0, self.size.y * -0.5 + self.size.y * 0.35),
+                        vec2(self.size.x * 0.8, self.size.y * (0.7 - rounding_factor)),
+                    ),
+                ));
+                polygons.push((
+                    CERAMIC,
+                    rect(
+                        vec2(0.0, self.size.y * 0.5 - self.size.y * 0.15),
+                        vec2(self.size.x, self.size.y * 0.3),
+                    ),
+                ));
+                // Flusher
+                polygons.push((
+                    METAL_DARK,
+                    rect(vec2(0.0, self.size.y * 0.5 - 0.05), vec2(0.1, 0.1)),
+                ));
+            }
+            BathroomType::Sink => {
+                let inset = 0.1;
+                polygons.push((
+                    CERAMIC,
+                    rect(
+                        vec2(0.0, inset * 0.5),
+                        vec2(self.size.x, self.size.y - inset),
+                    ),
+                ));
+                polygons.push((
+                    CERAMIC.lighten(ceramic_light),
+                    rect(
+                        vec2(0.0, inset * 0.5),
+                        vec2(self.size.x - inset * 2.0, self.size.y - inset),
+                    ),
+                ));
+                polygons.push((
+                    CERAMIC,
+                    rect(
+                        vec2(0.0, -self.size.y * 0.5 + inset * 0.5),
+                        vec2(self.size.x - inset * 2.0, inset),
+                    ),
+                ));
+                // Tap
+                polygons.push((
+                    METAL_DARK,
+                    rect(vec2(0.0, self.size.y * 0.5 - 0.05), vec2(0.1, 0.1)),
+                ));
             }
         }
     }
@@ -354,7 +394,7 @@ impl Furniture {
 
         // Add sheets
         polygons.push((
-            FurnitureMaterial::new(Material::Fabric, sheet_color),
+            FurnitureMaterial::new(Material::Empty, sheet_color),
             self.full_shape(),
         ));
 
@@ -374,7 +414,7 @@ impl Furniture {
                 pillow_pos,
                 vec2(pillow_width, pillow_height),
                 0.0,
-                FurnitureMaterial::new(Material::Fabric, pillow_color),
+                FurnitureMaterial::new(Material::Empty, pillow_color),
                 -0.015,
                 0.03,
             );
@@ -393,10 +433,9 @@ impl Furniture {
         );
 
         // Add backboard
-        let backboard_polygon = Shape::Rectangle.polygons(
+        let backboard_polygon = rect(
             vec2(0.0, self.size.y * 0.5 + 0.025),
             vec2(self.size.x + 0.05, 0.05),
-            0.0,
         );
         polygons.push((WOOD, backboard_polygon));
     }
@@ -416,6 +455,10 @@ impl Furniture {
             0.1,
         );
     }
+}
+
+fn rect(pos: Vec2, size: Vec2) -> MultiPolygon {
+    Shape::Rectangle.polygons(pos, size, 0.0)
 }
 
 fn fancy_rectangle(

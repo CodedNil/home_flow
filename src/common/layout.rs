@@ -316,8 +316,8 @@ impl Home {
                 ),
                 Furniture::new(
                     FurnitureType::Bathroom(BathroomType::Sink),
-                    Vec2::new(1.45, -1.35),
-                    Vec2::new(0.45, 0.5),
+                    Vec2::new(1.45, -1.325),
+                    Vec2::new(0.45, 0.45),
                     0.0,
                 ),
                 // Office
@@ -355,7 +355,7 @@ impl Home {
                 Furniture::new(
                     FurnitureType::Bathroom(BathroomType::Sink),
                     Vec2::new(1.4, 1.325),
-                    Vec2::new(0.45, 0.5),
+                    Vec2::new(0.45, 0.45),
                     -180.0,
                 ),
                 // Living Room
