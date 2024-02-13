@@ -85,6 +85,16 @@ impl HomeFlow {
     pub fn render_layout(&mut self, painter: &Painter, ctx: &egui::Context) {
         self.layout.render();
 
+        // Get bounds
+        let mut min = Vec2::splat(f64::INFINITY);
+        let mut max = Vec2::splat(f64::NEG_INFINITY);
+        for room in &self.layout.rooms {
+            let (room_min, room_max) = room.bounds_with_walls();
+            min = min.min(room_min);
+            max = max.max(room_max);
+        }
+        self.bounds = (min, max);
+
         // Ready textures
         let mut materials_to_ready = Vec::new();
         for room in &self.layout.rooms {

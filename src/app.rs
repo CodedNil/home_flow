@@ -28,6 +28,7 @@ pub struct HomeFlow {
     layout_server: Home,
     layout: Home,
     textures: HashMap<String, TextureHandle>,
+    bounds: (Vec2, Vec2),
 
     toasts: Arc<Mutex<Toasts>>,
     edit_mode: EditDetails,
@@ -59,6 +60,7 @@ impl Default for HomeFlow {
             layout_server: Home::default(),
             layout: Home::default(),
             textures: HashMap::new(),
+            bounds: (Vec2::ZERO, Vec2::ZERO),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
@@ -136,32 +138,8 @@ impl HomeFlow {
         }
 
         // Clamp translation to bounds
-        let bounds = [-30.0, 30.0, -30.0, 30.0];
-        let window_size = ui.ctx().available_rect().size();
-        let window_size_meters = vec2(window_size.x as f64, window_size.y as f64) / self.zoom / 2.0;
-        let min_translation = Vec2::new(
-            bounds[0] + window_size_meters.x,
-            bounds[2] + window_size_meters.y,
-        );
-        let max_translation = Vec2::new(
-            bounds[1] - window_size_meters.x,
-            bounds[3] - window_size_meters.y,
-        );
-        if min_translation.x <= max_translation.x {
-            self.translation.x = self
-                .translation
-                .x
-                .clamp(min_translation.x, max_translation.x);
-        } else {
-            self.translation.x = 0.0;
-        }
-        if min_translation.y <= max_translation.y {
-            self.translation.y = self
-                .translation
-                .y
-                .clamp(min_translation.y, max_translation.y);
-        } else {
-            self.translation.y = 0.0;
+        if self.bounds.0.is_finite() && self.bounds.1.is_finite() {
+            self.translation = self.translation.clamp(self.bounds.0, self.bounds.1);
         }
     }
 
