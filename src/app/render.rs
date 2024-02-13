@@ -1,6 +1,7 @@
 use super::{vec2_to_egui_pos, HomeFlow};
 use crate::common::{
     color::Color,
+    furniture::FurnitureType,
     layout::{OpeningType, Shape},
     shape::WALL_WIDTH,
     utils::{rotate_point, Material},
@@ -150,18 +151,59 @@ impl HomeFlow {
             }
         }
 
+        // Hover furniture
+        for furniture in &mut self.layout.furniture {
+            let target = furniture.contains(self.mouse_pos_world) as u8 as f64;
+            let difference = target - furniture.hover_amount;
+            if difference.abs() > f64::EPSILON {
+                furniture.hover_amount =
+                    (furniture.hover_amount + difference.signum() * 0.1).clamp(0.0, 1.0);
+            }
+            for child in &mut furniture.rendered_data.as_mut().unwrap().children {
+                let target = Shape::Rectangle.contains(
+                    self.mouse_pos_world,
+                    furniture.pos + rotate_point(child.pos, Vec2::ZERO, -furniture.rotation),
+                    child.size * 1.2,
+                    furniture.rotation + child.rotation,
+                ) as u8 as f64;
+                let difference = target - child.hover_amount;
+                if difference.abs() > f64::EPSILON {
+                    let speed = 0.1;
+                    if difference > 0.0 {
+                        child.hover_amount = (child.hover_amount + speed).clamp(0.0, 1.0);
+                    } else {
+                        child.hover_amount = (child.hover_amount - speed).clamp(0.0, 1.0);
+                    }
+                }
+            }
+        }
         // Gather furniture and children
         let mut furniture = Vec::new();
         let mut furniture_adjustments = HashMap::new();
         for f in &self.layout.furniture {
             for child in &f.rendered_data.as_ref().unwrap().children {
-                furniture_adjustments.insert(
-                    child.id,
-                    (
-                        f.pos + rotate_point(child.pos, Vec2::ZERO, -f.rotation),
-                        f.rotation + child.rotation,
-                    ),
-                );
+                if matches!(child.furniture_type, FurnitureType::Chair(_)) {
+                    let offset = rotate_point(
+                        vec2(child.hover_amount * 0.15, child.hover_amount * 0.3),
+                        Vec2::ZERO,
+                        -child.rotation,
+                    );
+                    furniture_adjustments.insert(
+                        child.id,
+                        (
+                            f.pos + rotate_point(child.pos, Vec2::ZERO, -f.rotation) + offset,
+                            f.rotation + child.rotation + child.hover_amount * 20.0,
+                        ),
+                    );
+                } else {
+                    furniture_adjustments.insert(
+                        child.id,
+                        (
+                            f.pos + rotate_point(child.pos, Vec2::ZERO, -f.rotation),
+                            f.rotation + child.rotation,
+                        ),
+                    );
+                }
                 furniture.push(child);
             }
             furniture.push(f);

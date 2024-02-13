@@ -21,6 +21,8 @@ pub struct Furniture {
     pub size: Vec2,
     pub rotation: f64,
     #[serde(skip)]
+    pub hover_amount: f64,
+    #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<FurnitureRender>,
 }
@@ -104,6 +106,7 @@ impl Furniture {
             pos,
             size,
             rotation,
+            hover_amount: 0.0,
             rendered_data: None,
         }
     }
