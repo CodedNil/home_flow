@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     common::{
-        furniture::{ChairType, Furniture, FurnitureType},
+        furniture::{ChairType, Furniture, FurnitureType, TableType},
         layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
     },
     server::common_api::save_layout,
@@ -643,9 +643,18 @@ fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> Alter
             }
             FurnitureType::Table(ref mut table_type) => {
                 combo_box_for_enum(ui, "Table Type", table_type, "");
+                if let TableType::Desk(ref mut color) = table_type {
+                    ui.color_edit_button_srgba_unmultiplied(color.mut_array());
+                }
             }
             FurnitureType::Bed(ref mut color) | FurnitureType::Rug(ref mut color) => {
                 ui.color_edit_button_srgba_unmultiplied(color.mut_array());
+            }
+            FurnitureType::Kitchen(ref mut kitchen_type) => {
+                combo_box_for_enum(ui, "Kitchen Type", kitchen_type, "");
+            }
+            FurnitureType::Bathroom(ref mut bathroom_type) => {
+                combo_box_for_enum(ui, "Bathroom Type", bathroom_type, "");
             }
             _ => {}
         }

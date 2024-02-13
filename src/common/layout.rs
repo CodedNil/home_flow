@@ -1,6 +1,6 @@
 use super::{
     color::Color,
-    furniture::{Furniture, FurnitureType},
+    furniture::{BathroomType, ChairType, Furniture, FurnitureType, KitchenType, TableType},
     utils::{clone_as_none, Material},
 };
 use derivative::Derivative;
@@ -266,12 +266,147 @@ impl Home {
                     vec![Opening::new(OpeningType::Door, vec2(0.7, -1.0)).rotate(180.0)],
                 ),
             ],
-            furniture: vec![Furniture::new(
-                FurnitureType::Bed(Color::from_rgb(110, 120, 130)),
-                vec2(4.65, -1.4),
-                vec2(1.4, 2.1),
-                90.0,
-            )],
+            furniture: vec![
+                // Kitchen
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.4, 1.65),
+                    Vec2::new(0.7, 2.7),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Table(TableType::Empty),
+                    Vec2::new(-3.85, 1.45),
+                    Vec2::new(0.8, 0.8),
+                    0.0,
+                ),
+                // Bedroom
+                Furniture::new(
+                    FurnitureType::Bed(Color::from_rgb(110, 120, 130)),
+                    vec2(4.65, -1.4),
+                    vec2(1.4, 2.1),
+                    90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Wardrobe,
+                    Vec2::new(5.075, 0.5),
+                    Vec2::new(1.35, 0.6),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Wardrobe,
+                    Vec2::new(2.25, -0.95),
+                    Vec2::new(0.6, 1.7),
+                    0.0,
+                ),
+                // Ensuite
+                Furniture::new(
+                    FurnitureType::Bathroom(BathroomType::Shower),
+                    Vec2::new(0.7, -0.75),
+                    Vec2::new(0.7, 1.3),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Bathroom(BathroomType::Sink),
+                    Vec2::new(1.45, -1.35),
+                    Vec2::new(0.45, 0.5),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Bathroom(BathroomType::Toilet),
+                    Vec2::new(0.65, -2.3),
+                    Vec2::new(0.6, 0.45),
+                    0.0,
+                ),
+                // Office
+                Furniture::new(
+                    FurnitureType::Wardrobe,
+                    Vec2::new(4.2, 2.7),
+                    Vec2::new(3.1, 0.6),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Table(TableType::Desk(Color::from_rgb(60, 60, 60))),
+                    Vec2::new(4.7, 1.3),
+                    Vec2::new(1.6, 0.8),
+                    0.0,
+                ),
+                // Bathroom
+                Furniture::new(
+                    FurnitureType::Bathroom(BathroomType::Shower),
+                    Vec2::new(2.25, 2.575),
+                    Vec2::new(0.6, 0.85),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Bathroom(BathroomType::Bath),
+                    Vec2::new(0.65, 2.05),
+                    Vec2::new(0.8, 1.9),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Bathroom(BathroomType::Toilet),
+                    Vec2::new(1.475, 2.675),
+                    Vec2::new(0.55, 0.65),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Bathroom(BathroomType::Sink),
+                    Vec2::new(1.4375, 1.325),
+                    Vec2::new(0.475, 0.45),
+                    0.0,
+                ),
+                // Living Room
+                Furniture::new(
+                    FurnitureType::Table(TableType::Dining),
+                    Vec2::new(-1.55, -1.5),
+                    Vec2::new(1.8, 0.8),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Rug(Color::from_rgba(60, 135, 136, 255)),
+                    Vec2::new(-4.45, -1.3),
+                    Vec2::new(1.9, 1.65),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Chair(ChairType::Sofa(Color::from_rgb(200, 200, 200))),
+                    Vec2::new(-4.6, -1.0),
+                    Vec2::new(1.2, 0.8),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Table(TableType::Empty),
+                    Vec2::new(-4.6, -2.2),
+                    Vec2::new(1.25, 0.55),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Display,
+                    Vec2::new(-4.6, -2.2),
+                    Vec2::new(1.0, 0.25),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Radiator,
+                    Vec2::new(-3.75, -2.65),
+                    Vec2::new(1.4, 0.1),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Table(TableType::Empty),
+                    Vec2::new(-2.0, -2.55),
+                    Vec2::new(1.1, 0.3),
+                    0.0,
+                ),
+                // Misc
+                Furniture::new(
+                    FurnitureType::Boiler,
+                    Vec2::new(1.5, -0.65),
+                    Vec2::new(0.6, 0.6),
+                    0.0,
+                ),
+            ],
             rendered_data: None,
         }
     }

@@ -10,6 +10,7 @@ use egui::{
     TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
+use std::collections::HashMap;
 
 const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
 const DOOR_COLOR: Color32 = Color32::from_rgb(200, 130, 40);
@@ -96,6 +97,11 @@ impl HomeFlow {
             for (material, _) in &furniture.rendered_data.as_ref().unwrap().triangles {
                 materials_to_ready.push(material.material);
             }
+            for child in &furniture.rendered_data.as_ref().unwrap().children {
+                for (material, _) in &child.rendered_data.as_ref().unwrap().triangles {
+                    materials_to_ready.push(material.material);
+                }
+            }
         }
         for material in materials_to_ready {
             self.ready_texture(material, ctx);
@@ -144,9 +150,28 @@ impl HomeFlow {
             }
         }
 
+        // Gather furniture and children
+        let mut furniture = Vec::new();
+        let mut furniture_adjustments = HashMap::new();
+        for f in &self.layout.furniture {
+            for child in &f.rendered_data.as_ref().unwrap().children {
+                furniture_adjustments.insert(
+                    child.id,
+                    (
+                        f.pos + rotate_point(child.pos, Vec2::ZERO, -f.rotation),
+                        f.rotation + child.rotation,
+                    ),
+                );
+                furniture.push(child);
+            }
+            furniture.push(f);
+        }
         // Render furniture
-        for furniture in &self.layout.furniture {
+        for furniture in furniture {
             let rendered_data = furniture.rendered_data.as_ref().unwrap();
+            let &(pos, rot) = furniture_adjustments
+                .get(&furniture.id)
+                .unwrap_or(&(furniture.pos, furniture.rotation));
 
             // Render shadow
             let shadow_offset = vec2(0.01, -0.02);
@@ -157,9 +182,7 @@ impl HomeFlow {
                     .enumerate()
                     .map(|(i, &v)| {
                         let is_interior = interior_points.get(&i).is_some_and(|&b| b);
-                        let adjusted_v = rotate_point(v, Vec2::ZERO, -furniture.rotation)
-                            + furniture.pos
-                            + shadow_offset;
+                        let adjusted_v = rotate_point(v, Vec2::ZERO, -rot) + pos + shadow_offset;
                         Vertex {
                             pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
                             uv: egui::Pos2::ZERO,
@@ -186,8 +209,7 @@ impl HomeFlow {
                         .vertices
                         .iter()
                         .map(|&v| {
-                            let adjusted_v =
-                                rotate_point(v, Vec2::ZERO, -furniture.rotation) + furniture.pos;
+                            let adjusted_v = rotate_point(v, Vec2::ZERO, -rot) + pos;
                             Vertex {
                                 pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
                                 uv: vec2_to_egui_pos(v * 0.2),

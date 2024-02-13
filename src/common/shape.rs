@@ -70,7 +70,7 @@ impl Home {
         }
 
         // Process all furniture in parallel
-        for (index, hash, (polygons, triangles, shadow_triangles)) in self
+        for (index, hash, (polygons, triangles, shadow_triangles, children)) in self
             .furniture
             .par_iter()
             .enumerate()
@@ -94,6 +94,7 @@ impl Home {
                     polygons,
                     triangles,
                     shadow_triangles,
+                    children,
                 });
             }
         }
