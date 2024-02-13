@@ -1,6 +1,7 @@
 use crate::common::layout::Home;
 use anyhow::Result;
 
+#[allow(unused_variables)]
 pub fn get_layout(host: &str, on_done: impl 'static + Send + FnOnce(Result<Home>)) {
     #[cfg(not(target_arch = "wasm32"))]
     on_done(Ok(super::routing::load_layout_impl()));
@@ -18,6 +19,7 @@ pub fn get_layout(host: &str, on_done: impl 'static + Send + FnOnce(Result<Home>
     );
 }
 
+#[allow(unused_variables)]
 pub fn save_layout(host: &str, home: &Home, on_done: impl 'static + Send + FnOnce(Result<()>)) {
     #[cfg(not(target_arch = "wasm32"))]
     on_done(super::routing::save_layout_impl(home));

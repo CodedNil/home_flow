@@ -8,8 +8,7 @@
     clippy::struct_field_names,
     clippy::cognitive_complexity,
     clippy::struct_excessive_bools,
-    clippy::module_name_repetitions,
-    clippy::too_many_arguments
+    clippy::module_name_repetitions
 )]
 
 #[cfg(feature = "gui")]
