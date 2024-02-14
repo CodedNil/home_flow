@@ -40,6 +40,7 @@ pub enum FurnitureType {
     Bed(Color),
     Storage(StorageType),
     Boiler,
+    AnimatedPiece(AnimatedPieceType),
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
@@ -91,6 +92,14 @@ pub enum StorageType {
     DrawerColor(Color),
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
+pub enum AnimatedPieceType {
+    #[default]
+    Water,
+    Drawer(Color),
+    Door(Color),
+}
+
 const WOOD: FurnitureMaterial =
     FurnitureMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80));
 const CERAMIC: FurnitureMaterial =
@@ -131,6 +140,7 @@ impl Furniture {
         FurnitureTriangles,
         ShadowsData,
         Vec<Self>,
+        Vec<Self>,
     ) {
         let polygons = self.polygons();
 
@@ -145,22 +155,36 @@ impl Furniture {
             triangles.push((*material, material_triangles));
         }
 
-        // Use simple shape for shadow unless complex is needed
-        let full_shape = self.full_shape();
-        let shadow_polys = polygons.iter().map(|(_, p)| p).collect::<Vec<_>>();
-        let shadow_polys = match self.furniture_type {
-            FurnitureType::Bed(_) => shadow_polys,
-            FurnitureType::Bathroom(sub_type) => match sub_type {
-                BathroomType::Toilet | BathroomType::Sink => shadow_polys,
+        let has_shadow = !matches!(
+            self.furniture_type,
+            FurnitureType::AnimatedPiece(AnimatedPieceType::Water)
+        );
+        let shadows_data = if has_shadow {
+            // Use simple shape for shadow unless complex is needed
+            let full_shape = self.full_shape();
+            let shadow_polys = polygons.iter().map(|(_, p)| p).collect::<Vec<_>>();
+            let shadow_polys = match self.furniture_type {
+                FurnitureType::Bed(_) => shadow_polys,
+                FurnitureType::Bathroom(sub_type) => match sub_type {
+                    BathroomType::Toilet | BathroomType::Sink => shadow_polys,
+                    _ => vec![&full_shape],
+                },
                 _ => vec![&full_shape],
-            },
-            _ => vec![&full_shape],
+            };
+            polygons_to_shadows(shadow_polys)
+        } else {
+            Vec::new()
         };
-        let shadows_data = polygons_to_shadows(shadow_polys);
 
-        let children = self.render_children();
+        let (children_below, children_above) = self.render_children();
 
-        (polygons, triangles, shadows_data, children)
+        (
+            polygons,
+            triangles,
+            shadows_data,
+            children_below,
+            children_above,
+        )
     }
 
     fn polygons(&self) -> FurniturePolygons {
@@ -176,26 +200,84 @@ impl Furniture {
             FurnitureType::Boiler => polygons.push((METAL_DARK, self.full_shape())),
             FurnitureType::Radiator => self.radiator_render(&mut polygons),
             FurnitureType::Display => self.display_render(&mut polygons),
+            FurnitureType::AnimatedPiece(sub_type) => self.animated_render(&mut polygons, sub_type),
         }
         polygons
     }
 
-    fn render_children(&self) -> Vec<Self> {
-        let mut children = Vec::new();
+    fn render_children(&self) -> (Vec<Self>, Vec<Self>) {
+        let (mut children_below, mut children_above) = (Vec::new(), Vec::new());
         if let FurnitureType::Table(sub_type) = self.furniture_type {
-            self.table_children(&mut children, sub_type);
+            self.table_children(&mut children_below, sub_type);
         }
-        for child in &mut children {
-            let (polygons, triangles, shadow_triangles, children) = child.render();
+        match self.furniture_type {
+            FurnitureType::Table(sub_type) => self.table_children(&mut children_below, sub_type),
+            FurnitureType::Bathroom(BathroomType::Bath) => {
+                children_above.push(Self::new(
+                    FurnitureType::AnimatedPiece(AnimatedPieceType::Water),
+                    vec2(0.0, -0.05),
+                    self.size - vec2(0.2, 0.3),
+                    0.0,
+                ));
+            }
+            _ => {}
+        }
+        for child in children_below.iter_mut().chain(&mut children_above) {
+            let (polygons, triangles, shadow_triangles, children_below, children_above) =
+                child.render();
             child.rendered_data = Some(FurnitureRender {
                 hash: 0,
                 polygons,
                 triangles,
                 shadow_triangles,
-                children,
+                children_below,
+                children_above,
             });
         }
-        children
+        (children_below, children_above)
+    }
+
+    fn table_children(&self, children: &mut Vec<Self>, sub_type: TableType) {
+        let chair_size = vec2(0.5, 0.5);
+        let chair_push = 0.1;
+
+        let mut add_chair = |x: f64, y: f64, rotation: f64| {
+            children.push(Self::new(
+                FurnitureType::Chair(match sub_type {
+                    TableType::Desk(_) => ChairType::Office,
+                    _ => ChairType::Dining,
+                }),
+                vec2(x, y),
+                chair_size,
+                rotation,
+            ));
+        };
+
+        match sub_type {
+            TableType::Desk(_) => {
+                add_chair(0.0, self.size.y * 0.5 + chair_push, 0.0);
+            }
+            TableType::Dining => {
+                let spacing = 0.1;
+
+                let chairs_wide = (self.size.x / (chair_size.x + spacing)).floor() as usize;
+                (0..chairs_wide).for_each(|i| {
+                    let x_pos =
+                        (i as f64 - (chairs_wide - 1) as f64 * 0.5) * (chair_size.x + spacing);
+                    add_chair(x_pos, self.size.y * 0.5 + chair_push, 0.0);
+                    add_chair(x_pos, -self.size.y * 0.5 - chair_push, 180.0);
+                });
+
+                let chairs_high = (self.size.y / (chair_size.y + spacing)).floor() as usize;
+                (0..chairs_high).for_each(|i| {
+                    let y_pos =
+                        (i as f64 - (chairs_high - 1) as f64 * 0.5) * (chair_size.y + spacing);
+                    add_chair(self.size.x * 0.5 + chair_push, y_pos, 90.0);
+                    add_chair(-self.size.x * 0.5 - chair_push, y_pos, -90.0);
+                });
+            }
+            TableType::Empty => {}
+        }
     }
 
     fn full_shape(&self) -> MultiPolygon {
@@ -238,59 +320,6 @@ impl Furniture {
             0.04,
             0.1,
         );
-    }
-
-    fn table_children(&self, children: &mut Vec<Self>, sub_type: TableType) {
-        let chair_size = vec2(0.5, 0.5);
-        let chair_push = 0.1;
-        match sub_type {
-            TableType::Desk(_) => {
-                children.push(Self::new(
-                    FurnitureType::Chair(ChairType::Office),
-                    vec2(0.0, self.size.y * 0.5 + chair_push),
-                    chair_size,
-                    0.0,
-                ));
-            }
-            TableType::Dining => {
-                let spacing = 0.1;
-                let chairs_wide = (self.size.x / (chair_size.x + spacing)).floor() as usize;
-                let chairs_high = (self.size.y / (chair_size.y + spacing)).floor() as usize;
-                for i in 0..chairs_wide {
-                    let x_pos =
-                        (i as f64 - (chairs_wide - 1) as f64 * 0.5) * (chair_size.x + spacing);
-                    children.push(Self::new(
-                        FurnitureType::Chair(ChairType::Dining),
-                        vec2(x_pos, self.size.y * 0.5 + chair_push),
-                        chair_size,
-                        0.0,
-                    ));
-                    children.push(Self::new(
-                        FurnitureType::Chair(ChairType::Dining),
-                        vec2(x_pos, -self.size.y * 0.5 - chair_push),
-                        chair_size,
-                        180.0,
-                    ));
-                }
-                for i in 0..chairs_high {
-                    let y_pos =
-                        (i as f64 - (chairs_high - 1) as f64 * 0.5) * (chair_size.y + spacing);
-                    children.push(Self::new(
-                        FurnitureType::Chair(ChairType::Dining),
-                        vec2(self.size.x * 0.5 + chair_push, y_pos),
-                        chair_size,
-                        90.0,
-                    ));
-                    children.push(Self::new(
-                        FurnitureType::Chair(ChairType::Dining),
-                        vec2(-self.size.x * 0.5 - chair_push, y_pos),
-                        chair_size,
-                        -90.0,
-                    ));
-                }
-            }
-            TableType::Empty => {}
-        }
     }
 
     fn kitchen_render(&self, polygons: &mut FurniturePolygons, sub_type: KitchenType) {
@@ -525,6 +554,23 @@ impl Furniture {
             0.1,
         );
     }
+
+    fn animated_render(&self, polygons: &mut FurniturePolygons, sub_type: AnimatedPieceType) {
+        match sub_type {
+            AnimatedPieceType::Water => {
+                polygons.push((
+                    FurnitureMaterial::new(Material::Empty, Color::from_rgb(50, 150, 255)),
+                    rect(Vec2::ZERO, self.size),
+                ));
+            }
+            AnimatedPieceType::Drawer(color) | AnimatedPieceType::Door(color) => {
+                polygons.push((
+                    FurnitureMaterial::new(Material::Wood, color),
+                    rect(Vec2::ZERO, self.size),
+                ));
+            }
+        }
+    }
 }
 
 fn rect(pos: Vec2, size: Vec2) -> MultiPolygon {
@@ -583,5 +629,6 @@ pub struct FurnitureRender {
     pub polygons: FurniturePolygons,
     pub triangles: FurnitureTriangles,
     pub shadow_triangles: ShadowsData,
-    pub children: Vec<Furniture>,
+    pub children_below: Vec<Furniture>,
+    pub children_above: Vec<Furniture>,
 }

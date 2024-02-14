@@ -630,12 +630,20 @@ fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> Alter
     let mut alter_type = AlterObject::None;
     ui.horizontal(|ui| {
         ui.label("Furniture ");
-        combo_box_for_enum(
-            ui,
-            format!("Furniture {}", furniture.id),
-            &mut furniture.furniture_type,
-            "",
-        );
+        egui::ComboBox::from_id_source(format!("Furniture {}", furniture.id))
+            .selected_text(furniture.furniture_type.to_string())
+            .show_ui(ui, |ui| {
+                for variant in <FurnitureType as strum::IntoEnumIterator>::iter() {
+                    if matches!(variant, FurnitureType::AnimatedPiece(_)) {
+                        continue;
+                    }
+                    ui.selectable_value(
+                        &mut furniture.furniture_type,
+                        variant,
+                        variant.to_string(),
+                    );
+                }
+            });
         match &mut furniture.furniture_type {
             FurnitureType::Chair(ref mut chair_type) => {
                 combo_box_for_enum(ui, "Chair Type", chair_type, "");
@@ -669,7 +677,10 @@ fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> Alter
                     _ => {}
                 };
             }
-            FurnitureType::Boiler | FurnitureType::Radiator | FurnitureType::Display => {}
+            FurnitureType::Boiler
+            | FurnitureType::Radiator
+            | FurnitureType::Display
+            | FurnitureType::AnimatedPiece(_) => {}
         }
         if ui.add(Button::new("Delete")).clicked() {
             alter_type = AlterObject::Delete;

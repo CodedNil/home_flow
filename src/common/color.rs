@@ -121,6 +121,11 @@ impl Color {
     /// Multiply with 0.5 to make color half as opaque, perceptually.
     #[inline]
     pub fn gamma_multiply(self, factor: f32) -> Self {
+        if (factor - 1.0).abs() < f32::EPSILON {
+            return self;
+        } else if factor == 0.0 {
+            return Self::TRANSPARENT;
+        }
         let Self([r, g, b, a]) = self;
         Self([
             (r as f32 * factor + 0.5) as u8,
