@@ -114,7 +114,7 @@ impl Home {
                 }
             }
         }
-        // Subtract doors and windows
+        // Subtract doors
         for room in &self.rooms {
             for opening in &room.openings {
                 if opening.opening_type != OpeningType::Door {

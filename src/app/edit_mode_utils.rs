@@ -124,8 +124,18 @@ impl HomeFlow {
             }
         }
 
-        // Escape to deselect room
+        // Escape to deselect object
         if ui.input(|i| i.key_pressed(Key::Escape)) {
+            self.edit_mode.selected_id = None;
+            self.edit_mode.selected_type = None;
+            self.edit_mode.drag_data = None;
+        }
+        // Delete to remove selected object
+        if ui.input(|i| i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace)) {
+            if let Some(selected_id) = self.edit_mode.selected_id {
+                self.layout.rooms.retain(|r| r.id != selected_id);
+                self.layout.furniture.retain(|f| f.id != selected_id);
+            }
             self.edit_mode.selected_id = None;
             self.edit_mode.selected_type = None;
             self.edit_mode.drag_data = None;
