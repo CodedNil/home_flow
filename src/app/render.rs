@@ -338,11 +338,16 @@ impl HomeFlow {
             }
         }
         // Render openings
+        let mut window_meshes = Vec::new();
         for room in &self.layout.rooms {
             for opening in &room.openings {
                 let color = match opening.opening_type {
                     OpeningType::Door => DOOR_COLOR,
                     OpeningType::Window => WINDOW_COLOR,
+                };
+                let depth = match opening.opening_type {
+                    OpeningType::Door => WALL_WIDTH * 0.8,
+                    OpeningType::Window => WALL_WIDTH,
                 };
                 let rot_dir = vec2(
                     opening.rotation.to_radians().cos(),
@@ -353,7 +358,7 @@ impl HomeFlow {
                 let vertices = Shape::Rectangle
                     .vertices(
                         room.pos + opening.pos,
-                        vec2(opening.width, WALL_WIDTH * 0.8),
+                        vec2(opening.width, depth),
                         opening.rotation,
                     )
                     .iter()
@@ -366,11 +371,19 @@ impl HomeFlow {
                         }
                     })
                     .collect();
-                painter.add(EShape::mesh(Mesh {
-                    indices: vec![0, 1, 2, 2, 3, 0],
-                    vertices,
-                    texture_id: TextureId::Managed(0),
-                }));
+                if opening.opening_type == OpeningType::Window {
+                    window_meshes.push(Mesh {
+                        indices: vec![0, 1, 2, 2, 3, 0],
+                        vertices,
+                        texture_id: TextureId::Managed(0),
+                    });
+                } else {
+                    painter.add(EShape::mesh(Mesh {
+                        indices: vec![0, 1, 2, 2, 3, 0],
+                        vertices,
+                        texture_id: TextureId::Managed(0),
+                    }));
+                }
             }
         }
 
@@ -391,6 +404,11 @@ impl HomeFlow {
                 vertices,
                 texture_id: TextureId::Managed(0),
             }));
+        }
+
+        // Render windows above walls
+        for mesh in window_meshes {
+            painter.add(EShape::mesh(mesh));
         }
     }
 }

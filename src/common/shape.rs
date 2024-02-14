@@ -2,8 +2,8 @@ use super::{
     color::Color,
     furniture::FurnitureRender,
     layout::{
-        Action, GlobalMaterial, Home, HomeRender, Operation, Room, RoomRender, Shape, Triangles,
-        Walls,
+        Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
+        Triangles, Walls,
     },
     utils::{rotate_point, Material},
 };
@@ -117,6 +117,9 @@ impl Home {
         // Subtract doors and windows
         for room in &self.rooms {
             for opening in &room.openings {
+                if opening.opening_type != OpeningType::Door {
+                    continue;
+                }
                 let opening_polygon = Shape::Rectangle.polygons(
                     room.pos + opening.pos,
                     vec2(opening.width, WALL_WIDTH * 1.01),
