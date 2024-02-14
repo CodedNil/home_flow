@@ -206,8 +206,25 @@ impl HomeFlow {
             let (offset, offset_rot, opacity) =
                 if matches!(child.furniture_type, FurnitureType::Chair(_)) {
                     (
-                        rotate_point(vec2(hover * 0.15, hover * 0.3), Vec2::ZERO, -child.rotation),
+                        rotate_point(
+                            vec2(hover * 0.15, hover * 0.3),
+                            Vec2::ZERO,
+                            -(obj.rotation + child.rotation),
+                        ),
                         hover * 20.0,
+                        1.0,
+                    )
+                } else if matches!(
+                    child.furniture_type,
+                    FurnitureType::AnimatedPiece(AnimatedPieceType::Drawer(_))
+                ) {
+                    (
+                        rotate_point(
+                            vec2(0.0, child.size.y * hover * -0.5),
+                            Vec2::ZERO,
+                            -(obj.rotation + child.rotation),
+                        ),
+                        0.0,
                         1.0,
                     )
                 } else if matches!(

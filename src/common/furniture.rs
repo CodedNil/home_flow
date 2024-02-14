@@ -155,10 +155,7 @@ impl Furniture {
             triangles.push((*material, material_triangles));
         }
 
-        let has_shadow = !matches!(
-            self.furniture_type,
-            FurnitureType::AnimatedPiece(AnimatedPieceType::Water)
-        );
+        let has_shadow = !matches!(self.furniture_type, FurnitureType::AnimatedPiece(_));
         let shadows_data = if has_shadow {
             // Use simple shape for shadow unless complex is needed
             let full_shape = self.full_shape();
@@ -220,6 +217,9 @@ impl Furniture {
                     0.0,
                 ));
             }
+            FurnitureType::Storage(sub_type) => {
+                self.storage_children(&mut children_below, sub_type);
+            }
             _ => {}
         }
         for child in children_below.iter_mut().chain(&mut children_above) {
@@ -277,6 +277,26 @@ impl Furniture {
                 });
             }
             TableType::Empty => {}
+        }
+    }
+
+    fn storage_children(&self, children_below: &mut Vec<Self>, sub_type: StorageType) {
+        let color = match sub_type {
+            StorageType::WardrobeColor(color)
+            | StorageType::CupboardColor(color)
+            | StorageType::DrawerColor(color) => color,
+            _ => WOOD.tint,
+        };
+        match sub_type {
+            StorageType::Drawer | StorageType::DrawerColor(_) => {
+                children_below.push(Self::new(
+                    FurnitureType::AnimatedPiece(AnimatedPieceType::Drawer(color)),
+                    Vec2::ZERO,
+                    self.size,
+                    0.0,
+                ));
+            }
+            _ => {}
         }
     }
 
@@ -564,10 +584,15 @@ impl Furniture {
                 ));
             }
             AnimatedPieceType::Drawer(color) | AnimatedPieceType::Door(color) => {
-                polygons.push((
-                    FurnitureMaterial::new(Material::Wood, color),
-                    rect(Vec2::ZERO, self.size),
-                ));
+                fancy_rectangle(
+                    polygons,
+                    Vec2::ZERO,
+                    self.size,
+                    0.0,
+                    FurnitureMaterial::new(Material::Wood, color.lighten(0.05)),
+                    0.1,
+                    0.05,
+                );
             }
         }
     }
