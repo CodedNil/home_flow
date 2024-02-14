@@ -129,6 +129,15 @@ impl Furniture {
         )
     }
 
+    pub const fn render_order(&self) -> u8 {
+        match self.furniture_type {
+            FurnitureType::AnimatedPiece(AnimatedPieceType::Water) => 3,
+            FurnitureType::Chair(_) => 1,
+            FurnitureType::Rug(_) | FurnitureType::AnimatedPiece(_) => 0,
+            _ => 2,
+        }
+    }
+
     pub fn contains(&self, point: Vec2) -> bool {
         Shape::Rectangle.contains(point, self.pos, self.size, self.rotation)
     }
@@ -139,7 +148,6 @@ impl Furniture {
         FurniturePolygons,
         FurnitureTriangles,
         ShadowsData,
-        Vec<Self>,
         Vec<Self>,
     ) {
         let polygons = self.polygons();
@@ -173,15 +181,9 @@ impl Furniture {
             Vec::new()
         };
 
-        let (children_below, children_above) = self.render_children();
+        let children = self.render_children();
 
-        (
-            polygons,
-            triangles,
-            shadows_data,
-            children_below,
-            children_above,
-        )
+        (polygons, triangles, shadows_data, children)
     }
 
     fn polygons(&self) -> FurniturePolygons {
@@ -202,15 +204,15 @@ impl Furniture {
         polygons
     }
 
-    fn render_children(&self) -> (Vec<Self>, Vec<Self>) {
-        let (mut children_below, mut children_above) = (Vec::new(), Vec::new());
+    fn render_children(&self) -> Vec<Self> {
+        let mut children = Vec::new();
         if let FurnitureType::Table(sub_type) = self.furniture_type {
-            self.table_children(&mut children_below, sub_type);
+            self.table_children(&mut children, sub_type);
         }
         match self.furniture_type {
-            FurnitureType::Table(sub_type) => self.table_children(&mut children_below, sub_type),
+            FurnitureType::Table(sub_type) => self.table_children(&mut children, sub_type),
             FurnitureType::Bathroom(BathroomType::Bath) => {
-                children_above.push(Self::new(
+                children.push(Self::new(
                     FurnitureType::AnimatedPiece(AnimatedPieceType::Water),
                     vec2(0.0, -0.05),
                     self.size - vec2(0.2, 0.3),
@@ -218,23 +220,21 @@ impl Furniture {
                 ));
             }
             FurnitureType::Storage(sub_type) => {
-                self.storage_children(&mut children_below, sub_type);
+                self.storage_children(&mut children, sub_type);
             }
             _ => {}
         }
-        for child in children_below.iter_mut().chain(&mut children_above) {
-            let (polygons, triangles, shadow_triangles, children_below, children_above) =
-                child.render();
+        for child in &mut children {
+            let (polygons, triangles, shadow_triangles, children) = child.render();
             child.rendered_data = Some(FurnitureRender {
                 hash: 0,
                 polygons,
                 triangles,
                 shadow_triangles,
-                children_below,
-                children_above,
+                children,
             });
         }
-        (children_below, children_above)
+        children
     }
 
     fn table_children(&self, children: &mut Vec<Self>, sub_type: TableType) {
@@ -280,7 +280,7 @@ impl Furniture {
         }
     }
 
-    fn storage_children(&self, children_below: &mut Vec<Self>, sub_type: StorageType) {
+    fn storage_children(&self, children: &mut Vec<Self>, sub_type: StorageType) {
         let color = match sub_type {
             StorageType::WardrobeColor(color)
             | StorageType::CupboardColor(color)
@@ -289,10 +289,10 @@ impl Furniture {
         };
         match sub_type {
             StorageType::Drawer | StorageType::DrawerColor(_) => {
-                children_below.push(Self::new(
+                children.push(Self::new(
                     FurnitureType::AnimatedPiece(AnimatedPieceType::Drawer(color)),
                     Vec2::ZERO,
-                    self.size,
+                    self.size - Vec2::splat(0.1),
                     0.0,
                 ));
             }
@@ -654,6 +654,5 @@ pub struct FurnitureRender {
     pub polygons: FurniturePolygons,
     pub triangles: FurnitureTriangles,
     pub shadow_triangles: ShadowsData,
-    pub children_below: Vec<Furniture>,
-    pub children_above: Vec<Furniture>,
+    pub children: Vec<Furniture>,
 }

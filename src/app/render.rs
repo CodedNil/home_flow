@@ -109,11 +109,7 @@ impl HomeFlow {
             for (material, _) in &rendered_data.triangles {
                 materials_to_ready.push(material.material);
             }
-            for child in rendered_data
-                .children_below
-                .iter()
-                .chain(rendered_data.children_above.iter())
-            {
+            for child in &rendered_data.children {
                 for (material, _) in &child.rendered_data.as_ref().unwrap().triangles {
                     materials_to_ready.push(material.material);
                 }
@@ -175,11 +171,7 @@ impl HomeFlow {
                     (furniture.hover_amount + difference.signum() * 0.1).clamp(0.0, 1.0);
             }
             let rendered_data = furniture.rendered_data.as_mut().unwrap();
-            for child in rendered_data
-                .children_below
-                .iter_mut()
-                .chain(&mut rendered_data.children_above)
-            {
+            for child in &mut rendered_data.children {
                 let target = Shape::Rectangle.contains(
                     self.mouse_pos_world,
                     furniture.pos + rotate_point(child.pos, Vec2::ZERO, -furniture.rotation),
@@ -198,7 +190,7 @@ impl HomeFlow {
             }
         }
         // Gather furniture and children
-        let mut furniture = Vec::new();
+        let mut furniture_map = HashMap::new();
         let mut furniture_adjustments = HashMap::new();
 
         let mut handle_furniture_child = |obj: &Furniture, child: &Furniture| {
@@ -220,7 +212,7 @@ impl HomeFlow {
                 ) {
                     (
                         rotate_point(
-                            vec2(0.0, child.size.y * hover * -0.5),
+                            vec2(0.0, child.size.y * hover * -0.6),
                             Vec2::ZERO,
                             -(obj.rotation + child.rotation),
                         ),
@@ -247,74 +239,94 @@ impl HomeFlow {
 
         for obj in &self.layout.furniture {
             let rendered_data = obj.rendered_data.as_ref().unwrap();
-            for child in &rendered_data.children_below {
+            furniture_map
+                .entry(obj.render_order())
+                .or_insert_with(Vec::new)
+                .push(obj);
+            for child in &rendered_data.children {
                 handle_furniture_child(obj, child);
-                furniture.push(child);
-            }
-            furniture.push(obj);
-            for child in &rendered_data.children_above {
-                handle_furniture_child(obj, child);
-                furniture.push(child);
+                furniture_map
+                    .entry(child.render_order())
+                    .or_insert_with(Vec::new)
+                    .push(child);
             }
         }
+
+        let mut order_keys: Vec<&u8> = furniture_map.keys().collect();
+        order_keys.sort();
+
         // Render furniture
-        for furniture in furniture {
-            let rendered_data = furniture.rendered_data.as_ref().unwrap();
-            let &(pos, rot, opacity) = furniture_adjustments.get(&furniture.id).unwrap_or(&(
-                furniture.pos,
-                furniture.rotation,
-                1.0,
-            ));
+        for key in order_keys {
+            if let Some(furnitures) = furniture_map.get(key) {
+                for furniture in furnitures {
+                    let rendered_data = furniture.rendered_data.as_ref().unwrap();
+                    let &(pos, rot, _) = furniture_adjustments.get(&furniture.id).unwrap_or(&(
+                        furniture.pos,
+                        furniture.rotation,
+                        1.0,
+                    ));
 
-            // Render shadow
-            let shadow_offset = vec2(0.01, -0.02);
-            for (triangles, interior_points) in &rendered_data.shadow_triangles {
-                let vertices = triangles
-                    .vertices
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &v)| {
-                        let is_interior = interior_points.get(&i).is_some_and(|&b| b);
-                        let adjusted_v = rotate_point(v, Vec2::ZERO, -rot) + pos + shadow_offset;
-                        Vertex {
-                            pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
-                            uv: egui::Pos2::ZERO,
-                            color: if is_interior {
-                                Color::from_alpha(150)
-                            } else {
-                                Color::TRANSPARENT
-                            }
-                            .to_egui(),
+                    // Render shadow
+                    let shadow_offset = vec2(0.01, -0.02);
+                    for (triangles, interior_points) in &rendered_data.shadow_triangles {
+                        let vertices = triangles
+                            .vertices
+                            .iter()
+                            .enumerate()
+                            .map(|(i, &v)| {
+                                let is_interior = interior_points.get(&i).is_some_and(|&b| b);
+                                let adjusted_v =
+                                    rotate_point(v, Vec2::ZERO, -rot) + pos + shadow_offset;
+                                Vertex {
+                                    pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
+                                    uv: egui::Pos2::ZERO,
+                                    color: if is_interior {
+                                        Color::from_alpha(150)
+                                    } else {
+                                        Color::TRANSPARENT
+                                    }
+                                    .to_egui(),
+                                }
+                            })
+                            .collect();
+                        painter.add(EShape::mesh(Mesh {
+                            indices: triangles.indices.clone(),
+                            vertices,
+                            texture_id: TextureId::Managed(0),
+                        }));
+                    }
+                }
+                for furniture in furnitures {
+                    let rendered_data = furniture.rendered_data.as_ref().unwrap();
+                    let &(pos, rot, opacity) = furniture_adjustments
+                        .get(&furniture.id)
+                        .unwrap_or(&(furniture.pos, furniture.rotation, 1.0));
+
+                    for (material, multi_triangles) in &rendered_data.triangles {
+                        let texture_id = self.load_texture(material.material);
+                        for triangles in multi_triangles {
+                            let vertices = triangles
+                                .vertices
+                                .iter()
+                                .map(|&v| {
+                                    let adjusted_v = rotate_point(v, Vec2::ZERO, -rot) + pos;
+                                    Vertex {
+                                        pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
+                                        uv: vec2_to_egui_pos(v * 0.2),
+                                        color: material
+                                            .tint
+                                            .gamma_multiply(opacity as f32)
+                                            .to_egui(),
+                                    }
+                                })
+                                .collect();
+                            painter.add(EShape::mesh(Mesh {
+                                indices: triangles.indices.clone(),
+                                vertices,
+                                texture_id,
+                            }));
                         }
-                    })
-                    .collect();
-                painter.add(EShape::mesh(Mesh {
-                    indices: triangles.indices.clone(),
-                    vertices,
-                    texture_id: TextureId::Managed(0),
-                }));
-            }
-
-            for (material, multi_triangles) in &rendered_data.triangles {
-                let texture_id = self.load_texture(material.material);
-                for triangles in multi_triangles {
-                    let vertices = triangles
-                        .vertices
-                        .iter()
-                        .map(|&v| {
-                            let adjusted_v = rotate_point(v, Vec2::ZERO, -rot) + pos;
-                            Vertex {
-                                pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
-                                uv: vec2_to_egui_pos(v * 0.2),
-                                color: material.tint.gamma_multiply(opacity as f32).to_egui(),
-                            }
-                        })
-                        .collect();
-                    painter.add(EShape::mesh(Mesh {
-                        indices: triangles.indices.clone(),
-                        vertices,
-                        texture_id,
-                    }));
+                    }
                 }
             }
         }
