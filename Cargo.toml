@@ -21,8 +21,8 @@ derivative = "2.2.0"
 diff = "0.1.13"
 image = { version = "0.24.8", default-features = false, features = ["png"] }
 geo = "0.27.0"
+geo-clipper = "0.8.0"
 geo-types = "0.7.12"
-geo-buffer = { git = "https://github.com/CodedNil/geo-buffer" }
 palette = { version = "0.7.4", default-features = false, features = ["std"] }
 
 # GUI dependencies

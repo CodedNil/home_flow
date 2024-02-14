@@ -1,7 +1,7 @@
 use super::{
     color::Color,
     layout::{Shape, Triangles},
-    shape::{polygons_to_shadows, triangulate_polygon, ShadowsData},
+    shape::{polygons_to_shadows, triangulate_polygon, ShadowTriangles},
     utils::{clone_as_none, hash_vec2, Material},
 };
 use derivative::Derivative;
@@ -147,7 +147,7 @@ impl Furniture {
     ) -> (
         FurniturePolygons,
         FurnitureTriangles,
-        ShadowsData,
+        Vec<ShadowTriangles>,
         Vec<Self>,
     ) {
         let polygons = self.polygons();
@@ -206,9 +206,6 @@ impl Furniture {
 
     fn render_children(&self) -> Vec<Self> {
         let mut children = Vec::new();
-        if let FurnitureType::Table(sub_type) = self.furniture_type {
-            self.table_children(&mut children, sub_type);
-        }
         match self.furniture_type {
             FurnitureType::Table(sub_type) => self.table_children(&mut children, sub_type),
             FurnitureType::Bathroom(BathroomType::Bath) => {
@@ -653,6 +650,6 @@ pub struct FurnitureRender {
     pub hash: u64,
     pub polygons: FurniturePolygons,
     pub triangles: FurnitureTriangles,
-    pub shadow_triangles: ShadowsData,
+    pub shadow_triangles: Vec<ShadowTriangles>,
     pub children: Vec<Furniture>,
 }

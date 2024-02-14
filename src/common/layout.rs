@@ -3,6 +3,7 @@ use super::{
     furniture::{
         BathroomType, ChairType, Furniture, FurnitureType, KitchenType, StorageType, TableType,
     },
+    shape::ShadowTriangles,
     utils::{clone_as_none, Material},
 };
 use derivative::Derivative;
@@ -123,6 +124,7 @@ pub struct TileOptions {
 pub struct HomeRender {
     pub hash: u64,
     pub wall_triangles: Vec<Triangles>,
+    pub wall_shadows: Vec<ShadowTriangles>,
 }
 
 pub struct RoomRender {
@@ -133,6 +135,7 @@ pub struct RoomRender {
     pub wall_polygons: MultiPolygon,
 }
 
+#[derive(PartialEq)]
 pub struct Triangles {
     pub indices: Vec<u32>,
     pub vertices: Vec<Vec2>,

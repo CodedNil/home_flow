@@ -440,6 +440,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clipper-sys"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc6bccb550d47c390af7a601bee66a74fd3a01163feb85442021096f5533d2e5"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "cocoa"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -985,11 +994,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "geo-buffer"
-version = "0.2.0"
-source = "git+https://github.com/CodedNil/geo-buffer#21098c6fc2b5672aa3600d4eeb18ad8d9e694440"
+name = "geo-clipper"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c080ca0fbf8beeaad1c3bb420d00db56fa109f92cb8e985a0ff53fb5c2820bab"
 dependencies = [
- "geo",
+ "clipper-sys",
  "geo-types",
 ]
 
@@ -1226,7 +1236,7 @@ dependencies = [
  "egui-notify",
  "egui_plot",
  "geo",
- "geo-buffer",
+ "geo-clipper",
  "geo-types",
  "glam",
  "image",

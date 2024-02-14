@@ -268,13 +268,13 @@ impl HomeFlow {
 
                     // Render shadow
                     let shadow_offset = vec2(0.01, -0.02);
-                    for (triangles, interior_points) in &rendered_data.shadow_triangles {
+                    for triangles in &rendered_data.shadow_triangles {
                         let vertices = triangles
                             .vertices
                             .iter()
                             .enumerate()
                             .map(|(i, &v)| {
-                                let is_interior = interior_points.get(&i).is_some_and(|&b| b);
+                                let is_interior = *triangles.inners.get(i).unwrap_or(&false);
                                 let adjusted_v =
                                     rotate_point(v, Vec2::ZERO, -rot) + pos + shadow_offset;
                                 Vertex {
@@ -399,8 +399,39 @@ impl HomeFlow {
             }
         }
 
-        // Render walls
+        // Render wall shadows
         let rendered_data = self.layout.rendered_data.as_ref().unwrap();
+        let shadow_offset = vec2(0.01, -0.02);
+        for triangles in &rendered_data.wall_shadows {
+            if triangles.vertices.is_empty() {
+                continue;
+            }
+            let vertices = triangles
+                .vertices
+                .iter()
+                .enumerate()
+                .map(|(i, &v)| {
+                    let is_interior = *triangles.inners.get(i).unwrap_or(&false);
+                    Vertex {
+                        pos: vec2_to_egui_pos(self.world_to_pixels(v + shadow_offset)),
+                        uv: egui::Pos2::ZERO,
+                        color: if is_interior {
+                            Color::from_alpha(150)
+                        } else {
+                            Color::TRANSPARENT
+                        }
+                        .to_egui(),
+                    }
+                })
+                .collect();
+            painter.add(EShape::mesh(Mesh {
+                indices: triangles.indices.clone(),
+                vertices,
+                texture_id: TextureId::Managed(0),
+            }));
+        }
+
+        // Render walls
         for wall in &rendered_data.wall_triangles {
             let vertices = wall
                 .vertices
