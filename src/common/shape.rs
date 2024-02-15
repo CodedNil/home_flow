@@ -526,16 +526,11 @@ enum JoinType {
 fn offset_polygon(polygon: &Polygon, offset_size: f64, join_type: JoinType) -> MultiPolygon {
     #[cfg(target_arch = "wasm32")]
     {
-        let join_round = if join_type == JoinType::Round {
-            true
-        } else {
-            false
-        };
+        let join_round = join_type == JoinType::Round;
         crate::common::clipper_wasm::offset_polygon_wasm(polygon, offset_size, join_round).unwrap()
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        // Clippers jointypes are not correct, so adjust
         let join_type = match join_type {
             JoinType::Miter => geo_clipper::JoinType::Miter(0.0),
             JoinType::Round => geo_clipper::JoinType::Round(0.0),
@@ -553,7 +548,6 @@ fn offset_polygon(polygon: &Polygon, offset_size: f64, join_type: JoinType) -> M
 fn union_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
     #[cfg(target_arch = "wasm32")]
     {
-        // TODO use clipper on wasm
         geo::BooleanOps::union(poly_a, poly_b)
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -565,7 +559,6 @@ fn union_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon 
 fn difference_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
     #[cfg(target_arch = "wasm32")]
     {
-        // TODO use clipper on wasm
         geo::BooleanOps::difference(poly_a, poly_b)
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -577,7 +570,6 @@ fn difference_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPol
 fn intersection_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
     #[cfg(target_arch = "wasm32")]
     {
-        // TODO use clipper on wasm
         geo::BooleanOps::intersection(poly_a, poly_b)
     }
     #[cfg(not(target_arch = "wasm32"))]
