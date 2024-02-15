@@ -8,18 +8,17 @@ use super::{
     utils::{rotate_point, Material},
 };
 use geo::{
-    triangulate_spade::SpadeTriangulationConfig, BooleanOps, BoundingRect, TriangulateEarcut,
-    TriangulateSpade,
+    triangulate_spade::SpadeTriangulationConfig, BoundingRect, TriangulateEarcut, TriangulateSpade,
 };
-use geo_buffer::{buffer_multi_polygon, buffer_multi_polygon_rounded};
 use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use indexmap::IndexMap;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub const WALL_WIDTH: f64 = 0.1;
+
+pub const CLIPPER_PRECISION: f64 = 1e4; // How many decimal places to use for clipper
 
 impl Home {
     pub fn render(&mut self) {
@@ -146,27 +145,17 @@ impl Home {
             hasher.finish()
         };
 
-        let mut wall_shadows: Option<(u64, Vec<ShadowTriangles>)> = None;
-        let mut hash_match = false;
-        if let Some(rendered_data) = self.rendered_data.take() {
-            if let Some((existing_hash, _)) = &rendered_data.wall_shadows {
-                if *existing_hash == walls_hash {
-                    hash_match = true;
+        let compute_shadows = || polygons_to_shadows(wall_polygons.iter().collect());
+        let wall_shadows = self.rendered_data.take().map_or_else(
+            || (walls_hash, compute_shadows()),
+            |rendered_data| {
+                if rendered_data.wall_shadows.0 == walls_hash {
+                    rendered_data.wall_shadows
+                } else {
+                    (walls_hash, compute_shadows())
                 }
-            }
-            wall_shadows = rendered_data.wall_shadows;
-        }
-
-        if !hash_match {
-            // If on wasm, don't render out shadows that will be done by the server
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                wall_shadows = Some((
-                    walls_hash,
-                    polygons_to_shadows_clipper(wall_polygons.iter().collect()),
-                ));
-            }
-        }
+            },
+        );
 
         self.rendered_data = Some(HomeRender {
             hash: home_hash,
@@ -246,10 +235,10 @@ impl Room {
         for operation in &self.operations {
             match operation.action {
                 Action::Add => {
-                    polygons = polygons.union(&operation.polygons(self.pos));
+                    polygons = union_polygons(&polygons, &operation.polygons(self.pos));
                 }
                 Action::Subtract => {
-                    polygons = polygons.difference(&operation.polygons(self.pos));
+                    polygons = difference_polygons(&polygons, &operation.polygons(self.pos));
                 }
                 _ => {}
             }
@@ -279,19 +268,19 @@ impl Room {
                     polygons
                         .entry(material.clone())
                         .and_modify(|poly| {
-                            *poly = poly.union(&operation.polygons(self.pos));
+                            *poly = union_polygons(poly, &operation.polygons(self.pos));
                         })
                         .or_insert_with(|| operation.polygons(self.pos));
                     // Remove from all other polygons
                     for (other_material, poly) in &mut polygons {
                         if other_material != &material {
-                            *poly = poly.difference(&operation.polygons(self.pos));
+                            *poly = difference_polygons(poly, &operation.polygons(self.pos));
                         }
                     }
                 }
                 Action::Subtract => {
                     for poly in polygons.values_mut() {
-                        *poly = poly.difference(&operation.polygons(self.pos));
+                        *poly = difference_polygons(poly, &operation.polygons(self.pos));
                     }
                 }
                 _ => {}
@@ -316,7 +305,7 @@ impl Room {
                             vec2(tile.grout_width, self.size.y),
                             0.0,
                         );
-                        new_polygons.push(line.intersection(poly));
+                        new_polygons.push(intersection_polygons(&line, poly));
                     }
 
                     let (starty, endy) = (bounds.min().y, bounds.max().y);
@@ -328,7 +317,7 @@ impl Room {
                             vec2(self.size.x, tile.grout_width),
                             0.0,
                         );
-                        new_polygons.push(line.intersection(poly));
+                        new_polygons.push(intersection_polygons(&line, poly));
                     }
 
                     grout_polygons.push((format!("{material}-grout"), new_polygons));
@@ -368,25 +357,35 @@ impl Room {
         // Filter out inner polygons
         let mut new_polygons = MultiPolygon(vec![]);
         for polygon in polygons {
-            new_polygons = new_polygons.union(&MultiPolygon::new(vec![Polygon::new(
-                polygon.exterior().clone(),
-                vec![],
-            )]));
+            new_polygons = union_polygons(
+                &new_polygons,
+                &MultiPolygon::new(vec![Polygon::new(polygon.exterior().clone(), vec![])]),
+            );
         }
 
         let width_half = WALL_WIDTH / 2.0;
         let mut new_polys = MultiPolygon(vec![]);
 
-        let polygon_outside = buffer_multi_polygon(&new_polygons, width_half);
-        let polygon_inside = buffer_multi_polygon(&new_polygons, -width_half);
+        let mut polygon_outside = EMPTY_MULTI_POLYGON;
+        let mut polygon_inside = EMPTY_MULTI_POLYGON;
+        for polygon in &new_polygons.0 {
+            polygon_outside = union_polygons(
+                &polygon_outside,
+                &offset_polygon(polygon, width_half, JoinType::Miter),
+            );
+            polygon_inside = union_polygons(
+                &polygon_inside,
+                &offset_polygon(polygon, -width_half, JoinType::Miter),
+            );
+        }
 
-        let diff = polygon_outside.difference(&polygon_inside);
-        new_polys = new_polys.union(&diff);
+        let diff = difference_polygons(&polygon_outside, &polygon_inside);
+        new_polys = union_polygons(&new_polys, &diff);
 
         // Subtract operations that are SubtractWall
         for operation in &self.operations {
             if operation.action == Action::SubtractWall {
-                new_polys = new_polys.difference(&operation.polygons(self.pos));
+                new_polys = difference_polygons(&new_polys, &operation.polygons(self.pos));
             }
         }
 
@@ -423,7 +422,8 @@ impl Room {
                 vertices[index]
                     .iter_mut()
                     .for_each(|vertex| *vertex = center + *vertex * vec2(right, up));
-                subtract_shape = subtract_shape.union(&create_polygons(&vertices[index]));
+                subtract_shape =
+                    union_polygons(&subtract_shape, &create_polygons(&vertices[index]));
             }
         }
         // Add corners
@@ -432,12 +432,15 @@ impl Room {
         for (wall_horizontal, horizontal_multiplier) in &directions {
             for (wall_vertical, vertical_multiplier) in &verticals {
                 if !wall_horizontal && !wall_vertical {
-                    subtract_shape = subtract_shape.union(&create_polygons(&[
-                        center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
-                        center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
-                        center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
-                        center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
-                    ]));
+                    subtract_shape = union_polygons(
+                        &subtract_shape,
+                        &create_polygons(&[
+                            center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
+                            center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
+                            center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
+                            center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
+                        ]),
+                    );
                 }
             }
         }
@@ -446,11 +449,11 @@ impl Room {
         for operation in &self.operations {
             if operation.action == Action::AddWall {
                 let operation_polygon = operation.polygons(self.pos);
-                subtract_shape = subtract_shape.difference(&operation_polygon);
+                subtract_shape = difference_polygons(&subtract_shape, &operation_polygon);
             }
         }
 
-        new_polys.difference(&subtract_shape)
+        difference_polygons(&new_polys, &subtract_shape)
     }
 }
 
@@ -508,72 +511,100 @@ pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
     )
 }
 
-#[derive(Serialize, Deserialize, Debug)]
 pub struct ShadowTriangles {
     pub indices: Vec<u32>,
     pub vertices: Vec<Vec2>,
     pub inners: Vec<bool>,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum JoinType {
+    Miter,
+    Round,
+}
+
+fn offset_polygon(polygon: &Polygon, offset_size: f64, join_type: JoinType) -> MultiPolygon {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let join_round = if join_type == JoinType::Round {
+            true
+        } else {
+            false
+        };
+        crate::common::clipper_wasm::offset_polygon_wasm(polygon, offset_size, join_round).unwrap()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // Clippers jointypes are not correct, so adjust
+        let join_type = match join_type {
+            JoinType::Miter => geo_clipper::JoinType::Miter(0.0),
+            JoinType::Round => geo_clipper::JoinType::Round(0.0),
+        };
+        geo_clipper::Clipper::offset(
+            polygon,
+            offset_size,
+            join_type,
+            geo_clipper::EndType::ClosedPolygon,
+            CLIPPER_PRECISION,
+        )
+    }
+}
+
+fn union_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // TODO use clipper on wasm
+        geo::BooleanOps::union(poly_a, poly_b)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        geo_clipper::Clipper::union(poly_a, poly_b, CLIPPER_PRECISION)
+    }
+}
+
+fn difference_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // TODO use clipper on wasm
+        geo::BooleanOps::difference(poly_a, poly_b)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        geo_clipper::Clipper::difference(poly_a, poly_b, CLIPPER_PRECISION)
+    }
+}
+
+fn intersection_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // TODO use clipper on wasm
+        geo::BooleanOps::intersection(poly_a, poly_b)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        geo_clipper::Clipper::intersection(poly_a, poly_b, CLIPPER_PRECISION)
+    }
+}
+
 pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles> {
     let mut shadow_exteriors = EMPTY_MULTI_POLYGON;
     let mut shadow_interiors = EMPTY_MULTI_POLYGON;
     let mut interior_points = Vec::new();
-    for poly in polygons {
-        let exterior = buffer_multi_polygon_rounded(poly, 0.05);
-        let interior = buffer_multi_polygon_rounded(poly, -0.025);
+    for multipoly in polygons {
+        for poly in multipoly {
+            let exterior = offset_polygon(poly, 0.05, JoinType::Round);
+            let interior = offset_polygon(poly, -0.025, JoinType::Miter);
 
-        shadow_exteriors = shadow_exteriors.union(&exterior);
-        shadow_interiors = shadow_interiors.union(&interior);
+            shadow_exteriors = union_polygons(&shadow_exteriors, &exterior);
+            shadow_interiors = union_polygons(&shadow_interiors, &interior);
 
-        for p in interior.0.iter().flat_map(|p| p.exterior().points()) {
-            interior_points.push(vec2(p.x(), p.y()));
+            for p in interior.0.iter().flat_map(|p| p.exterior().points()) {
+                interior_points.push(vec2(p.x(), p.y()));
+            }
         }
     }
-    let shadow_polygons = shadow_exteriors.difference(&shadow_interiors);
+    let shadow_polygons = difference_polygons(&shadow_exteriors, &shadow_interiors);
 
-    triangulate_shadows(shadow_polygons, &interior_points)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn polygons_to_shadows_clipper(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles> {
-    use geo_clipper::Clipper;
-    const CLIPPER_PRECISION: f64 = 1e4; // How many decimal places to use for clipper
-
-    let mut shadow_exteriors = EMPTY_MULTI_POLYGON;
-    let mut shadow_interiors = EMPTY_MULTI_POLYGON;
-    let mut interior_points = Vec::new();
-    for poly in polygons {
-        let exterior = poly.offset(
-            0.05,
-            geo_clipper::JoinType::Round(0.0),
-            geo_clipper::EndType::ClosedPolygon,
-            CLIPPER_PRECISION,
-        );
-        let interior = poly.offset(
-            -0.025,
-            geo_clipper::JoinType::Miter(0.0),
-            geo_clipper::EndType::ClosedPolygon,
-            CLIPPER_PRECISION,
-        );
-
-        shadow_exteriors = Clipper::union(&shadow_exteriors, &exterior, CLIPPER_PRECISION);
-        shadow_interiors = Clipper::union(&shadow_interiors, &interior, CLIPPER_PRECISION);
-
-        for p in interior.0.iter().flat_map(|p| p.exterior().points()) {
-            interior_points.push(vec2(p.x(), p.y()));
-        }
-    }
-    let shadow_polygons =
-        Clipper::difference(&shadow_exteriors, &shadow_interiors, CLIPPER_PRECISION);
-
-    triangulate_shadows(shadow_polygons, &interior_points)
-}
-
-pub fn triangulate_shadows(
-    shadow_polygons: MultiPolygon,
-    interior_points: &[Vec2],
-) -> Vec<ShadowTriangles> {
     let mut shadow_triangles = Vec::new();
     for polygon in shadow_polygons {
         let (indices, vertices) = {

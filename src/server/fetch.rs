@@ -16,7 +16,7 @@ impl Headers {
         }
     }
 
-    fn insert(&mut self, key: impl ToString, value: impl ToString) {
+    fn insert(&mut self, key: &impl ToString, value: &impl ToString) {
         self.headers.push((key.to_string(), value.to_string()));
     }
 }
@@ -48,7 +48,7 @@ pub struct Request {
 }
 
 impl Request {
-    pub fn get(url: impl ToString) -> Self {
+    pub fn get(url: &impl ToString) -> Self {
         Self {
             method: "GET".to_owned(),
             url: url.to_string(),
@@ -57,7 +57,7 @@ impl Request {
         }
     }
 
-    pub fn post(url: impl ToString, body: Vec<u8>) -> Self {
+    pub fn post(url: &impl ToString, body: Vec<u8>) -> Self {
         Self {
             method: "POST".to_owned(),
             url: url.to_string(),
@@ -114,16 +114,16 @@ pub type CustomResult<T> = std::result::Result<T, Error>;
 async fn fetch_async(request: &Request) -> CustomResult<Response> {
     fetch_jsvalue(request)
         .await
-        .map_err(string_from_fetch_error)
+        .map_err(|e| string_from_fetch_error(&e))
 }
 
-fn string_from_fetch_error(value: JsValue) -> String {
+fn string_from_fetch_error(value: &JsValue) -> String {
     value.as_string().unwrap_or_else(|| {
         if value.has_type::<js_sys::TypeError>() {
-            web_sys::console::error_1(&value);
+            web_sys::console::error_1(value);
             "Failed to fetch, check the developer console for details".to_owned()
         } else {
-            format!("{:#?}", value)
+            format!("{value:#?}")
         }
     })
 }
@@ -172,7 +172,7 @@ fn get_response_base(response: &web_sys::Response) -> Result<PartialResponse, Js
             .as_string()
             .ok_or_else(|| JsValue::from_str("headers value"))?;
 
-        headers.insert(key, value);
+        headers.insert(&key, &value);
     }
 
     Ok(PartialResponse {
@@ -213,6 +213,6 @@ where
 pub fn fetch(request: Request, on_done: Box<dyn FnOnce(CustomResult<Response>) + Send>) {
     spawn_future(async move {
         let result = fetch_async(&request).await;
-        on_done(result)
+        on_done(result);
     });
 }

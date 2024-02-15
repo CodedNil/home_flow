@@ -22,7 +22,6 @@ diff = "0.1.13"
 image = { version = "0.24.8", default-features = false, features = ["png"] }
 geo = { git = "https://github.com/RobWalt/geo.git", branch = "feat/spade-boolops" }
 geo-types = { version = "0.7.12", features = ["serde"] }
-geo-buffer = { git = "https://github.com/CodedNil/geo-buffer" }
 palette = { version = "0.7.4", default-features = false, features = ["std"] }
 
 # GUI dependencies

@@ -126,7 +126,7 @@ pub struct HomeRender {
     pub walls_hash: u64,
     pub wall_triangles: Vec<Triangles>,
     pub wall_polygons: Vec<MultiPolygon>,
-    pub wall_shadows: Option<(u64, Vec<ShadowTriangles>)>,
+    pub wall_shadows: (u64, Vec<ShadowTriangles>),
 }
 
 pub struct RoomRender {
@@ -137,7 +137,6 @@ pub struct RoomRender {
     pub wall_polygons: MultiPolygon,
 }
 
-#[derive(PartialEq)]
 pub struct Triangles {
     pub indices: Vec<u32>,
     pub vertices: Vec<Vec2>,

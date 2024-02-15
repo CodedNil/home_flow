@@ -331,6 +331,38 @@ impl HomeFlow {
             }
         }
 
+        // Render wall shadows
+        let rendered_data = self.layout.rendered_data.as_ref().unwrap();
+        let shadow_offset = vec2(0.01, -0.02);
+        for triangles in &rendered_data.wall_shadows.1 {
+            if triangles.vertices.is_empty() {
+                continue;
+            }
+            let vertices = triangles
+                .vertices
+                .iter()
+                .enumerate()
+                .map(|(i, &v)| {
+                    let is_interior = *triangles.inners.get(i).unwrap_or(&false);
+                    Vertex {
+                        pos: vec2_to_egui_pos(self.world_to_pixels(v + shadow_offset)),
+                        uv: egui::Pos2::ZERO,
+                        color: if is_interior {
+                            Color::from_alpha(150)
+                        } else {
+                            Color::TRANSPARENT
+                        }
+                        .to_egui(),
+                    }
+                })
+                .collect();
+            painter.add(EShape::mesh(Mesh {
+                indices: triangles.indices.clone(),
+                vertices,
+                texture_id: TextureId::Managed(0),
+            }));
+        }
+
         // Open the opening if mouse is nearby
         for room in &mut self.layout.rooms {
             for opening in &mut room.openings {
@@ -399,42 +431,6 @@ impl HomeFlow {
             }
         }
 
-        // Render wall shadows
-        #[cfg(target_arch = "wasm32")]
-        self.download_wall_shadows();
-        let rendered_data = self.layout.rendered_data.as_ref().unwrap();
-        let shadow_offset = vec2(0.01, -0.02);
-        if let Some(wall_shadows) = &rendered_data.wall_shadows {
-            for triangles in &wall_shadows.1 {
-                if triangles.vertices.is_empty() {
-                    continue;
-                }
-                let vertices = triangles
-                    .vertices
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &v)| {
-                        let is_interior = *triangles.inners.get(i).unwrap_or(&false);
-                        Vertex {
-                            pos: vec2_to_egui_pos(self.world_to_pixels(v + shadow_offset)),
-                            uv: egui::Pos2::ZERO,
-                            color: if is_interior {
-                                Color::from_alpha(150)
-                            } else {
-                                Color::TRANSPARENT
-                            }
-                            .to_egui(),
-                        }
-                    })
-                    .collect();
-                painter.add(EShape::mesh(Mesh {
-                    indices: triangles.indices.clone(),
-                    vertices,
-                    texture_id: TextureId::Managed(0),
-                }));
-            }
-        }
-
         // Render walls
         for wall in &rendered_data.wall_triangles {
             let vertices = wall
@@ -456,50 +452,6 @@ impl HomeFlow {
         // Render windows above walls
         for mesh in window_meshes {
             painter.add(EShape::mesh(mesh));
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn download_wall_shadows(&mut self) {
-        let rendered_data = self.layout.rendered_data.as_ref().unwrap();
-        if rendered_data.wall_polygons.is_empty() {
-            return;
-        }
-        // Check if wall_shadows hash is different to the walls_hash
-        if rendered_data.walls_hash
-            == rendered_data
-                .wall_shadows
-                .as_ref()
-                .map_or(0, |(hash, _)| *hash)
-        {
-            return;
-        }
-
-        let download_store = self.download_data.clone();
-        let mut download_data_guard = download_store.lock();
-        match &mut download_data_guard.shadows {
-            super::DownloadShadows::None => {
-                download_data_guard.shadows = super::DownloadShadows::InProgress;
-                drop(download_data_guard);
-                crate::server::common_api::get_wall_shadows(
-                    &self.host,
-                    rendered_data.walls_hash,
-                    &rendered_data.wall_polygons,
-                    move |res| {
-                        download_store.lock().shadows = super::DownloadShadows::Done(res);
-                    },
-                );
-            }
-            super::DownloadShadows::InProgress => {}
-            super::DownloadShadows::Done(ref mut response_option) => {
-                if let Some(response) = response_option.take() {
-                    self.layout.rendered_data.as_mut().unwrap().wall_shadows = Some(response);
-                    self.layout.rendered_data.as_mut().unwrap().hash = 0;
-                } else {
-                    log::error!("Failed to fetch or parse shadows from server");
-                }
-                download_data_guard.shadows = super::DownloadShadows::None;
-            }
         }
     }
 }
