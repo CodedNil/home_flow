@@ -1,4 +1,4 @@
-import Clipper2ZFactory from "/clipper2z.js";
+import Clipper2ZFactory from "./clipper2z.js";
 
 Clipper2ZFactory().then((Clipper2Z) => {
     window.Clipper2Z = Clipper2Z; // Expose Clipper2Z to the global scope
