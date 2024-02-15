@@ -163,8 +163,25 @@ impl HomeFlow {
         }
 
         // Hover furniture
+        let mut top_hover = None;
+        for furniture in &self.layout.furniture {
+            if furniture.contains(self.mouse_pos_world) {
+                top_hover = Some(furniture.id);
+            }
+            let rendered_data = furniture.rendered_data.as_ref().unwrap();
+            for child in &rendered_data.children {
+                if Shape::Rectangle.contains(
+                    self.mouse_pos_world,
+                    furniture.pos + rotate_point(child.pos, Vec2::ZERO, -furniture.rotation),
+                    child.size * 1.2,
+                    furniture.rotation + child.rotation,
+                ) {
+                    top_hover = Some(child.id);
+                }
+            }
+        }
         for furniture in &mut self.layout.furniture {
-            let target = furniture.contains(self.mouse_pos_world) as u8 as f64;
+            let target = (Some(furniture.id) == top_hover) as u8 as f64;
             let difference = target - furniture.hover_amount;
             if difference.abs() > f64::EPSILON {
                 furniture.hover_amount =
@@ -172,20 +189,11 @@ impl HomeFlow {
             }
             let rendered_data = furniture.rendered_data.as_mut().unwrap();
             for child in &mut rendered_data.children {
-                let target = Shape::Rectangle.contains(
-                    self.mouse_pos_world,
-                    furniture.pos + rotate_point(child.pos, Vec2::ZERO, -furniture.rotation),
-                    child.size * 1.2,
-                    furniture.rotation + child.rotation,
-                ) as u8 as f64;
+                let target = (Some(child.id) == top_hover) as u8 as f64;
                 let difference = target - child.hover_amount;
                 if difference.abs() > f64::EPSILON {
-                    let speed = 0.1;
-                    if difference > 0.0 {
-                        child.hover_amount = (child.hover_amount + speed).clamp(0.0, 1.0);
-                    } else {
-                        child.hover_amount = (child.hover_amount - speed).clamp(0.0, 1.0);
-                    }
+                    child.hover_amount =
+                        (child.hover_amount + difference.signum() * 0.1).clamp(0.0, 1.0);
                 }
             }
         }
@@ -208,7 +216,9 @@ impl HomeFlow {
                     )
                 } else if matches!(
                     child.furniture_type,
-                    FurnitureType::AnimatedPiece(AnimatedPieceType::Drawer(_))
+                    FurnitureType::AnimatedPiece(
+                        AnimatedPieceType::Drawer(_) | AnimatedPieceType::HighDrawer(_)
+                    )
                 ) {
                     (
                         rotate_point(

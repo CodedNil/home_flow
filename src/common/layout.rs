@@ -165,18 +165,18 @@ impl Home {
             rooms: vec![
                 Room::new(
                     "Hall",
-                    vec2(0.65, 0.5),
-                    vec2(5.9, 1.10),
+                    vec2(0.5, 0.5),
+                    vec2(6.2, 1.10),
                     "Carpet",
                     Walls::NONE.top(true),
                     vec![Operation::new(
                         Action::Add,
                         Shape::Rectangle,
-                        vec2(-1.0, 1.55),
+                        vec2(-0.85, 1.55),
                         vec2(1.1, 2.0),
                     )
                     .set_material("Wood")],
-                    vec![Opening::new(OpeningType::Door, vec2(-1.0, 2.55))],
+                    vec![Opening::new(OpeningType::Door, vec2(-0.85, 2.55))],
                 ),
                 Room::new(
                     "Lounge",
@@ -192,18 +192,23 @@ impl Home {
                 ),
                 Room::new(
                     "Kitchen",
-                    vec2(-4.05, 1.5),
-                    vec2(3.5, 3.1),
+                    vec2(-4.2, 1.5),
+                    vec2(3.2, 3.1),
                     "KitchenTiles",
                     Walls::WALL.right(false).bottom(false),
-                    vec![],
-                    vec![Opening::new(OpeningType::Window, vec2(0.0, 1.55))],
+                    vec![Operation::new(
+                        Action::Add,
+                        Shape::Rectangle,
+                        vec2(1.7, 0.55),
+                        vec2(0.4, 2.0),
+                    )],
+                    vec![Opening::new(OpeningType::Window, vec2(0.2, 1.55))],
                 )
                 .outline(Outline::new(0.05, Color::from_rgb(200, 170, 150))),
                 Room::new(
                     "Storage1",
-                    vec2(-1.6, 2.55),
-                    vec2(1.4, 1.0),
+                    vec2(-1.6, 2.5),
+                    vec2(1.4, 1.1),
                     "Carpet",
                     Walls::WALL,
                     vec![],
@@ -211,8 +216,8 @@ impl Home {
                 ),
                 Room::new(
                     "Storage2",
-                    vec2(-1.6, 1.55),
-                    vec2(1.4, 1.0),
+                    vec2(-1.6, 1.4),
+                    vec2(1.4, 1.1),
                     "Carpet",
                     Walls::WALL,
                     vec![],
@@ -286,17 +291,126 @@ impl Home {
                 ),
             ],
             furniture: vec![
-                // Kitchen
+                // Kitchen counters
                 Furniture::new(
                     FurnitureType::Kitchen(KitchenType::GraniteCounter),
-                    Vec2::new(-5.4, 1.65),
-                    Vec2::new(0.7, 2.7),
+                    Vec2::new(-5.475, 2.725),
+                    Vec2::new(0.55, 0.55),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.475, 2.725 - 0.55),
+                    Vec2::new(0.55, 0.55),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::HighCupboard),
+                    Vec2::new(-5.625, 2.725 - 0.55),
+                    Vec2::new(0.55, 0.25),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::Hob),
+                    Vec2::new(-5.475, 2.725 - 0.55 * 2.0),
+                    Vec2::new(0.55, 0.55),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::HighCupboard),
+                    Vec2::new(-5.625, 2.725 - 0.55 * 2.0),
+                    Vec2::new(0.55, 0.25),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.475, 2.725 - 0.55 * 3.0),
+                    Vec2::new(0.55, 0.55),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::HighCupboard),
+                    Vec2::new(-5.625, 2.725 - 0.55 * 3.0),
+                    Vec2::new(0.55, 0.25),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.475, 2.725 - 0.55 * 4.0),
+                    Vec2::new(0.55, 0.55),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::HighCupboard),
+                    Vec2::new(-5.625, 2.725 - 0.55 * 4.0),
+                    Vec2::new(0.55, 0.25),
+                    -90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.475 + 0.55, 2.725),
+                    Vec2::new(0.55, 0.55),
                     0.0,
                 ),
                 Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.475 + 0.55 * 2.0, 2.725),
+                    Vec2::new(0.55, 0.55),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::Dishwasher),
+                    Vec2::new(-5.475 + 0.55 * 3.0, 2.725),
+                    Vec2::new(0.55, 0.55),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::LaundryMachine),
+                    Vec2::new(-5.475 + 0.55 * 4.0, 2.725),
+                    Vec2::new(0.55, 0.55),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.475 + 0.55 * 5.0 + 0.05, 2.725),
+                    Vec2::new(0.65, 0.55),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.475 + 0.55 * 5.0 + 0.05, 2.725 - 0.55),
+                    Vec2::new(0.55, 0.65),
+                    90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::GraniteCounter),
+                    Vec2::new(-5.475 + 0.55 * 5.0 + 0.05, 2.725 - 0.55 * 2.0),
+                    Vec2::new(0.55, 0.65),
+                    90.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::Fridge),
+                    Vec2::new(-5.475 + 0.55 * 5.0 + 0.05, 2.725 - 0.55 * 3.0),
+                    Vec2::new(0.55, 0.65),
+                    90.0,
+                ),
+                // Kitchen
+                Furniture::new(
                     FurnitureType::Table(TableType::Empty),
-                    Vec2::new(-3.85, 1.5),
+                    Vec2::new(-4.1, 1.3),
                     Vec2::new(0.8, 0.8),
+                    0.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::Microwave),
+                    Vec2::new(-2.8, 2.65),
+                    Vec2::new(0.5, 0.4),
+                    50.0,
+                ),
+                Furniture::new(
+                    FurnitureType::Kitchen(KitchenType::Sink),
+                    Vec2::new(-4.05, 2.7),
+                    Vec2::new(0.65, 0.5),
                     0.0,
                 ),
                 // Bedroom
@@ -413,10 +527,10 @@ impl Home {
                     45.0,
                 ),
                 Furniture::new(
-                    FurnitureType::Table(TableType::Empty),
+                    FurnitureType::Storage(StorageType::Drawer),
                     Vec2::new(-5.3, -2.25),
                     Vec2::new(0.8, 0.4),
-                    45.0,
+                    225.0,
                 ),
                 Furniture::new(
                     FurnitureType::Display,
@@ -425,10 +539,10 @@ impl Home {
                     45.0,
                 ),
                 Furniture::new(
-                    FurnitureType::Table(TableType::Empty),
+                    FurnitureType::Storage(StorageType::Drawer),
                     Vec2::new(-2.0, -2.55),
                     Vec2::new(1.1, 0.3),
-                    0.0,
+                    180.0,
                 ),
                 Furniture::new(
                     FurnitureType::Radiator,

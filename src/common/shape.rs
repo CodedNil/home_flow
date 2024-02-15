@@ -546,36 +546,15 @@ fn offset_polygon(polygon: &Polygon, offset_size: f64, join_type: JoinType) -> M
 }
 
 fn union_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
-    #[cfg(target_arch = "wasm32")]
-    {
-        geo::BooleanOps::union(poly_a, poly_b)
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        geo_clipper::Clipper::union(poly_a, poly_b, CLIPPER_PRECISION)
-    }
+    geo::BooleanOps::union(poly_a, poly_b)
 }
 
 fn difference_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
-    #[cfg(target_arch = "wasm32")]
-    {
-        geo::BooleanOps::difference(poly_a, poly_b)
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        geo_clipper::Clipper::difference(poly_a, poly_b, CLIPPER_PRECISION)
-    }
+    geo::BooleanOps::difference(poly_a, poly_b)
 }
 
 fn intersection_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
-    #[cfg(target_arch = "wasm32")]
-    {
-        geo::BooleanOps::intersection(poly_a, poly_b)
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        geo_clipper::Clipper::intersection(poly_a, poly_b, CLIPPER_PRECISION)
-    }
+    geo::BooleanOps::intersection(poly_a, poly_b)
 }
 
 pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles> {

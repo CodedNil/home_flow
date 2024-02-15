@@ -246,8 +246,9 @@ impl Hash for GlobalMaterial {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Display, PartialEq, Eq, Hash, EnumIter)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum Material {
+    #[default]
     Empty,
     Carpet,
     Fabric,
