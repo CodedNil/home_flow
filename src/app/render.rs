@@ -165,17 +165,26 @@ impl HomeFlow {
         // Hover furniture
         let mut top_hover = None;
         for furniture in &self.layout.furniture {
-            if furniture.contains(self.mouse_pos_world) {
+            if furniture.can_hover()
+                && Shape::Rectangle.contains(
+                    self.mouse_pos_world,
+                    furniture.pos,
+                    furniture.size * 1.2,
+                    furniture.rotation,
+                )
+            {
                 top_hover = Some(furniture.id);
             }
             let rendered_data = furniture.rendered_data.as_ref().unwrap();
             for child in &rendered_data.children {
-                if Shape::Rectangle.contains(
-                    self.mouse_pos_world,
-                    furniture.pos + rotate_point(child.pos, Vec2::ZERO, -furniture.rotation),
-                    child.size * 1.2,
-                    furniture.rotation + child.rotation,
-                ) {
+                if child.can_hover()
+                    && Shape::Rectangle.contains(
+                        self.mouse_pos_world,
+                        furniture.pos + rotate_point(child.pos, Vec2::ZERO, -furniture.rotation),
+                        child.size * 1.2,
+                        furniture.rotation + child.rotation,
+                    )
+                {
                     top_hover = Some(child.id);
                 }
             }

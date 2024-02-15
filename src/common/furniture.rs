@@ -148,6 +148,13 @@ impl Furniture {
         }
     }
 
+    pub const fn can_hover(&self) -> bool {
+        matches!(
+            self.furniture_type,
+            FurnitureType::AnimatedPiece(_) | FurnitureType::Chair(_)
+        )
+    }
+
     pub fn contains(&self, point: Vec2) -> bool {
         Shape::Rectangle.contains(point, self.pos, self.size, self.rotation)
     }
