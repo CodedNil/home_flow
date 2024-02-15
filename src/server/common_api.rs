@@ -43,6 +43,10 @@ pub fn get_wall_shadows(
     wall_polygons: &[geo_types::MultiPolygon],
     on_done: impl 'static + Send + FnOnce(Option<(u64, Vec<crate::common::shape::ShadowTriangles>)>),
 ) {
+    if self.host.contains("github.io") {
+        on_done(None);
+        return;
+    }
     super::fetch::fetch(
         super::fetch::Request::post(
             format!("http://{host}/wall_shadows"),

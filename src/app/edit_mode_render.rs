@@ -3,6 +3,7 @@ use crate::common::{
     furniture::Furniture,
     layout::{Action, OpeningType, Room, Shape},
     shape::coord_to_vec2,
+    utils::RoundFactor,
 };
 use egui::{Align2, Color32, Context, Painter, Shape as EShape, Stroke, Window};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -56,10 +57,18 @@ impl HomeFlow {
                     ui.horizontal(|ui| {
                         ui.add_space(ui.available_width() / 4.0);
                         if ui.button("Add Room").clicked() {
-                            self.layout.rooms.push(Room::default());
+                            let pos = self.pixels_to_world(self.canvas_center);
+                            self.layout.rooms.push(Room {
+                                pos: vec2(pos.x.round_factor(10.0), pos.y.round_factor(10.0)),
+                                ..Room::default()
+                            });
                         }
                         if ui.button("Add Furniture").clicked() {
-                            self.layout.furniture.push(Furniture::default());
+                            let pos = self.pixels_to_world(self.canvas_center);
+                            self.layout.furniture.push(Furniture {
+                                pos: vec2(pos.x.round_factor(10.0), pos.y.round_factor(10.0)),
+                                ..Furniture::default()
+                            });
                         }
                         ui.add_space(ui.available_width() / 4.0);
                     });
