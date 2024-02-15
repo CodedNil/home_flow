@@ -75,6 +75,8 @@ impl Default for HomeFlow {
 #[derive(Default)]
 struct DownloadData {
     layout: DownloadLayout,
+    #[cfg(target_arch = "wasm32")]
+    shadows: DownloadShadows,
 }
 
 #[derive(Default)]
@@ -83,6 +85,15 @@ enum DownloadLayout {
     None,
     InProgress,
     Done(Result<Home>),
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Default)]
+enum DownloadShadows {
+    #[default]
+    None,
+    InProgress,
+    Done(Option<(u64, Vec<crate::common::shape::ShadowTriangles>)>),
 }
 
 impl HomeFlow {
@@ -181,6 +192,7 @@ impl HomeFlow {
             }
             DownloadLayout::Done(ref response) => {
                 if let Ok(layout) = response {
+                    log::info!("Loaded layout from server");
                     self.layout_server = layout.clone();
                     self.layout = layout.clone();
                 } else {

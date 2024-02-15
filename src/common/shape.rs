@@ -8,18 +8,18 @@ use super::{
     utils::{rotate_point, Material},
 };
 use geo::{
-    triangulate_spade::SpadeTriangulationConfig, BoundingRect, TriangulateEarcut, TriangulateSpade,
+    triangulate_spade::SpadeTriangulationConfig, BooleanOps, BoundingRect, TriangulateEarcut,
+    TriangulateSpade,
 };
-use geo_clipper::Clipper;
+use geo_buffer::{buffer_multi_polygon, buffer_multi_polygon_rounded};
 use geo_types::{MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use indexmap::IndexMap;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub const WALL_WIDTH: f64 = 0.1;
-
-const CLIPPER_PRECISION: f64 = 1e4; // How many decimal places to use for clipper
 
 impl Home {
     pub fn render(&mut self) {
@@ -104,7 +104,7 @@ impl Home {
         for room in &self.rooms {
             if let Some(rendered_data) = &room.rendered_data {
                 for poly in &mut wall_polygons {
-                    *poly = poly.difference(&rendered_data.polygons, CLIPPER_PRECISION);
+                    *poly = geo::SpadeBoolops::difference(poly, &rendered_data.polygons).unwrap();
                 }
                 for poly in &rendered_data.wall_polygons {
                     wall_polygons.push(poly.clone().into());
@@ -117,13 +117,13 @@ impl Home {
                 if opening.opening_type != OpeningType::Door {
                     continue;
                 }
-                let opening_polygon = Shape::Rectangle.polygon(
+                let opening_polygon = Shape::Rectangle.polygons(
                     room.pos + opening.pos,
                     vec2(opening.width, WALL_WIDTH * 1.01),
                     opening.rotation,
                 );
                 for poly in &mut wall_polygons {
-                    *poly = poly.difference(&opening_polygon, CLIPPER_PRECISION);
+                    *poly = geo::SpadeBoolops::difference(poly, &opening_polygon).unwrap();
                 }
             }
         }
@@ -137,22 +137,42 @@ impl Home {
             }
         }
 
-        // Create shadows, only if the wall polygons have changed
-        let has_changed = self.rendered_data.as_ref().map_or(true, |rendered_data| {
-            rendered_data.wall_triangles != wall_triangles
-        });
-        let wall_shadows = if has_changed {
-            polygons_to_shadows(wall_polygons.iter().collect())
-        } else {
-            match self.rendered_data.take() {
-                Some(rendered_data) => rendered_data.wall_shadows,
-                None => vec![],
+        // If the hashes match, reuse the existing shadows
+        let walls_hash = {
+            let mut hasher = DefaultHasher::new();
+            for room in &self.rooms {
+                room.hash(&mut hasher);
             }
+            hasher.finish()
         };
+
+        let mut wall_shadows: Option<(u64, Vec<ShadowTriangles>)> = None;
+        let mut hash_match = false;
+        if let Some(rendered_data) = self.rendered_data.take() {
+            if let Some((existing_hash, _)) = &rendered_data.wall_shadows {
+                if *existing_hash == walls_hash {
+                    hash_match = true;
+                }
+            }
+            wall_shadows = rendered_data.wall_shadows;
+        }
+
+        if !hash_match {
+            // If on wasm, don't render out shadows that will be done by the server
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                wall_shadows = Some((
+                    walls_hash,
+                    polygons_to_shadows_clipper(wall_polygons.iter().collect()),
+                ));
+            }
+        }
 
         self.rendered_data = Some(HomeRender {
             hash: home_hash,
+            walls_hash,
             wall_triangles,
+            wall_polygons,
             wall_shadows,
         });
     }
@@ -226,10 +246,10 @@ impl Room {
         for operation in &self.operations {
             match operation.action {
                 Action::Add => {
-                    polygons = polygons.union(&operation.polygon(self.pos), CLIPPER_PRECISION);
+                    polygons = polygons.union(&operation.polygons(self.pos));
                 }
                 Action::Subtract => {
-                    polygons = polygons.difference(&operation.polygon(self.pos), CLIPPER_PRECISION);
+                    polygons = polygons.difference(&operation.polygons(self.pos));
                 }
                 _ => {}
             }
@@ -259,20 +279,19 @@ impl Room {
                     polygons
                         .entry(material.clone())
                         .and_modify(|poly| {
-                            *poly = poly.union(&operation.polygon(self.pos), CLIPPER_PRECISION);
+                            *poly = poly.union(&operation.polygons(self.pos));
                         })
-                        .or_insert_with(|| operation.polygon(self.pos).into());
+                        .or_insert_with(|| operation.polygons(self.pos));
                     // Remove from all other polygons
                     for (other_material, poly) in &mut polygons {
                         if other_material != &material {
-                            *poly =
-                                poly.difference(&operation.polygon(self.pos), CLIPPER_PRECISION);
+                            *poly = poly.difference(&operation.polygons(self.pos));
                         }
                     }
                 }
                 Action::Subtract => {
                     for poly in polygons.values_mut() {
-                        *poly = poly.difference(&operation.polygon(self.pos), CLIPPER_PRECISION);
+                        *poly = poly.difference(&operation.polygons(self.pos));
                     }
                 }
                 _ => {}
@@ -292,24 +311,24 @@ impl Room {
                     let num_grout_x = ((endx - startx) / tile.spacing).floor() as usize;
                     for i in 0..num_grout_x {
                         let x_pos = (i as f64 - (num_grout_x - 1) as f64 / 2.0) * tile.spacing;
-                        let line = Shape::Rectangle.polygon(
+                        let line = Shape::Rectangle.polygons(
                             self.pos + vec2(x_pos, 0.0),
                             vec2(tile.grout_width, self.size.y),
                             0.0,
                         );
-                        new_polygons.push(line.intersection(poly, CLIPPER_PRECISION));
+                        new_polygons.push(line.intersection(poly));
                     }
 
                     let (starty, endy) = (bounds.min().y, bounds.max().y);
                     let num_grout_y = ((endy - starty) / tile.spacing).floor() as usize;
                     for i in 0..num_grout_y {
                         let y_pos = (i as f64 - (num_grout_y - 1) as f64 / 2.0) * tile.spacing;
-                        let line = Shape::Rectangle.polygon(
+                        let line = Shape::Rectangle.polygons(
                             self.pos + vec2(0.0, y_pos),
                             vec2(self.size.x, tile.grout_width),
                             0.0,
                         );
-                        new_polygons.push(line.intersection(poly, CLIPPER_PRECISION));
+                        new_polygons.push(line.intersection(poly));
                     }
 
                     grout_polygons.push((format!("{material}-grout"), new_polygons));
@@ -349,35 +368,25 @@ impl Room {
         // Filter out inner polygons
         let mut new_polygons = MultiPolygon(vec![]);
         for polygon in polygons {
-            new_polygons = new_polygons.union(
-                &MultiPolygon::new(vec![Polygon::new(polygon.exterior().clone(), vec![])]),
-                CLIPPER_PRECISION,
-            );
+            new_polygons = new_polygons.union(&MultiPolygon::new(vec![Polygon::new(
+                polygon.exterior().clone(),
+                vec![],
+            )]));
         }
 
         let width_half = WALL_WIDTH / 2.0;
         let mut new_polys = MultiPolygon(vec![]);
 
-        let polygon_outside = new_polygons.offset(
-            width_half,
-            geo_clipper::JoinType::Miter(0.0),
-            geo_clipper::EndType::ClosedPolygon,
-            CLIPPER_PRECISION,
-        );
-        let polygon_inside = new_polygons.offset(
-            -width_half,
-            geo_clipper::JoinType::Miter(0.0),
-            geo_clipper::EndType::ClosedPolygon,
-            CLIPPER_PRECISION,
-        );
+        let polygon_outside = buffer_multi_polygon(&new_polygons, width_half);
+        let polygon_inside = buffer_multi_polygon(&new_polygons, -width_half);
 
-        let diff = polygon_outside.difference(&polygon_inside, CLIPPER_PRECISION);
-        new_polys = new_polys.union(&diff, CLIPPER_PRECISION);
+        let diff = polygon_outside.difference(&polygon_inside);
+        new_polys = new_polys.union(&diff);
 
         // Subtract operations that are SubtractWall
         for operation in &self.operations {
             if operation.action == Action::SubtractWall {
-                new_polys = new_polys.difference(&operation.polygon(self.pos), CLIPPER_PRECISION);
+                new_polys = new_polys.difference(&operation.polygons(self.pos));
             }
         }
 
@@ -414,8 +423,7 @@ impl Room {
                 vertices[index]
                     .iter_mut()
                     .for_each(|vertex| *vertex = center + *vertex * vec2(right, up));
-                subtract_shape =
-                    subtract_shape.union(&create_polygon(&vertices[index]), CLIPPER_PRECISION);
+                subtract_shape = subtract_shape.union(&create_polygons(&vertices[index]));
             }
         }
         // Add corners
@@ -424,15 +432,12 @@ impl Room {
         for (wall_horizontal, horizontal_multiplier) in &directions {
             for (wall_vertical, vertical_multiplier) in &verticals {
                 if !wall_horizontal && !wall_vertical {
-                    subtract_shape = subtract_shape.union(
-                        &create_polygon(&[
-                            center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
-                            center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
-                            center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
-                            center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
-                        ]),
-                        CLIPPER_PRECISION,
-                    );
+                    subtract_shape = subtract_shape.union(&create_polygons(&[
+                        center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
+                        center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
+                        center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
+                        center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
+                    ]));
                 }
             }
         }
@@ -440,12 +445,12 @@ impl Room {
         // Add back operations that are AddWall
         for operation in &self.operations {
             if operation.action == Action::AddWall {
-                let operation_polygon = operation.polygon(self.pos);
-                subtract_shape = subtract_shape.difference(&operation_polygon, CLIPPER_PRECISION);
+                let operation_polygon = operation.polygons(self.pos);
+                subtract_shape = subtract_shape.difference(&operation_polygon);
             }
         }
 
-        new_polys.difference(&subtract_shape, CLIPPER_PRECISION)
+        new_polys.difference(&subtract_shape)
     }
 }
 
@@ -462,6 +467,10 @@ impl Operation {
 
     pub fn polygon(&self, room_pos: Vec2) -> Polygon {
         create_polygon(&self.vertices(room_pos))
+    }
+
+    pub fn polygons(&self, room_pos: Vec2) -> MultiPolygon {
+        self.polygon(room_pos).into()
     }
 }
 
@@ -480,6 +489,10 @@ pub fn create_polygon(vertices: &[Vec2]) -> Polygon {
     )
 }
 
+pub fn create_polygons(vertices: &[Vec2]) -> MultiPolygon {
+    create_polygon(vertices).into()
+}
+
 pub const EMPTY_MULTI_POLYGON: MultiPolygon = MultiPolygon(vec![]);
 
 pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
@@ -495,6 +508,7 @@ pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
     )
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ShadowTriangles {
     pub indices: Vec<u32>,
     pub vertices: Vec<Vec2>,
@@ -502,6 +516,30 @@ pub struct ShadowTriangles {
 }
 
 pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles> {
+    let mut shadow_exteriors = EMPTY_MULTI_POLYGON;
+    let mut shadow_interiors = EMPTY_MULTI_POLYGON;
+    let mut interior_points = Vec::new();
+    for poly in polygons {
+        let exterior = buffer_multi_polygon_rounded(poly, 0.05);
+        let interior = buffer_multi_polygon_rounded(poly, -0.025);
+
+        shadow_exteriors = shadow_exteriors.union(&exterior);
+        shadow_interiors = shadow_interiors.union(&interior);
+
+        for p in interior.0.iter().flat_map(|p| p.exterior().points()) {
+            interior_points.push(vec2(p.x(), p.y()));
+        }
+    }
+    let shadow_polygons = shadow_exteriors.difference(&shadow_interiors);
+
+    triangulate_shadows(shadow_polygons, &interior_points)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn polygons_to_shadows_clipper(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles> {
+    use geo_clipper::Clipper;
+    const CLIPPER_PRECISION: f64 = 1e4; // How many decimal places to use for clipper
+
     let mut shadow_exteriors = EMPTY_MULTI_POLYGON;
     let mut shadow_interiors = EMPTY_MULTI_POLYGON;
     let mut interior_points = Vec::new();
@@ -519,15 +557,23 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles>
             CLIPPER_PRECISION,
         );
 
-        shadow_exteriors = shadow_exteriors.union(&exterior, CLIPPER_PRECISION);
-        shadow_interiors = shadow_interiors.union(&interior, CLIPPER_PRECISION);
+        shadow_exteriors = Clipper::union(&shadow_exteriors, &exterior, CLIPPER_PRECISION);
+        shadow_interiors = Clipper::union(&shadow_interiors, &interior, CLIPPER_PRECISION);
 
         for p in interior.0.iter().flat_map(|p| p.exterior().points()) {
             interior_points.push(vec2(p.x(), p.y()));
         }
     }
-    let shadow_polygons = shadow_exteriors.difference(&shadow_interiors, CLIPPER_PRECISION);
+    let shadow_polygons =
+        Clipper::difference(&shadow_exteriors, &shadow_interiors, CLIPPER_PRECISION);
 
+    triangulate_shadows(shadow_polygons, &interior_points)
+}
+
+pub fn triangulate_shadows(
+    shadow_polygons: MultiPolygon,
+    interior_points: &[Vec2],
+) -> Vec<ShadowTriangles> {
     let mut shadow_triangles = Vec::new();
     for polygon in shadow_polygons {
         let (indices, vertices) = {

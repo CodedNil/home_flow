@@ -20,9 +20,9 @@ strum_macros = "0.26.1"
 derivative = "2.2.0"
 diff = "0.1.13"
 image = { version = "0.24.8", default-features = false, features = ["png"] }
-geo = "0.27.0"
-geo-clipper = "0.8.0"
-geo-types = "0.7.12"
+geo = { git = "https://github.com/RobWalt/geo.git", branch = "feat/spade-boolops" }
+geo-types = { version = "0.7.12", features = ["serde"] }
+geo-buffer = { git = "https://github.com/CodedNil/geo-buffer" }
 palette = { version = "0.7.4", default-features = false, features = ["std"] }
 
 # GUI dependencies
@@ -65,6 +65,7 @@ tower-http = { version = "0.5.1", features = [
     "compression-gzip",
 ] }
 time = "0.3.34"
+geo-clipper = "0.8.0"
 
 [features]
 default = ["gui"]

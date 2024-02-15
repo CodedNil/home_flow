@@ -994,6 +994,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "geo"
+version = "0.27.0"
+source = "git+https://github.com/RobWalt/geo.git?branch=feat/spade-boolops#4d4d92fd624b3dd71c732603a49db4a6b45f9d0d"
+dependencies = [
+ "earcutr",
+ "float_next_after",
+ "geo-types",
+ "geographiclib-rs",
+ "log",
+ "num-traits",
+ "robust",
+ "rstar",
+ "spade",
+]
+
+[[package]]
+name = "geo-buffer"
+version = "0.2.0"
+source = "git+https://github.com/CodedNil/geo-buffer#acec2abc193182ca0e3fc4fcc4599068b11e2f8f"
+dependencies = [
+ "geo 0.27.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "geo-types",
+]
+
+[[package]]
 name = "geo-clipper"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1235,7 +1260,8 @@ dependencies = [
  "egui",
  "egui-notify",
  "egui_plot",
- "geo",
+ "geo 0.27.0 (git+https://github.com/RobWalt/geo.git?branch=feat/spade-boolops)",
+ "geo-buffer",
  "geo-clipper",
  "geo-types",
  "glam",
@@ -1702,9 +1728,9 @@ dependencies = [
 
 [[package]]
 name = "num_threads"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2819ce041d2ee131036f4fc9d6ae7ae125a3a40e97ba64d04fe799ad9dabbb44"
+checksum = "5c7398b9c8b70908f6371f47ed36737907c87c52af34c268fed0bf0ceb92ead9"
 dependencies = [
  "libc",
 ]
@@ -2507,7 +2533,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow 0.6.0",
+ "winnow 0.6.1",
 ]
 
 [[package]]
@@ -3170,9 +3196,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b1dbce9e90e5404c5a52ed82b1d13fc8cfbdad85033b6f57546ffd1265f8451"
+checksum = "d90f4e0f530c4c69f62b80d839e9ef3855edc9cba471a160c4d692deed62b401"
 dependencies = [
  "memchr",
 ]

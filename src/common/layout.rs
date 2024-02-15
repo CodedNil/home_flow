@@ -123,8 +123,10 @@ pub struct TileOptions {
 
 pub struct HomeRender {
     pub hash: u64,
+    pub walls_hash: u64,
     pub wall_triangles: Vec<Triangles>,
-    pub wall_shadows: Vec<ShadowTriangles>,
+    pub wall_polygons: Vec<MultiPolygon>,
+    pub wall_shadows: Option<(u64, Vec<ShadowTriangles>)>,
 }
 
 pub struct RoomRender {

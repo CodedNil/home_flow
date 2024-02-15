@@ -14,6 +14,7 @@ const LAYOUT_PATH: &str = "home_layout.toml";
 pub fn setup_routes(app: Router) -> Router {
     app.route("/load_layout", get(load_layout_server))
         .route("/save_layout", post(save_layout_server))
+        .route("/wall_shadows", post(wall_shadows_server))
 }
 
 async fn load_layout_server() -> impl IntoResponse {
@@ -39,6 +40,27 @@ async fn save_layout_server(body: axum::body::Bytes) -> impl IntoResponse {
         Err(e) => {
             log::error!("Failed to deserialise layout: {:?}", e);
             StatusCode::BAD_REQUEST.into_response()
+        }
+    }
+}
+
+// Takes input Vec<MultiPolygon> and returns Vec<ShadowTriangles>
+async fn wall_shadows_server(body: axum::body::Bytes) -> impl IntoResponse {
+    match bincode::deserialize::<Vec<geo_types::MultiPolygon>>(&body) {
+        Ok(wall_polygons) => {
+            let shadows =
+                crate::common::shape::polygons_to_shadows_clipper(wall_polygons.iter().collect());
+            match bincode::serialize(&shadows) {
+                Ok(serialised) => (StatusCode::OK, serialised),
+                Err(e) => {
+                    log::error!("Failed to serialise wall shadows: {:?}", e);
+                    (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to deserialise wall polygons: {:?}", e);
+            (StatusCode::BAD_REQUEST, Vec::<u8>::new())
         }
     }
 }

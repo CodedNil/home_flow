@@ -23,7 +23,7 @@ mod common;
 #[tokio::main]
 async fn main() {
     simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Warn)
+        .with_level(log::LevelFilter::Info)
         .init()
         .unwrap();
 
@@ -68,7 +68,7 @@ async fn main() {
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
-    eframe::WebLogger::init(log::LevelFilter::Error).ok(); // Redirect `log` message to `console.log`
+    eframe::WebLogger::init(log::LevelFilter::Info).ok(); // Redirect `log` message to `console.log`
 
     let web_options = eframe::WebOptions::default();
 

@@ -35,3 +35,32 @@ pub fn save_layout(host: &str, home: &Home, on_done: impl 'static + Send + FnOnc
         }),
     );
 }
+
+#[cfg(target_arch = "wasm32")]
+pub fn get_wall_shadows(
+    host: &str,
+    wall_polygons_hash: u64,
+    wall_polygons: &[geo_types::MultiPolygon],
+    on_done: impl 'static + Send + FnOnce(Option<(u64, Vec<crate::common::shape::ShadowTriangles>)>),
+) {
+    super::fetch::fetch(
+        super::fetch::Request::post(
+            format!("http://{host}/wall_shadows"),
+            bincode::serialize(wall_polygons).unwrap(),
+        ),
+        Box::new(move |res| {
+            on_done(match res {
+                Ok(res) => bincode::deserialize(&res.bytes)
+                    .map(|shadows| Some((wall_polygons_hash, shadows)))
+                    .unwrap_or_else(|e| {
+                        log::error!("Failed to load wall shadows: {}", e);
+                        None
+                    }),
+                Err(e) => {
+                    log::error!("Failed to load wall shadows: {}", e);
+                    None
+                }
+            });
+        }),
+    );
+}
