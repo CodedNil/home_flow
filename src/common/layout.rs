@@ -149,6 +149,11 @@ impl Home {
             materials: vec![
                 GlobalMaterial::new("Carpet", Material::Carpet, Color::from_rgb(240, 225, 192)),
                 GlobalMaterial::new("Wood", Material::Wood, Color::from_rgb(190, 120, 80)),
+                GlobalMaterial::new("WoodDark", Material::Wood, Color::from_rgb(60, 60, 60)),
+                GlobalMaterial::new("Marble", Material::Marble, Color::from_rgb(255, 255, 255)),
+                GlobalMaterial::new("Granite", Material::Granite, Color::from_rgb(50, 50, 50)),
+                GlobalMaterial::new("Ceramic", Material::Empty, Color::from_rgb(230, 220, 200)),
+                GlobalMaterial::new("MetalDark", Material::Empty, Color::from_rgb(80, 80, 80)),
                 GlobalMaterial::new(
                     "KitchenTiles",
                     Material::Marble,

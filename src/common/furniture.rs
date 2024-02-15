@@ -17,6 +17,7 @@ use uuid::Uuid;
 pub struct Furniture {
     pub id: Uuid,
     pub furniture_type: FurnitureType,
+    pub material: String,
     pub pos: Vec2,
     pub size: Vec2,
     pub rotation: f64,
@@ -115,11 +116,29 @@ const GRANITE: FurnitureMaterial =
 const MARBLE: FurnitureMaterial =
     FurnitureMaterial::new(Material::Marble, Color::from_rgb(255, 255, 255));
 
+impl FurnitureType {
+    pub const fn render_order(self) -> u8 {
+        match self {
+            Self::Kitchen(KitchenType::HighCupboard)
+            | Self::AnimatedPiece(AnimatedPieceType::Water) => 3,
+            Self::AnimatedPiece(AnimatedPieceType::HighDrawer(_)) => 2,
+            Self::Chair(_) => 1,
+            Self::Rug(_) | Self::AnimatedPiece(_) => 0,
+            _ => 2,
+        }
+    }
+
+    pub const fn can_hover(self) -> bool {
+        matches!(self, Self::AnimatedPiece(_) | Self::Chair(_))
+    }
+}
+
 impl Furniture {
     pub fn new(furniture_type: FurnitureType, pos: Vec2, size: Vec2, rotation: f64) -> Self {
         Self {
             id: uuid::Uuid::new_v4(),
             furniture_type,
+            material: String::new(),
             pos,
             size,
             rotation,
@@ -138,21 +157,11 @@ impl Furniture {
     }
 
     pub const fn render_order(&self) -> u8 {
-        match self.furniture_type {
-            FurnitureType::Kitchen(KitchenType::HighCupboard)
-            | FurnitureType::AnimatedPiece(AnimatedPieceType::Water) => 3,
-            FurnitureType::AnimatedPiece(AnimatedPieceType::HighDrawer(_)) => 2,
-            FurnitureType::Chair(_) => 1,
-            FurnitureType::Rug(_) | FurnitureType::AnimatedPiece(_) => 0,
-            _ => 2,
-        }
+        self.furniture_type.render_order()
     }
 
     pub const fn can_hover(&self) -> bool {
-        matches!(
-            self.furniture_type,
-            FurnitureType::AnimatedPiece(_) | FurnitureType::Chair(_)
-        )
+        self.furniture_type.can_hover()
     }
 
     pub fn contains(&self, point: Vec2) -> bool {
