@@ -19,8 +19,6 @@ pub struct HomeFlow {
     time: f64,
     frame_time: f64,
 
-    translation: Vec2,
-    zoom: f64, // Zoom is meter to pixels
     canvas_center: Vec2,
     mouse_pos: Vec2,
     mouse_pos_world: Vec2,
@@ -35,15 +33,25 @@ pub struct HomeFlow {
     frame_times: History<f32>,
     host: String,
 
-    stored_data: StoredData,
+    stored: StoredData,
 
     download_data: Arc<Mutex<DownloadData>>,
 }
 
-#[derive(Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize)]
 #[serde(default)]
 pub struct StoredData {
-    pub test: String,
+    translation: Vec2,
+    zoom: f64, // Zoom is meter to pixels
+}
+
+impl Default for StoredData {
+    fn default() -> Self {
+        Self {
+            translation: Vec2::ZERO,
+            zoom: 100.0,
+        }
+    }
 }
 
 impl Default for HomeFlow {
@@ -51,8 +59,6 @@ impl Default for HomeFlow {
         Self {
             time: 0.0,
             frame_time: 0.0,
-            translation: Vec2::ZERO,
-            zoom: 100.0,
             canvas_center: Vec2::ZERO,
             mouse_pos: Vec2::ZERO,
             mouse_pos_world: Vec2::ZERO,
@@ -66,7 +72,7 @@ impl Default for HomeFlow {
             edit_mode: EditDetails::default(),
             frame_times: History::new(0..300, 1.0),
             host: "localhost:3000".to_string(),
-            stored_data: StoredData::default(),
+            stored: StoredData::default(),
             download_data: Arc::new(Mutex::new(DownloadData::default())),
         }
     }
@@ -87,12 +93,12 @@ enum DownloadLayout {
 
 impl HomeFlow {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let stored_data = cc.storage.map_or_else(StoredData::default, |storage| {
+        let stored = cc.storage.map_or_else(StoredData::default, |storage| {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         });
 
         Self {
-            stored_data,
+            stored,
             ..Default::default()
         }
     }
@@ -101,10 +107,10 @@ impl HomeFlow {
         vec2(self.pixels_to_world_x(v.x), self.pixels_to_world_y(v.y))
     }
     fn pixels_to_world_x(&self, x: f64) -> f64 {
-        (x - self.canvas_center.x) / self.zoom - self.translation.x
+        (x - self.canvas_center.x) / self.stored.zoom - self.stored.translation.x
     }
     fn pixels_to_world_y(&self, y: f64) -> f64 {
-        (self.canvas_center.y - y) / self.zoom + self.translation.y
+        (self.canvas_center.y - y) / self.stored.zoom + self.stored.translation.y
     }
 
     fn world_to_pixels(&self, v: Vec2) -> Vec2 {
@@ -114,32 +120,33 @@ impl HomeFlow {
         vec2(self.world_to_pixels_x(x), self.world_to_pixels_y(y))
     }
     fn world_to_pixels_x(&self, x: f64) -> f64 {
-        (x + self.translation.x) * self.zoom + self.canvas_center.x
+        (x + self.stored.translation.x) * self.stored.zoom + self.canvas_center.x
     }
     fn world_to_pixels_y(&self, y: f64) -> f64 {
-        (self.translation.y - y) * self.zoom + self.canvas_center.y
+        (self.stored.translation.y - y) * self.stored.zoom + self.canvas_center.y
     }
 
     fn handle_pan_zoom(&mut self, response: &egui::Response, ui: &egui::Ui) {
         // Drag
         if response.dragged() {
-            self.translation += egui_to_vec2(response.drag_delta()) * 0.01 / (self.zoom / 100.0);
+            self.stored.translation +=
+                egui_to_vec2(response.drag_delta()) * 0.01 / (self.stored.zoom / 100.0);
         }
 
         // Zoom
         let scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta));
         if scroll_delta != Vec2::ZERO {
-            let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.zoom / 100.0);
+            let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.stored.zoom / 100.0);
             let mouse_world_before_zoom = self.pixels_to_world(self.mouse_pos);
-            self.zoom = (self.zoom + zoom_amount).clamp(20.0, 300.0);
+            self.stored.zoom = (self.stored.zoom + zoom_amount).clamp(20.0, 300.0);
             let mouse_world_after_zoom = self.pixels_to_world(self.mouse_pos);
             let difference = mouse_world_after_zoom - mouse_world_before_zoom;
-            self.translation += Vec2::new(difference.x, -difference.y);
+            self.stored.translation += Vec2::new(difference.x, -difference.y);
         }
 
         // Clamp translation to bounds
         if self.bounds.0.is_finite() && self.bounds.1.is_finite() {
-            self.translation = self.translation.clamp(self.bounds.0, self.bounds.1);
+            self.stored.translation = self.stored.translation.clamp(self.bounds.0, self.bounds.1);
         }
     }
 
@@ -196,7 +203,7 @@ impl HomeFlow {
 impl eframe::App for HomeFlow {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, &self.stored_data);
+        eframe::set_value(storage, eframe::APP_KEY, &self.stored);
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.

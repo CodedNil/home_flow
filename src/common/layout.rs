@@ -107,7 +107,7 @@ pub enum Shape {
     Triangle,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct GlobalMaterial {
     pub name: String,
     pub material: Material,
@@ -115,7 +115,7 @@ pub struct GlobalMaterial {
     pub tiles: Option<TileOptions>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct TileOptions {
     pub spacing: f64,
     pub grout_width: f64,

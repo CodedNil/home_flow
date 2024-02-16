@@ -155,7 +155,7 @@ impl HomeFlow {
                 let rot_dir = vec2(
                     (opening.rotation as f64).to_radians().cos(),
                     (opening.rotation as f64).to_radians().sin(),
-                ) * (opening.width / 2.0 * self.zoom);
+                ) * (opening.width / 2.0 * self.stored.zoom);
                 let start = vec2_to_egui_pos(pos - rot_dir);
                 let end = vec2_to_egui_pos(pos + rot_dir);
                 painter.line_segment([start, end], Stroke::new(6.0, color));

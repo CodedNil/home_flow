@@ -8,7 +8,7 @@ use super::{
 use crate::{
     common::{
         furniture::{ChairType, Furniture, FurnitureType},
-        layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
+        layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room, TileOptions},
     },
     server::common_api::save_layout,
 };
@@ -28,6 +28,7 @@ pub struct EditDetails {
     pub selected_type: Option<ObjectType>,
     pub preview_edits: bool,
     pub resize_enabled: bool,
+    pub material_editor_open: bool,
 }
 
 pub struct DragData {
@@ -74,6 +75,14 @@ pub struct EditResponse {
     pub snap_line_y: Option<f64>,
 }
 
+#[derive(Clone, Copy)]
+enum AlterObject {
+    None,
+    Delete,
+    MoveUp,
+    MoveDown,
+}
+
 impl HomeFlow {
     pub fn edit_mode_settings(&mut self, ctx: &Context, ui: &mut Ui) {
         // If in edit mode, show button to view save and discard changes
@@ -109,6 +118,9 @@ impl HomeFlow {
                 self.edit_mode.enabled = false;
             }
             ui.checkbox(&mut self.edit_mode.resize_enabled, "Resizing");
+            if ui.button("Materials Editor").clicked() {
+                self.edit_mode.material_editor_open = !self.edit_mode.material_editor_open;
+            }
 
             // Show preview edits
             Window::new("Preview Edits")
@@ -318,6 +330,98 @@ impl HomeFlow {
             }
         }
 
+        Window::new("Edit Materials".to_string())
+            .fixed_pos(vec2_to_egui_pos(vec2(
+                self.canvas_center.x,
+                self.canvas_center.y,
+            )))
+            .fixed_size([300.0, 0.0])
+            .pivot(Align2::CENTER_CENTER)
+            .open(&mut self.edit_mode.material_editor_open)
+            .show(ui.ctx(), |ui| {
+                ui.vertical_centered(|ui| {
+                    let num_objects = self.layout.materials.len();
+                    let mut alterations = vec![AlterObject::None; num_objects];
+                    for (index, material) in self.layout.materials.iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            ui.label("Material");
+                            TextEdit::singleline(&mut material.name)
+                                .min_size(egui::vec2(100.0, 0.0))
+                                .desired_width(0.0)
+                                .show(ui);
+                            combo_box_for_enum(
+                                ui,
+                                &format!("Material {index}"),
+                                &mut material.material,
+                                "",
+                            );
+                            ui.color_edit_button_srgba_unmultiplied(material.tint.mut_array());
+
+                            edit_option(
+                                ui,
+                                "Tiles",
+                                &mut material.tiles,
+                                TileOptions::default,
+                                |ui, tiles| {
+                                    labelled_widget(ui, "Spacing", |ui| {
+                                        ui.add(
+                                            DragValue::new(&mut tiles.spacing)
+                                                .speed(0.1)
+                                                .fixed_decimals(2)
+                                                .clamp_range(0.01..=5.0)
+                                                .suffix("m"),
+                                        );
+                                    });
+                                    labelled_widget(ui, "Width", |ui| {
+                                        ui.add(
+                                            DragValue::new(&mut tiles.grout_width)
+                                                .speed(0.1)
+                                                .fixed_decimals(2)
+                                                .clamp_range(0.01..=5.0)
+                                                .suffix("m"),
+                                        );
+                                    });
+                                    labelled_widget(ui, "", |ui| {
+                                        ui.color_edit_button_srgba_unmultiplied(
+                                            tiles.grout_color.mut_array(),
+                                        );
+                                    });
+                                },
+                            );
+
+                            if ui.button("Delete").clicked() {
+                                alterations[index] = AlterObject::Delete;
+                            }
+                            if index > 0 && ui.button("^").clicked() {
+                                alterations[index] = AlterObject::MoveUp;
+                            }
+                            if index < num_objects - 1 && ui.button("v").clicked() {
+                                alterations[index] = AlterObject::MoveDown;
+                            }
+                        });
+                    }
+                    for (index, alteration) in alterations.into_iter().enumerate().rev() {
+                        match alteration {
+                            AlterObject::Delete => {
+                                self.layout.materials.remove(index);
+                            }
+                            AlterObject::MoveUp => {
+                                self.layout.materials.swap(index, index - 1);
+                            }
+                            AlterObject::MoveDown => {
+                                self.layout.materials.swap(index, index + 1);
+                            }
+                            AlterObject::None => {}
+                        }
+                    }
+
+                    // Add button
+                    if ui.button("Add Material").clicked() {
+                        self.layout.materials.push(GlobalMaterial::default());
+                    }
+                });
+            });
+
         EditResponse {
             used_dragged,
             hovered_id: hover_details.map(|h| h.id),
@@ -396,14 +500,6 @@ impl HomeFlow {
             _ => {}
         }
     }
-}
-
-#[derive(Clone, Copy)]
-enum AlterObject {
-    None,
-    Delete,
-    MoveUp,
-    MoveDown,
 }
 
 fn room_edit_widgets(

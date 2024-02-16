@@ -303,6 +303,15 @@ impl Hash for GlobalMaterial {
         self.name.hash(state);
         self.material.hash(state);
         self.tint.hash(state);
+        self.tiles.hash(state);
+    }
+}
+
+impl Hash for TileOptions {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.spacing.to_bits().hash(state);
+        self.grout_width.to_bits().hash(state);
+        self.grout_color.hash(state);
     }
 }
 

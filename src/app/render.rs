@@ -28,7 +28,7 @@ const GRID_THICK: Stroke = Stroke {
 
 impl HomeFlow {
     pub fn render_grid(&self, painter: &Painter, visible_rect: &Rect) {
-        let grid_interval = 2.0_f64.powf((160.0 / self.zoom).abs().log2().round()) / 4.0;
+        let grid_interval = 2.0_f64.powf((160.0 / self.stored.zoom).abs().log2().round()) / 4.0;
 
         let bottom_edge_world = self.pixels_to_world_y(visible_rect.bottom() as f64);
         let top_edge_world = self.pixels_to_world_y(visible_rect.top() as f64);
@@ -154,7 +154,7 @@ impl HomeFlow {
                     painter.add(EShape::closed_line(
                         vertices,
                         Stroke::new(
-                            (outline.thickness * self.zoom) as f32,
+                            (outline.thickness * self.stored.zoom) as f32,
                             outline.color.to_egui(),
                         ),
                     ));

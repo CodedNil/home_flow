@@ -148,7 +148,7 @@ impl HomeFlow {
                 // Calculate the rotated direction vectors for the four directions
                 let right_dir = rotate_point_i32(vec2(1.0, 0.0), Vec2::ZERO, -data.rotation);
                 let up_dir = rotate_point_i32(vec2(0.0, 1.0), Vec2::ZERO, -data.rotation);
-                let screen_size = data.size / 2.0 * self.zoom;
+                let screen_size = data.size / 2.0 * self.stored.zoom;
 
                 let threshold = 20.0;
 
