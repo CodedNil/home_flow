@@ -1,7 +1,8 @@
 use super::{
     color::Color,
     furniture::{
-        BathroomType, ChairType, Furniture, FurnitureType, KitchenType, StorageType, TableType,
+        BathroomType, ChairType, Furniture, FurnitureType, KitchenType, MiscHeight, StorageType,
+        TableType,
     },
     shape::ShadowsData,
     utils::{clone_as_none, Material},
@@ -210,7 +211,7 @@ impl Home {
             furniture: vec![
                 // Kitchen counters
                 Furniture::new(
-                    FurnitureType::Table(TableType::Empty),
+                    FurnitureType::Misc(MiscHeight::Low),
                     vec2(-5.475, 2.725),
                     vec2(0.55, 0.55),
                     0,
@@ -231,7 +232,7 @@ impl Home {
                 )
                 .material("Granite"),
                 Furniture::new(
-                    FurnitureType::Table(TableType::Empty),
+                    FurnitureType::Misc(MiscHeight::Low),
                     vec2(-2.725, 2.725),
                     vec2(0.55, 0.55),
                     0,
@@ -275,6 +276,32 @@ impl Home {
                     vec2(0.55, 0.25),
                     45,
                 ),
+                // Cupboard corners
+                Furniture::new(
+                    FurnitureType::Misc(MiscHeight::High),
+                    vec2(-5.475, 2.8625),
+                    vec2(0.55, 0.2750),
+                    0,
+                ),
+                Furniture::new(
+                    FurnitureType::Misc(MiscHeight::High),
+                    vec2(-5.625, 2.725),
+                    vec2(0.55, 0.2750),
+                    -90,
+                ),
+                Furniture::new(
+                    FurnitureType::Misc(MiscHeight::High),
+                    vec2(-2.7625, 2.8875),
+                    vec2(0.625, 0.225),
+                    0,
+                ),
+                Furniture::new(
+                    FurnitureType::Misc(MiscHeight::High),
+                    vec2(-2.575, 2.725),
+                    vec2(0.55, 0.2750),
+                    90,
+                ),
+                // Kitchen
                 Furniture::named(
                     "Fridge",
                     FurnitureType::Storage(StorageType::CupboardHigh),

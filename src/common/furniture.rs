@@ -42,6 +42,7 @@ pub enum FurnitureType {
     Storage(StorageType),
     Boiler,
     AnimatedPiece(AnimatedPieceType),
+    Misc(MiscHeight),
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
@@ -88,6 +89,14 @@ pub enum StorageType {
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
+pub enum MiscHeight {
+    #[default]
+    Low,
+    Mid,
+    High,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum AnimatedPieceType {
     #[default]
     Drawer,
@@ -108,8 +117,10 @@ const METAL_DARK: FurnitureMaterial =
 impl FurnitureType {
     pub const fn render_order(self) -> u8 {
         match self {
-            Self::Storage(StorageType::CupboardHigh | StorageType::DrawerHigh) => 6,
-            Self::Storage(StorageType::CupboardMid | StorageType::DrawerMid) => 4,
+            Self::Storage(StorageType::CupboardHigh | StorageType::DrawerHigh)
+            | Self::Misc(MiscHeight::High) => 6,
+            Self::Storage(StorageType::CupboardMid | StorageType::DrawerMid)
+            | Self::Misc(MiscHeight::Mid) => 4,
             Self::AnimatedPiece(animated_type) => match animated_type {
                 AnimatedPieceType::DrawerHigh | AnimatedPieceType::DoorHigh(_) => 5,
                 AnimatedPieceType::DrawerMid | AnimatedPieceType::DoorMid(_) => 3,
@@ -267,6 +278,7 @@ impl Furniture {
             FurnitureType::AnimatedPiece(sub_type) => {
                 self.animated_render(&mut polygons, material, sub_type);
             }
+            FurnitureType::Misc(_) => polygons.push((material, self.full_shape())),
         }
         polygons
     }
