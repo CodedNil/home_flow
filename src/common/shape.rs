@@ -5,7 +5,7 @@ use super::{
         Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
         Triangles, Walls,
     },
-    utils::{rotate_point, Material},
+    utils::{rotate_point_i32, Material},
 };
 use geo::{
     triangulate_spade::SpadeTriangulationConfig, BoundingRect, TriangulateEarcut, TriangulateSpade,
@@ -80,7 +80,7 @@ impl Home {
                 if furniture.rendered_data.is_none()
                     || furniture.rendered_data.as_ref().unwrap().hash != hash
                 {
-                    Some((index, hash, furniture.render()))
+                    Some((index, hash, furniture.render(&self.materials)))
                 } else {
                     None
                 }
@@ -167,26 +167,30 @@ impl Home {
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
-        if string.ends_with("-grout") {
-            let string = string.trim_end_matches("-grout");
-            for material in &self.materials {
-                if material.name == string {
-                    let tiles_colour = material
-                        .tiles
-                        .as_ref()
-                        .map(|t| t.grout_color)
-                        .unwrap_or_default();
-                    return GlobalMaterial::new(string, material.material, tiles_colour);
-                }
-            }
-        }
-        for material in &self.materials {
-            if material.name == string {
-                return material.clone();
-            }
-        }
-        GlobalMaterial::new(string, Material::Carpet, Color::WHITE)
+        get_global_material(&self.materials, string)
     }
+}
+
+pub fn get_global_material(materials: &[GlobalMaterial], string: &str) -> GlobalMaterial {
+    if string.ends_with("-grout") {
+        let string = string.trim_end_matches("-grout");
+        for material in materials {
+            if material.name == string {
+                let tiles_colour = material
+                    .tiles
+                    .as_ref()
+                    .map(|t| t.grout_color)
+                    .unwrap_or_default();
+                return GlobalMaterial::new(string, material.material, tiles_colour);
+            }
+        }
+    }
+    for material in materials {
+        if material.name == string {
+            return material.clone();
+        }
+    }
+    GlobalMaterial::new(string, Material::Carpet, Color::WHITE)
 }
 
 impl Room {
@@ -213,7 +217,7 @@ impl Room {
     }
 
     pub fn contains(&self, point: Vec2) -> bool {
-        let mut inside = Shape::Rectangle.contains(point, self.pos, self.size, 0.0);
+        let mut inside = Shape::Rectangle.contains(point, self.pos, self.size, 0);
         for operation in &self.operations {
             if operation.contains(self.pos, point) {
                 match operation.action {
@@ -231,7 +235,7 @@ impl Room {
     }
 
     pub fn polygons(&self) -> MultiPolygon {
-        let mut polygons = Shape::Rectangle.polygons(self.pos, self.size, 0.0);
+        let mut polygons = Shape::Rectangle.polygons(self.pos, self.size, 0);
         for operation in &self.operations {
             match operation.action {
                 Action::Add => {
@@ -256,7 +260,7 @@ impl Room {
         let mut polygons = IndexMap::new();
         polygons.insert(
             self.material.clone(),
-            Shape::Rectangle.polygons(self.pos, self.size, 0.0),
+            Shape::Rectangle.polygons(self.pos, self.size, 0),
         );
         for operation in &self.operations {
             match operation.action {
@@ -303,7 +307,7 @@ impl Room {
                         let line = Shape::Rectangle.polygons(
                             self.pos + vec2(x_pos, 0.0),
                             vec2(tile.grout_width, self.size.y),
-                            0.0,
+                            0,
                         );
                         new_polygons.push(intersection_polygons(&line, poly));
                     }
@@ -315,7 +319,7 @@ impl Room {
                         let line = Shape::Rectangle.polygons(
                             self.pos + vec2(0.0, y_pos),
                             vec2(self.size.x, tile.grout_width),
-                            0.0,
+                            0,
                         );
                         new_polygons.push(intersection_polygons(&line, poly));
                     }
@@ -608,8 +612,8 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles>
 }
 
 impl Shape {
-    pub fn contains(self, point: Vec2, center: Vec2, size: Vec2, rotation: f64) -> bool {
-        let point = rotate_point(point, center, rotation);
+    pub fn contains(self, point: Vec2, center: Vec2, size: Vec2, rotation: i32) -> bool {
+        let point = rotate_point_i32(point, center, rotation);
         match self {
             Self::Rectangle => (point - center).abs().cmple(size * 0.5).all(),
             Self::Circle => ((point - center) / (size * 0.5)).length_squared() <= 1.0,
@@ -624,7 +628,7 @@ impl Shape {
         }
     }
 
-    pub fn vertices(self, pos: Vec2, size: Vec2, rotation: f64) -> Vec<Vec2> {
+    pub fn vertices(self, pos: Vec2, size: Vec2, rotation: i32) -> Vec<Vec2> {
         match self {
             Self::Rectangle => vec![(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)],
             Self::Circle => {
@@ -640,7 +644,7 @@ impl Shape {
         }
         .iter()
         .map(|(x_offset, y_offset)| {
-            rotate_point(
+            rotate_point_i32(
                 vec2(x_offset * size.x, y_offset * size.y),
                 Vec2::ZERO,
                 -rotation,
@@ -649,11 +653,11 @@ impl Shape {
         .collect()
     }
 
-    pub fn polygon(self, pos: Vec2, size: Vec2, rotation: f64) -> Polygon {
+    pub fn polygon(self, pos: Vec2, size: Vec2, rotation: i32) -> Polygon {
         create_polygon(&self.vertices(pos, size, rotation))
     }
 
-    pub fn polygons(self, pos: Vec2, size: Vec2, rotation: f64) -> MultiPolygon {
+    pub fn polygons(self, pos: Vec2, size: Vec2, rotation: i32) -> MultiPolygon {
         self.polygon(pos, size, rotation).into()
     }
 }

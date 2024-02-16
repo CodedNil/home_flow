@@ -35,6 +35,10 @@ pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
     )
 }
 
+pub fn rotate_point_i32(point: Vec2, pivot: Vec2, angle: i32) -> Vec2 {
+    rotate_point(point, pivot, angle as f64)
+}
+
 pub const fn clone_as_none<T>(_x: &Option<T>) -> Option<T> {
     None
 }
@@ -49,24 +53,16 @@ impl Hash for Home {
 }
 
 impl Room {
-    pub fn new(
-        name: &str,
-        pos: Vec2,
-        size: Vec2,
-        material: &str,
-        walls: Walls,
-        operations: Vec<Operation>,
-        openings: Vec<Opening>,
-    ) -> Self {
+    pub fn new(name: &str, pos: Vec2, size: Vec2, material: &str) -> Self {
         Self {
             id: uuid::Uuid::new_v4(),
             name: name.to_owned(),
             material: material.to_owned(),
             pos,
             size,
-            walls,
-            operations,
-            openings,
+            walls: Walls::WALL,
+            operations: Vec::new(),
+            openings: Vec::new(),
             outline: None,
             rendered_data: None,
         }
@@ -98,6 +94,77 @@ impl Room {
             ..*self
         }
     }
+
+    pub fn no_wall_left(&self) -> Self {
+        let mut clone = self.clone();
+        clone.walls = self.walls.left(false);
+        clone
+    }
+
+    pub fn no_wall_top(&self) -> Self {
+        let mut clone = self.clone();
+        clone.walls = self.walls.top(false);
+        clone
+    }
+
+    pub fn no_wall_right(&self) -> Self {
+        let mut clone = self.clone();
+        clone.walls = self.walls.right(false);
+        clone
+    }
+
+    pub fn no_wall_bottom(&self) -> Self {
+        let mut clone = self.clone();
+        clone.walls = self.walls.bottom(false);
+        clone
+    }
+
+    pub fn opening(&self, opening: Opening) -> Self {
+        let mut clone = self.clone();
+        clone.openings.push(opening);
+        clone
+    }
+
+    pub fn window(&self, pos: Vec2, rotation: i32) -> Self {
+        self.opening(Opening::new(OpeningType::Window, pos, rotation))
+    }
+
+    pub fn window_width(&self, pos: Vec2, rotation: i32, width: f64) -> Self {
+        self.opening(Opening::new(OpeningType::Window, pos, rotation).width(width))
+    }
+
+    pub fn door(&self, pos: Vec2, rotation: i32) -> Self {
+        self.opening(Opening::new(OpeningType::Door, pos, rotation))
+    }
+
+    pub fn door_width(&self, pos: Vec2, rotation: i32, width: f64) -> Self {
+        self.opening(Opening::new(OpeningType::Door, pos, rotation).width(width))
+    }
+
+    pub fn operation(&self, operation: Operation) -> Self {
+        let mut clone = self.clone();
+        clone.operations.push(operation);
+        clone
+    }
+
+    pub fn add(&self, pos: Vec2, size: Vec2) -> Self {
+        self.operation(Operation::new(Action::Add, Shape::Rectangle, pos, size))
+    }
+
+    pub fn add_material(&self, pos: Vec2, size: Vec2, material: &str) -> Self {
+        self.operation(
+            Operation::new(Action::Add, Shape::Rectangle, pos, size).set_material(material),
+        )
+    }
+
+    pub fn subtract(&self, pos: Vec2, size: Vec2) -> Self {
+        self.operation(Operation::new(
+            Action::Subtract,
+            Shape::Rectangle,
+            pos,
+            size,
+        ))
+    }
 }
 impl Hash for Room {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -112,12 +179,12 @@ impl Hash for Room {
 }
 
 impl Opening {
-    pub fn new(opening_type: OpeningType, pos: Vec2) -> Self {
+    pub fn new(opening_type: OpeningType, pos: Vec2, rotation: i32) -> Self {
         Self {
             id: uuid::Uuid::new_v4(),
             opening_type,
             pos,
-            rotation: 0.0,
+            rotation,
             width: 0.8,
             open_amount: 0.0,
         }
@@ -128,16 +195,9 @@ impl Opening {
             id: uuid::Uuid::new_v4(),
             opening_type: OpeningType::Door,
             pos: Vec2::ZERO,
-            rotation: 0.0,
+            rotation: 0,
             width: 0.8,
             open_amount: 0.0,
-        }
-    }
-
-    pub const fn rotate(&self, angle: f64) -> Self {
-        Self {
-            rotation: angle,
-            ..*self
         }
     }
 
@@ -149,7 +209,7 @@ impl Hash for Opening {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.opening_type.hash(state);
         hash_vec2(self.pos, state);
-        self.rotation.to_bits().hash(state);
+        self.rotation.hash(state);
         self.width.to_bits().hash(state);
     }
 }
@@ -163,7 +223,7 @@ impl Operation {
             material: None,
             pos,
             size,
-            rotation: 0.0,
+            rotation: 0,
         }
     }
 
@@ -175,7 +235,7 @@ impl Operation {
             material: None,
             pos: Vec2::ZERO,
             size: vec2(1.0, 1.0),
-            rotation: 0.0,
+            rotation: 0,
         }
     }
 
@@ -193,7 +253,7 @@ impl Hash for Operation {
         self.material.hash(state);
         hash_vec2(self.pos, state);
         hash_vec2(self.size, state);
-        self.rotation.to_bits().hash(state);
+        self.rotation.hash(state);
     }
 }
 

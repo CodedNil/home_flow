@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     common::{
-        furniture::{ChairType, Furniture, FurnitureType, StorageType, TableType},
+        furniture::{ChairType, Furniture, FurnitureType, StorageType},
         layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
     },
     server::common_api::save_layout,
@@ -37,7 +37,7 @@ pub struct DragData {
     pub mouse_start_pos: Vec2,
     pub start_pos: Vec2,
     pub start_size: Vec2,
-    pub start_rotation: f64,
+    pub start_rotation: i32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -173,9 +173,9 @@ impl HomeFlow {
         let can_drag = hover_details.as_ref().is_some_and(|h| h.can_drag);
         if can_drag || self.edit_mode.drag_data.is_some() {
             if let Some(hover_details) = &hover_details {
-                let rotation_normalized = hover_details.rotation.rem_euclid(360.0);
-                let flip_cursor = (rotation_normalized > 45.0 && rotation_normalized < 135.0)
-                    || (rotation_normalized > 225.0 && rotation_normalized < 315.0);
+                let rotation_normalized = hover_details.rotation.rem_euclid(360);
+                let flip_cursor = (rotation_normalized > 45 && rotation_normalized < 135)
+                    || (rotation_normalized > 225 && rotation_normalized < 315);
 
                 match hover_details.manipulation_type {
                     ManipulationType::Move => {
@@ -372,7 +372,7 @@ impl HomeFlow {
                             }
                         });
                 if let Some((index, furniture)) = furniture_and_index {
-                    let alter_type = furniture_edit_widgets(ui, furniture);
+                    let alter_type = furniture_edit_widgets(ui, &self.layout.materials, furniture);
                     match alter_type {
                         AlterObject::Delete => {
                             self.layout.furniture.retain(|r| r.id != selected_id);
@@ -626,7 +626,11 @@ fn room_edit_widgets(
     alter_type
 }
 
-fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> AlterObject {
+fn furniture_edit_widgets(
+    ui: &mut egui::Ui,
+    materials: &[GlobalMaterial],
+    furniture: &mut Furniture,
+) -> AlterObject {
     let mut alter_type = AlterObject::None;
     ui.horizontal(|ui| {
         ui.label("Furniture ");
@@ -653,9 +657,6 @@ fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> Alter
             }
             FurnitureType::Table(ref mut table_type) => {
                 combo_box_for_enum(ui, "Table Type", table_type, "");
-                if let TableType::Desk(ref mut color) = table_type {
-                    ui.color_edit_button_srgba_unmultiplied(color.mut_array());
-                }
             }
             FurnitureType::Bed(ref mut color) | FurnitureType::Rug(ref mut color) => {
                 ui.color_edit_button_srgba_unmultiplied(color.mut_array());
@@ -677,10 +678,10 @@ fn furniture_edit_widgets(ui: &mut egui::Ui, furniture: &mut Furniture) -> Alter
                     _ => {}
                 };
             }
-            FurnitureType::Boiler
-            | FurnitureType::Radiator
-            | FurnitureType::Display
-            | FurnitureType::AnimatedPiece(_) => {}
+            _ => {}
+        }
+        if furniture.furniture_type.has_material() {
+            combo_box_for_materials(ui, furniture.id, materials, &mut furniture.material);
         }
         if ui.add(Button::new("Delete")).clicked() {
             alter_type = AlterObject::Delete;

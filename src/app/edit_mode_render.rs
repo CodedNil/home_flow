@@ -106,7 +106,7 @@ impl HomeFlow {
             }
 
             // Render original shape
-            let vertices = Shape::Rectangle.vertices(room.pos, room.size, 0.0);
+            let vertices = Shape::Rectangle.vertices(room.pos, room.size, 0);
             let stroke = Stroke::new(3.0, Color32::from_rgb(50, 200, 50).gamma_multiply(0.6));
             self.closed_dashed_line_with_offset(painter, &vertices, stroke, 35.0, self.time * 50.0);
 
@@ -153,8 +153,8 @@ impl HomeFlow {
                 ));
                 // Add a line along its rotation
                 let rot_dir = vec2(
-                    opening.rotation.to_radians().cos(),
-                    opening.rotation.to_radians().sin(),
+                    (opening.rotation as f64).to_radians().cos(),
+                    (opening.rotation as f64).to_radians().sin(),
                 ) * (opening.width / 2.0 * self.zoom);
                 let start = vec2_to_egui_pos(pos - rot_dir);
                 let end = vec2_to_egui_pos(pos + rot_dir);

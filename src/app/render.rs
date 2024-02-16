@@ -4,7 +4,7 @@ use crate::common::{
     furniture::{AnimatedPieceType, Furniture, FurnitureType},
     layout::{OpeningType, Shape},
     shape::WALL_WIDTH,
-    utils::{rotate_point, Material},
+    utils::{rotate_point, rotate_point_i32, Material},
 };
 use egui::{
     epaint::Vertex, Color32, ColorImage, Mesh, Painter, Rect, Shape as EShape, Stroke, TextureId,
@@ -180,7 +180,8 @@ impl HomeFlow {
                 if child.can_hover()
                     && Shape::Rectangle.contains(
                         self.mouse_pos_world,
-                        furniture.pos + rotate_point(child.pos, Vec2::ZERO, -furniture.rotation),
+                        furniture.pos
+                            + rotate_point_i32(child.pos, Vec2::ZERO, -furniture.rotation),
                         child.size * 1.2,
                         furniture.rotation + child.rotation,
                     )
@@ -215,7 +216,7 @@ impl HomeFlow {
             let (offset, offset_rot, opacity) =
                 if matches!(child.furniture_type, FurnitureType::Chair(_)) {
                     (
-                        rotate_point(
+                        rotate_point_i32(
                             vec2(hover * 0.15, hover * 0.3),
                             Vec2::ZERO,
                             -(obj.rotation + child.rotation),
@@ -230,7 +231,7 @@ impl HomeFlow {
                     )
                 ) {
                     (
-                        rotate_point(
+                        rotate_point_i32(
                             vec2(0.0, child.size.y * hover * -0.6),
                             Vec2::ZERO,
                             -(obj.rotation + child.rotation),
@@ -249,8 +250,8 @@ impl HomeFlow {
             furniture_adjustments.insert(
                 child.id,
                 (
-                    obj.pos + rotate_point(child.pos, Vec2::ZERO, -obj.rotation) + offset,
-                    obj.rotation + child.rotation + offset_rot,
+                    obj.pos + rotate_point_i32(child.pos, Vec2::ZERO, -obj.rotation) + offset,
+                    obj.rotation as f64 + child.rotation as f64 + offset_rot,
                     opacity,
                 ),
             );
@@ -281,7 +282,7 @@ impl HomeFlow {
                     let rendered_data = furniture.rendered_data.as_ref().unwrap();
                     let &(pos, rot, _) = furniture_adjustments.get(&furniture.id).unwrap_or(&(
                         furniture.pos,
-                        furniture.rotation,
+                        furniture.rotation as f64,
                         1.0,
                     ));
 
@@ -319,7 +320,7 @@ impl HomeFlow {
                     let rendered_data = furniture.rendered_data.as_ref().unwrap();
                     let &(pos, rot, opacity) = furniture_adjustments
                         .get(&furniture.id)
-                        .unwrap_or(&(furniture.pos, furniture.rotation, 1.0));
+                        .unwrap_or(&(furniture.pos, furniture.rotation as f64, 1.0));
 
                     for (material, multi_triangles) in &rendered_data.triangles {
                         let texture_id = self.load_texture(material.material);
@@ -413,8 +414,8 @@ impl HomeFlow {
                     OpeningType::Window => WALL_WIDTH,
                 };
                 let rot_dir = vec2(
-                    opening.rotation.to_radians().cos(),
-                    opening.rotation.to_radians().sin(),
+                    (opening.rotation as f64).to_radians().cos(),
+                    (opening.rotation as f64).to_radians().sin(),
                 );
                 let hinge_pos = room.pos + opening.pos + rot_dir * (opening.width) / 2.0;
 
