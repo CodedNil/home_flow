@@ -18,6 +18,7 @@ pub struct Furniture {
     pub id: Uuid,
     pub furniture_type: FurnitureType,
     pub material: String,
+    pub material_children: String,
     pub pos: Vec2,
     pub size: Vec2,
     pub rotation: i32,
@@ -54,23 +55,15 @@ pub enum ChairType {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum TableType {
     #[default]
+    Empty,
     Dining,
     Desk,
-    Empty,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum KitchenType {
     #[default]
-    Cupboard,
-    HighCupboard,
-    GraniteCounter,
-    MarbleCounter,
-    Fridge,
-    Oven,
     Hob,
-    Dishwasher,
-    LaundryMachine,
     Microwave,
     Sink,
 }
@@ -87,21 +80,19 @@ pub enum BathroomType {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum StorageType {
     #[default]
-    Wardrobe,
-    WardrobeColor(Color),
     Cupboard,
-    CupboardColor(Color),
+    CupboardHigh,
     Drawer,
-    DrawerColor(Color),
+    DrawerHigh,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum AnimatedPieceType {
     #[default]
-    Water,
-    Drawer(Color),
-    HighDrawer(Color),
-    Door(Color),
+    Drawer,
+    DrawerHigh,
+    Door(bool),
+    DoorHigh(bool),
 }
 
 const WOOD: FurnitureMaterial =
@@ -110,17 +101,14 @@ const CERAMIC: FurnitureMaterial =
     FurnitureMaterial::new(Material::Empty, Color::from_rgb(230, 220, 200));
 const METAL_DARK: FurnitureMaterial =
     FurnitureMaterial::new(Material::Empty, Color::from_rgb(80, 80, 80));
-const GRANITE: FurnitureMaterial =
-    FurnitureMaterial::new(Material::Granite, Color::from_rgb(80, 80, 80));
-const MARBLE: FurnitureMaterial =
-    FurnitureMaterial::new(Material::Marble, Color::from_rgb(255, 255, 255));
 
 impl FurnitureType {
     pub const fn render_order(self) -> u8 {
         match self {
-            Self::Kitchen(KitchenType::HighCupboard)
-            | Self::AnimatedPiece(AnimatedPieceType::Water) => 3,
-            Self::AnimatedPiece(AnimatedPieceType::HighDrawer(_)) => 2,
+            Self::Storage(StorageType::CupboardHigh | StorageType::DrawerHigh) => 4,
+            Self::AnimatedPiece(AnimatedPieceType::DrawerHigh | AnimatedPieceType::DoorHigh(_)) => {
+                3
+            }
             Self::Chair(_) => 1,
             Self::Rug(_) | Self::AnimatedPiece(_) => 0,
             _ => 2,
@@ -145,12 +133,20 @@ impl Furniture {
             id: uuid::Uuid::new_v4(),
             furniture_type,
             material: "Wood".to_owned(),
+            material_children: "Wood".to_owned(),
             pos,
             size,
             rotation,
             hover_amount: 0.0,
             rendered_data: None,
         }
+    }
+
+    pub fn materials(&self, material: &str) -> Self {
+        let mut clone = self.clone();
+        clone.material = material.to_owned();
+        clone.material_children = material.to_owned();
+        clone
     }
 
     pub fn material(&self, material: &str) -> Self {
@@ -234,14 +230,16 @@ impl Furniture {
             FurnitureType::Chair(sub_type) => self.chair_render(&mut polygons, material, sub_type),
             FurnitureType::Table(_) => self.table_render(&mut polygons, material),
             FurnitureType::Bed(color) => self.bed_render(&mut polygons, color),
-            FurnitureType::Storage(sub_type) => self.storage_render(&mut polygons, sub_type),
+            FurnitureType::Storage(_) => self.storage_render(&mut polygons, material),
             FurnitureType::Rug(color) => self.rug_render(&mut polygons, color),
             FurnitureType::Kitchen(sub_type) => self.kitchen_render(&mut polygons, sub_type),
             FurnitureType::Bathroom(sub_type) => self.bathroom_render(&mut polygons, sub_type),
             FurnitureType::Boiler => polygons.push((METAL_DARK, self.full_shape())),
             FurnitureType::Radiator => self.radiator_render(&mut polygons),
             FurnitureType::Display => self.display_render(&mut polygons),
-            FurnitureType::AnimatedPiece(sub_type) => self.animated_render(&mut polygons, sub_type),
+            FurnitureType::AnimatedPiece(sub_type) => {
+                self.animated_render(&mut polygons, material, sub_type);
+            }
         }
         polygons
     }
@@ -250,19 +248,8 @@ impl Furniture {
         let mut children = Vec::new();
         match self.furniture_type {
             FurnitureType::Table(sub_type) => self.table_children(&mut children, sub_type),
-            FurnitureType::Bathroom(BathroomType::Bath) => {
-                children.push(Self::new(
-                    FurnitureType::AnimatedPiece(AnimatedPieceType::Water),
-                    vec2(0.0, -0.05),
-                    self.size - vec2(0.2, 0.3),
-                    0,
-                ));
-            }
             FurnitureType::Storage(sub_type) => {
                 self.storage_children(&mut children, sub_type);
-            }
-            FurnitureType::Kitchen(sub_type) => {
-                self.kitchen_children(&mut children, sub_type);
             }
             _ => {}
         }
@@ -284,15 +271,18 @@ impl Furniture {
         let chair_push = 0.1;
 
         let mut add_chair = |x: f64, y: f64, rotation: i32| {
-            children.push(Self::new(
-                FurnitureType::Chair(match sub_type {
-                    TableType::Desk => ChairType::Office,
-                    _ => ChairType::Dining,
-                }),
-                vec2(x, y),
-                chair_size,
-                rotation,
-            ));
+            children.push(
+                Self::new(
+                    FurnitureType::Chair(match sub_type {
+                        TableType::Desk => ChairType::Office,
+                        _ => ChairType::Dining,
+                    }),
+                    vec2(x, y),
+                    chair_size,
+                    rotation,
+                )
+                .material(&self.material_children),
+            );
         };
 
         match sub_type {
@@ -323,49 +313,25 @@ impl Furniture {
     }
 
     fn storage_children(&self, children: &mut Vec<Self>, sub_type: StorageType) {
-        let color = match sub_type {
-            StorageType::WardrobeColor(color)
-            | StorageType::CupboardColor(color)
-            | StorageType::DrawerColor(color) => color,
-            _ => WOOD.tint,
-        };
-        match sub_type {
-            StorageType::Drawer | StorageType::DrawerColor(_) => {
-                let num_drawers = (self.size.x / 0.5).floor().max(1.0) as usize;
-                let drawer_width = self.size.x / num_drawers as f64 - 0.05;
-                for i in 0..num_drawers {
-                    let x_pos = (i as f64 - (num_drawers - 1) as f64 * 0.5) * 0.5;
-                    children.push(Self::new(
-                        FurnitureType::AnimatedPiece(AnimatedPieceType::Drawer(color)),
-                        vec2(x_pos, 0.0),
-                        vec2(drawer_width, self.size.y),
-                        0,
-                    ));
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn kitchen_children(&self, children: &mut Vec<Self>, sub_type: KitchenType) {
-        match sub_type {
-            KitchenType::Cupboard | KitchenType::GraniteCounter | KitchenType::MarbleCounter => {
-                children.push(Self::new(
-                    FurnitureType::AnimatedPiece(AnimatedPieceType::Drawer(WOOD.tint)),
-                    Vec2::ZERO,
-                    self.size - vec2(0.1, 0.0),
+        let num_drawers = ((self.size.x - 0.05) / 0.5).floor().max(1.0) as usize;
+        let drawer_width = self.size.x / num_drawers as f64;
+        for i in 0..num_drawers {
+            let x_pos = (i as f64 - (num_drawers - 1) as f64 * 0.5) * drawer_width;
+            let side = i % 2 == 0;
+            children.push(
+                Self::new(
+                    FurnitureType::AnimatedPiece(match sub_type {
+                        StorageType::Drawer => AnimatedPieceType::Drawer,
+                        StorageType::DrawerHigh => AnimatedPieceType::DrawerHigh,
+                        StorageType::Cupboard => AnimatedPieceType::Door(side),
+                        StorageType::CupboardHigh => AnimatedPieceType::DoorHigh(side),
+                    }),
+                    vec2(x_pos, 0.0),
+                    vec2(drawer_width - 0.025, self.size.y),
                     0,
-                ));
-            }
-            KitchenType::HighCupboard => {
-                children.push(Self::new(
-                    FurnitureType::AnimatedPiece(AnimatedPieceType::HighDrawer(WOOD.tint)),
-                    Vec2::ZERO,
-                    self.size - vec2(0.1, 0.0),
-                    0,
-                ));
-            }
-            _ => {}
+                )
+                .material(&self.material_children),
+            );
         }
     }
 
@@ -405,17 +371,7 @@ impl Furniture {
     }
 
     fn kitchen_render(&self, polygons: &mut FurniturePolygons, sub_type: KitchenType) {
-        match sub_type {
-            KitchenType::GraniteCounter => {
-                polygons.push((GRANITE, self.full_shape()));
-            }
-            KitchenType::MarbleCounter => {
-                polygons.push((MARBLE, self.full_shape()));
-            }
-            _ => {
-                polygons.push((WOOD, self.full_shape()));
-            }
-        }
+        polygons.push((WOOD, self.full_shape()));
     }
 
     fn bathroom_render(&self, polygons: &mut FurniturePolygons, sub_type: BathroomType) {
@@ -568,17 +524,8 @@ impl Furniture {
         polygons.push((WOOD, backboard_polygon));
     }
 
-    fn storage_render(&self, polygons: &mut FurniturePolygons, sub_type: StorageType) {
-        let color = match sub_type {
-            StorageType::WardrobeColor(color)
-            | StorageType::CupboardColor(color)
-            | StorageType::DrawerColor(color) => color,
-            _ => WOOD.tint,
-        };
-        polygons.push((
-            FurnitureMaterial::new(WOOD.material, color),
-            self.full_shape(),
-        ));
+    fn storage_render(&self, polygons: &mut FurniturePolygons, material: FurnitureMaterial) {
+        polygons.push((material, self.full_shape()));
     }
 
     fn radiator_render(&self, polygons: &mut FurniturePolygons) {
@@ -631,26 +578,26 @@ impl Furniture {
         );
     }
 
-    fn animated_render(&self, polygons: &mut FurniturePolygons, sub_type: AnimatedPieceType) {
+    fn animated_render(
+        &self,
+        polygons: &mut FurniturePolygons,
+        material: FurnitureMaterial,
+        sub_type: AnimatedPieceType,
+    ) {
         match sub_type {
-            AnimatedPieceType::Water => {
-                polygons.push((
-                    FurnitureMaterial::new(Material::Empty, Color::from_rgb(50, 150, 255)),
-                    rect(Vec2::ZERO, self.size),
-                ));
+            AnimatedPieceType::Drawer | AnimatedPieceType::DrawerHigh => {
+                fancy_rectangle(polygons, Vec2::ZERO, self.size, 0, material, 0.1, 0.05);
             }
-            AnimatedPieceType::Drawer(color)
-            | AnimatedPieceType::HighDrawer(color)
-            | AnimatedPieceType::Door(color) => {
-                fancy_rectangle(
-                    polygons,
-                    Vec2::ZERO,
-                    self.size,
-                    0,
-                    FurnitureMaterial::new(Material::Wood, color.lighten(0.05)),
-                    0.1,
-                    0.05,
-                );
+            AnimatedPieceType::Door(_) | AnimatedPieceType::DoorHigh(_) => {
+                let depth = 0.05;
+                polygons.push((
+                    material.lighten(0.1),
+                    Shape::Rectangle.polygons(
+                        vec2(0.0, -self.size.y * 0.5 + depth * 0.5),
+                        vec2(self.size.x, depth),
+                        0,
+                    ),
+                ));
             }
         }
     }

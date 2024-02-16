@@ -185,7 +185,7 @@ impl HomeFlow {
 
         let snap_amount = match drag_data.object_type {
             ObjectType::Room | ObjectType::Operation | ObjectType::Opening => 10.0,
-            ObjectType::Furniture => 20.0,
+            ObjectType::Furniture => 40.0,
         };
         if drag_data.object_type == ObjectType::Opening {
             if let Some(room) = self
@@ -408,24 +408,18 @@ pub fn combo_box_for_materials(
         });
 }
 
-pub fn edit_vec2(
-    ui: &mut egui::Ui,
-    label: &str,
-    vec2: &mut Vec2,
-    speed: f32,
-    fixed_decimals: usize,
-) {
+pub fn edit_vec2(ui: &mut egui::Ui, label: &str, vec2: &mut Vec2, speed: f32) {
     labelled_widget(ui, label, |ui| {
         ui.add(
             egui::DragValue::new(&mut vec2.x)
                 .speed(speed)
-                .fixed_decimals(fixed_decimals)
+                .fixed_decimals(4)
                 .prefix("X: "),
         );
         ui.add(
             egui::DragValue::new(&mut vec2.y)
                 .speed(speed)
-                .fixed_decimals(fixed_decimals)
+                .fixed_decimals(4)
                 .prefix("Y: "),
         );
     });

@@ -213,46 +213,41 @@ impl HomeFlow {
 
         let mut handle_furniture_child = |obj: &Furniture, child: &Furniture| {
             let hover = child.hover_amount;
-            let (offset, offset_rot, opacity) =
-                if matches!(child.furniture_type, FurnitureType::Chair(_)) {
-                    (
-                        rotate_point_i32(
-                            vec2(hover * 0.15, hover * 0.3),
-                            Vec2::ZERO,
-                            -(obj.rotation + child.rotation),
-                        ),
-                        hover * 20.0,
-                        1.0,
-                    )
-                } else if matches!(
-                    child.furniture_type,
-                    FurnitureType::AnimatedPiece(
-                        AnimatedPieceType::Drawer(_) | AnimatedPieceType::HighDrawer(_)
-                    )
-                ) {
-                    (
-                        rotate_point_i32(
-                            vec2(0.0, child.size.y * hover * -0.6),
-                            Vec2::ZERO,
-                            -(obj.rotation + child.rotation),
-                        ),
-                        0.0,
-                        1.0,
-                    )
-                } else if matches!(
-                    child.furniture_type,
-                    FurnitureType::AnimatedPiece(AnimatedPieceType::Water)
-                ) {
-                    (Vec2::ZERO, 0.0, hover * 0.5)
-                } else {
-                    (Vec2::ZERO, 0.0, 1.0)
-                };
+            let (offset, offset_rot) = match child.furniture_type {
+                FurnitureType::Chair(_) => (vec2(hover * 0.15, hover * 0.3), hover * 20.0),
+                FurnitureType::AnimatedPiece(animated_piece_type) => match animated_piece_type {
+                    AnimatedPieceType::Drawer | AnimatedPieceType::DrawerHigh => {
+                        (vec2(0.0, child.size.y * hover * -0.6), 0.0)
+                    }
+                    AnimatedPieceType::Door(side) | AnimatedPieceType::DoorHigh(side) => {
+                        if side {
+                            let rotate = -hover * 60.0;
+                            let offset = rotate_point(
+                                Vec2::ZERO,
+                                vec2(-child.size.x / 2.0, -child.size.y / 2.0),
+                                rotate,
+                            );
+                            (offset, -rotate)
+                        } else {
+                            let rotate = hover * 60.0;
+                            let offset = rotate_point(
+                                Vec2::ZERO,
+                                vec2(child.size.x / 2.0, -child.size.y / 2.0),
+                                rotate,
+                            );
+                            (offset, -rotate)
+                        }
+                    }
+                },
+                _ => (Vec2::ZERO, 0.0), // Handles other FurnitureTypes
+            };
+
+            let offset = rotate_point_i32(offset, Vec2::ZERO, -(obj.rotation + child.rotation));
             furniture_adjustments.insert(
                 child.id,
                 (
                     obj.pos + rotate_point_i32(child.pos, Vec2::ZERO, -obj.rotation) + offset,
                     obj.rotation as f64 + child.rotation as f64 + offset_rot,
-                    opacity,
                 ),
             );
         };
@@ -280,11 +275,9 @@ impl HomeFlow {
             if let Some(furnitures) = furniture_map.get(key) {
                 for furniture in furnitures {
                     let rendered_data = furniture.rendered_data.as_ref().unwrap();
-                    let &(pos, rot, _) = furniture_adjustments.get(&furniture.id).unwrap_or(&(
-                        furniture.pos,
-                        furniture.rotation as f64,
-                        1.0,
-                    ));
+                    let &(pos, rot) = furniture_adjustments
+                        .get(&furniture.id)
+                        .unwrap_or(&(furniture.pos, furniture.rotation as f64));
 
                     // Render shadow
                     let shadow_offset = vec2(0.01, -0.02);
@@ -318,9 +311,9 @@ impl HomeFlow {
                 }
                 for furniture in furnitures {
                     let rendered_data = furniture.rendered_data.as_ref().unwrap();
-                    let &(pos, rot, opacity) = furniture_adjustments
+                    let &(pos, rot) = furniture_adjustments
                         .get(&furniture.id)
-                        .unwrap_or(&(furniture.pos, furniture.rotation as f64, 1.0));
+                        .unwrap_or(&(furniture.pos, furniture.rotation as f64));
 
                     for (material, multi_triangles) in &rendered_data.triangles {
                         let texture_id = self.load_texture(material.material);
@@ -333,10 +326,7 @@ impl HomeFlow {
                                     Vertex {
                                         pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
                                         uv: vec2_to_egui_pos(v * 0.2),
-                                        color: material
-                                            .tint
-                                            .gamma_multiply(opacity as f32)
-                                            .to_egui(),
+                                        color: material.tint.to_egui(),
                                     }
                                 })
                                 .collect();

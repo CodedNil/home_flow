@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     common::{
-        furniture::{ChairType, Furniture, FurnitureType, StorageType},
+        furniture::{ChairType, Furniture, FurnitureType},
         layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room},
     },
     server::common_api::save_layout,
@@ -434,8 +434,8 @@ fn room_edit_widgets(
         .spacing([20.0, 4.0])
         .striped(true)
         .show(ui, |ui| {
-            edit_vec2(ui, "Pos", &mut room.pos, 0.1, 2);
-            edit_vec2(ui, "Size", &mut room.size, 0.1, 2);
+            edit_vec2(ui, "Pos", &mut room.pos, 0.1);
+            edit_vec2(ui, "Size", &mut room.size, 0.1);
             ui.end_row();
 
             // Wall selection
@@ -524,8 +524,8 @@ fn room_edit_widgets(
                     });
 
                     ui.horizontal(|ui| {
-                        edit_vec2(ui, "Pos", &mut operation.pos, 0.1, 2);
-                        edit_vec2(ui, "Size", &mut operation.size, 0.1, 2);
+                        edit_vec2(ui, "Pos", &mut operation.pos, 0.1);
+                        edit_vec2(ui, "Size", &mut operation.size, 0.1);
                         edit_rotation(ui, &mut operation.rotation);
                     });
 
@@ -585,7 +585,7 @@ fn room_edit_widgets(
                     &mut opening.opening_type,
                     "",
                 );
-                edit_vec2(ui, "Pos", &mut opening.pos, 0.1, 2);
+                edit_vec2(ui, "Pos", &mut opening.pos, 0.1);
                 edit_rotation(ui, &mut opening.rotation);
                 labelled_widget(ui, "Width", |ui| {
                     ui.add(
@@ -669,14 +669,6 @@ fn furniture_edit_widgets(
             }
             FurnitureType::Storage(ref mut storage_type) => {
                 combo_box_for_enum(ui, "Storage Type", storage_type, "");
-                match storage_type {
-                    StorageType::WardrobeColor(ref mut color)
-                    | StorageType::CupboardColor(ref mut color)
-                    | StorageType::DrawerColor(ref mut color) => {
-                        ui.color_edit_button_srgba_unmultiplied(color.mut_array());
-                    }
-                    _ => {}
-                };
             }
             _ => {}
         }
@@ -700,8 +692,8 @@ fn furniture_edit_widgets(
         .spacing([20.0, 4.0])
         .striped(true)
         .show(ui, |ui| {
-            edit_vec2(ui, "Pos", &mut furniture.pos, 0.1, 2);
-            edit_vec2(ui, "Size", &mut furniture.size, 0.1, 2);
+            edit_vec2(ui, "Pos", &mut furniture.pos, 0.1);
+            edit_vec2(ui, "Size", &mut furniture.size, 0.1);
             edit_rotation(ui, &mut furniture.rotation);
             ui.end_row();
         });
