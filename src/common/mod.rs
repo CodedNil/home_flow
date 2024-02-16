@@ -4,4 +4,5 @@ pub mod color;
 pub mod furniture;
 pub mod layout;
 pub mod shape;
+pub mod template;
 pub mod utils;

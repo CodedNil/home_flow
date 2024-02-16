@@ -1,7 +1,7 @@
 use super::{
     color::Color,
     layout::{
-        Action, GlobalMaterial, Home, Opening, OpeningType, Operation, Outline, Room, Shape,
+        Action, GlobalMaterial, Home, Light, Opening, OpeningType, Operation, Outline, Room, Shape,
         TileOptions, Walls,
     },
 };
@@ -63,6 +63,7 @@ impl Room {
             walls: Walls::WALL,
             operations: Vec::new(),
             openings: Vec::new(),
+            lights: Vec::new(),
             outline: None,
             rendered_data: None,
         }
@@ -78,6 +79,7 @@ impl Room {
             walls: Walls::WALL,
             operations: Vec::new(),
             openings: Vec::new(),
+            lights: Vec::new(),
             outline: None,
             rendered_data: None,
         }
@@ -133,6 +135,41 @@ impl Room {
 
     pub fn door_width(&self, pos: Vec2, rotation: i32, width: f64) -> Self {
         self.opening(Opening::new(OpeningType::Door, pos, rotation).width(width))
+    }
+
+    pub fn light(&self, x: f64, y: f64) -> Self {
+        let mut clone = self.clone();
+        clone.lights.push(Light::new(vec2(x, y)));
+        clone
+    }
+
+    pub fn lights_grid_offset(
+        &self,
+        cols: i32,
+        rows: i32,
+        padding: f64,
+        off_x: f64,
+        off_y: f64,
+    ) -> Self {
+        let mut clone = self.clone();
+        let size = clone.size - Vec2::splat(padding);
+        let spacing = size / vec2(cols as f64, rows as f64);
+        for col in 0..cols {
+            let x_pos = (col as f64 - (cols - 1) as f64 * 0.5) * spacing.x + off_x;
+            for row in 0..rows {
+                let y_pos = (row as f64 - (rows - 1) as f64 * 0.5) * spacing.y + off_y;
+                clone.lights.push(Light::new(vec2(x_pos, y_pos)));
+            }
+        }
+        clone
+    }
+
+    pub fn lights_grid(&self, cols: i32, rows: i32, padding: f64) -> Self {
+        self.lights_grid_offset(cols, rows, padding, 0.0, 0.0)
+    }
+
+    pub fn light_center(&self) -> Self {
+        self.light(0.0, 0.0)
     }
 
     pub fn operation(&self, operation: Operation) -> Self {
@@ -205,6 +242,27 @@ impl Hash for Opening {
         hash_vec2(self.pos, state);
         self.rotation.hash(state);
         self.width.to_bits().hash(state);
+    }
+}
+
+impl Light {
+    pub fn new(pos: Vec2) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            pos,
+        }
+    }
+
+    pub fn default() -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            pos: Vec2::ZERO,
+        }
+    }
+}
+impl Hash for Light {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        hash_vec2(self.pos, state);
     }
 }
 

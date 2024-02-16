@@ -431,5 +431,18 @@ impl HomeFlow {
         for mesh in window_meshes {
             painter.add(EShape::mesh(mesh));
         }
+
+        // Render lights
+        for room in &self.layout.rooms {
+            for light in &room.lights {
+                let pos = self.world_to_pixels(room.pos + light.pos);
+                let color = Color32::from_rgb(255, 255, 0).gamma_multiply(0.8);
+                painter.add(EShape::circle_filled(
+                    vec2_to_egui_pos(pos),
+                    0.1 * self.stored.zoom as f32,
+                    color,
+                ));
+            }
+        }
     }
 }

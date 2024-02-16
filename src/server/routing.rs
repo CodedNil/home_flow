@@ -1,4 +1,4 @@
-use crate::common::layout::Home;
+use crate::common::{layout::Home, template::template_home};
 use anyhow::{anyhow, Result};
 use axum::{
     http::StatusCode,
@@ -45,8 +45,8 @@ async fn save_layout_server(body: axum::body::Bytes) -> impl IntoResponse {
 
 pub fn load_layout_impl() -> Home {
     fs::read_to_string(LAYOUT_PATH).map_or_else(
-        |_| Home::template(),
-        |contents| toml::from_str::<Home>(&contents).map_or_else(|_| Home::template(), |home| home),
+        |_| template_home(),
+        |contents| toml::from_str::<Home>(&contents).map_or_else(|_| template_home(), |home| home),
     )
 }
 

@@ -160,6 +160,23 @@ impl HomeFlow {
                 let end = vec2_to_egui_pos(pos + rot_dir);
                 painter.line_segment([start, end], Stroke::new(6.0, color));
             }
+
+            // Render lights
+            for light in &room.lights {
+                let selected = edit_response.hovered_id == Some(light.id);
+                let pos = self.world_to_pixels(room.pos + light.pos);
+                let color = Color32::from_rgb(255, 255, 0).gamma_multiply(0.8);
+                painter.add(EShape::circle_filled(
+                    vec2_to_egui_pos(pos),
+                    if selected { 16.0 } else { 10.0 },
+                    color,
+                ));
+                painter.add(EShape::circle_filled(
+                    vec2_to_egui_pos(pos),
+                    if selected { 6.0 } else { 2.0 },
+                    Color32::from_rgb(0, 0, 0),
+                ));
+            }
         }
 
         // Render furniture

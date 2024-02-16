@@ -8,7 +8,9 @@ use super::{
 use crate::{
     common::{
         furniture::{ChairType, Furniture, FurnitureType},
-        layout::{Action, GlobalMaterial, Home, Opening, Operation, Outline, Room, TileOptions},
+        layout::{
+            Action, GlobalMaterial, Home, Light, Opening, Operation, Outline, Room, TileOptions,
+        },
     },
     server::common_api::save_layout,
 };
@@ -46,6 +48,7 @@ pub enum ObjectType {
     Room,
     Operation,
     Opening,
+    Light,
     Furniture,
 }
 
@@ -288,6 +291,11 @@ impl HomeFlow {
                             if opening.id == drag_data.id {
                                 opening.pos = new_pos - room.pos;
                                 opening.rotation = new_rotation;
+                            }
+                        }
+                        for light in &mut room.lights {
+                            if light.id == drag_data.id {
+                                light.pos = new_pos - room.pos;
                             }
                         }
                     }
@@ -717,6 +725,53 @@ fn room_edit_widgets(
                 }
                 AlterObject::MoveDown => {
                     room.openings.swap(index, index + 1);
+                }
+                AlterObject::None => {}
+            }
+        }
+    });
+
+    CollapsingState::load_with_default_open(
+        ui.ctx(),
+        ui.make_persistent_id("lights_collapsing_header"),
+        false,
+    )
+    .show_header(ui, |ui| {
+        ui.horizontal(|ui| {
+            labelled_widget(ui, "Lights", |ui| {
+                if ui.add(Button::new("Add")).clicked() {
+                    room.lights.push(Light::default());
+                }
+            });
+        });
+    })
+    .body(|ui| {
+        let num_objects = room.operations.len();
+        let mut alterations = vec![AlterObject::None; num_objects];
+        for (index, light) in room.lights.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                edit_vec2(ui, "Pos", &mut light.pos, 0.1);
+                if ui.button("Delete").clicked() {
+                    alterations[index] = AlterObject::Delete;
+                }
+                if index > 0 && ui.button("^").clicked() {
+                    alterations[index] = AlterObject::MoveUp;
+                }
+                if num_objects > 0 && index < num_objects - 1 && ui.button("v").clicked() {
+                    alterations[index] = AlterObject::MoveDown;
+                }
+            });
+        }
+        for (index, alteration) in alterations.into_iter().enumerate().rev() {
+            match alteration {
+                AlterObject::Delete => {
+                    room.lights.remove(index);
+                }
+                AlterObject::MoveUp => {
+                    room.lights.swap(index, index - 1);
+                }
+                AlterObject::MoveDown => {
+                    room.lights.swap(index, index + 1);
                 }
                 AlterObject::None => {}
             }

@@ -1,5 +1,8 @@
 use self::edit_mode::EditDetails;
-use crate::{common::layout::Home, server::common_api::get_layout};
+use crate::{
+    common::{layout::Home, template::template_home},
+    server::common_api::get_layout,
+};
 use anyhow::Result;
 use egui::{
     util::History, Align2, CentralPanel, Color32, Context, Frame, Sense, TextureHandle, Window,
@@ -139,7 +142,7 @@ impl HomeFlow {
             scroll_delta = scroll_delta.signum() * 15.0;
         }
         if let Some(multi_touch) = ui.ctx().multi_touch() {
-            scroll_delta = multi_touch.zoom_delta as f64 - 1.0;
+            scroll_delta = (multi_touch.zoom_delta as f64 - 1.0) * 15.0;
         }
         if scroll_delta.abs() > 0.0 {
             let zoom_amount = scroll_delta * (self.stored.zoom / 100.0);
@@ -163,8 +166,8 @@ impl HomeFlow {
         }
         // If on github use template instead of loading from server
         if self.host.contains("github.io") {
-            self.layout = Home::template();
-            self.layout_server = Home::template();
+            self.layout = template_home();
+            self.layout_server = template_home();
             return;
         }
         let download_store = self.download_data.clone();

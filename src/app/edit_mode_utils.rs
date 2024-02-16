@@ -121,6 +121,20 @@ impl HomeFlow {
                         break;
                     }
                 }
+                for obj in room.lights.iter().rev() {
+                    if (self.mouse_pos_world - (room.pos + obj.pos)).length() < 0.2 {
+                        hovered_data = Some(HoverDetails {
+                            id: obj.id,
+                            object_type: ObjectType::Light,
+                            can_drag: true,
+                            pos: room.pos + obj.pos,
+                            size: Vec2::ZERO,
+                            rotation: 0,
+                            manipulation_type: ManipulationType::Move,
+                        });
+                        break;
+                    }
+                }
             }
         }
 
@@ -184,7 +198,9 @@ impl HomeFlow {
         let mut new_rotation = 0.0;
 
         let snap_amount = match drag_data.object_type {
-            ObjectType::Room | ObjectType::Operation | ObjectType::Opening => 10.0,
+            ObjectType::Room | ObjectType::Operation | ObjectType::Opening | ObjectType::Light => {
+                10.0
+            }
             ObjectType::Furniture => 40.0,
         };
         if drag_data.object_type == ObjectType::Opening {
@@ -242,6 +258,9 @@ impl HomeFlow {
                     new_pos.y = new_pos.y.round_factor(snap_amount);
                 }
             }
+        } else if drag_data.object_type == ObjectType::Light {
+            new_pos.x = new_pos.x.round_factor(snap_amount);
+            new_pos.y = new_pos.y.round_factor(snap_amount);
         } else if snap
             && matches!(
                 drag_data.object_type,
