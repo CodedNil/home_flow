@@ -771,6 +771,9 @@ fn furniture_edit_widgets(
             FurnitureType::Storage(ref mut storage_type) => {
                 combo_box_for_enum(ui, "Storage Type", storage_type, "");
             }
+            FurnitureType::Misc(ref mut misc_type) => {
+                combo_box_for_enum(ui, "Misc Type", misc_type, "");
+            }
             _ => {}
         }
         if furniture.furniture_type.has_material() {

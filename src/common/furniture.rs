@@ -33,16 +33,16 @@ pub struct Furniture {
 pub enum FurnitureType {
     Chair(ChairType),
     Table(TableType),
-    Rug(Color),
-    Radiator,
-    Display,
     Kitchen(KitchenType),
     Bathroom(BathroomType),
     Bed(Color),
     Storage(StorageType),
+    Rug(Color),
+    Display,
+    Radiator,
     Boiler,
-    AnimatedPiece(AnimatedPieceType),
     Misc(MiscHeight),
+    AnimatedPiece(AnimatedPieceType),
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
@@ -143,15 +143,12 @@ impl FurnitureType {
     pub const fn has_material(self) -> bool {
         matches!(
             self,
-            Self::Table(_) | Self::Chair(ChairType::Dining) | Self::Storage(_) | Self::Kitchen(_)
+            Self::Table(_) | Self::Chair(ChairType::Dining) | Self::Storage(_) | Self::Misc(_)
         )
     }
 
     pub const fn has_children_material(self) -> bool {
-        matches!(
-            self,
-            Self::Table(TableType::Dining | TableType::Desk) | Self::Storage(_)
-        )
+        matches!(self, Self::Table(TableType::Dining) | Self::Storage(_))
     }
 }
 
@@ -190,6 +187,12 @@ impl Furniture {
     pub fn material(&self, material: &str) -> Self {
         let mut clone = self.clone();
         clone.material = material.to_owned();
+        clone
+    }
+
+    pub fn material_children(&self, material: &str) -> Self {
+        let mut clone = self.clone();
+        clone.material_children = material.to_owned();
         clone
     }
 

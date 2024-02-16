@@ -198,16 +198,18 @@ impl HomeFlow {
             let target = (Some(furniture.id) == top_hover) as u8 as f64;
             let difference = target - furniture.hover_amount;
             if difference.abs() > f64::EPSILON {
-                furniture.hover_amount =
-                    (furniture.hover_amount + difference.signum() * 0.1).clamp(0.0, 1.0);
+                furniture.hover_amount = (furniture.hover_amount
+                    + difference.signum() * self.frame_time * 10.0)
+                    .clamp(0.0, 1.0);
             }
             let rendered_data = furniture.rendered_data.as_mut().unwrap();
             for child in &mut rendered_data.children {
                 let target = (Some(child.id) == top_hover) as u8 as f64;
                 let difference = target - child.hover_amount;
                 if difference.abs() > f64::EPSILON {
-                    child.hover_amount =
-                        (child.hover_amount + difference.signum() * 0.1).clamp(0.0, 1.0);
+                    child.hover_amount = (child.hover_amount
+                        + difference.signum() * self.frame_time * 10.0)
+                        .clamp(0.0, 1.0);
                 }
             }
         }
@@ -384,22 +386,21 @@ impl HomeFlow {
             }));
         }
 
-        // Open the opening if mouse is nearby
+        // Open the door if mouse is nearby
         for room in &mut self.layout.rooms {
             for opening in &mut room.openings {
                 if opening.opening_type != OpeningType::Door {
                     continue;
                 }
                 let mouse_distance = self.mouse_pos_world.distance(room.pos + opening.pos);
-                let target = if mouse_distance < opening.width / 2.0 {
-                    1.0
-                } else {
-                    0.0
-                };
-
-                // Linearly interpolate open_amount towards the target value.
-                opening.open_amount += (target - opening.open_amount) * (self.frame_time * 5.0);
-                opening.open_amount = opening.open_amount.clamp(0.0, 1.0);
+                let target = (mouse_distance < opening.width / 2.0) as u8 as f64;
+                let difference = target - opening.open_amount;
+                if difference.abs() > f64::EPSILON {
+                    // Linearly interpolate open_amount towards the target value.
+                    opening.open_amount = (opening.open_amount
+                        + (target - opening.open_amount) * self.frame_time * 8.0)
+                        .clamp(0.0, 1.0);
+                }
             }
         }
         // Render openings

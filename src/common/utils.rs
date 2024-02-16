@@ -84,15 +84,9 @@ impl Room {
     }
 
     pub fn outline(&self, outline: Outline) -> Self {
-        Self {
-            outline: Some(outline),
-            name: self.name.clone(),
-            material: self.material.clone(),
-            operations: self.operations.clone(),
-            openings: self.openings.clone(),
-            rendered_data: None,
-            ..*self
-        }
+        let mut clone = self.clone();
+        clone.outline = Some(outline);
+        clone
     }
 
     pub fn no_wall_left(&self) -> Self {

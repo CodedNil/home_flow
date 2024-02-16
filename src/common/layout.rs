@@ -279,8 +279,8 @@ impl Home {
                 // Cupboard corners
                 Furniture::new(
                     FurnitureType::Misc(MiscHeight::High),
-                    vec2(-5.475, 2.8625),
-                    vec2(0.55, 0.2750),
+                    vec2(-4.1, 2.8625),
+                    vec2(3.3, 0.2750),
                     0,
                 ),
                 Furniture::new(
@@ -288,12 +288,6 @@ impl Home {
                     vec2(-5.625, 2.725),
                     vec2(0.55, 0.2750),
                     -90,
-                ),
-                Furniture::new(
-                    FurnitureType::Misc(MiscHeight::High),
-                    vec2(-2.7625, 2.8875),
-                    vec2(0.625, 0.225),
-                    0,
                 ),
                 Furniture::new(
                     FurnitureType::Misc(MiscHeight::High),
@@ -321,7 +315,7 @@ impl Home {
                     FurnitureType::Storage(StorageType::CupboardMid),
                     vec2(-2.8, 2.65),
                     vec2(0.5, 0.4),
-                    50,
+                    45,
                 )
                 .materials("MetalDark"),
                 Furniture::named(
@@ -331,13 +325,22 @@ impl Home {
                     vec2(0.55, 0.55),
                     -90,
                 )
-                .materials("MetalDark"),
+                .materials("Granite")
+                .material_children("MetalDark"),
                 Furniture::new(
                     FurnitureType::Kitchen(KitchenType::Hob),
                     vec2(-5.475, 1.625),
-                    vec2(0.55, 0.55),
+                    vec2(0.45, 0.45),
                     -90,
                 ),
+                Furniture::named(
+                    "Extractor Vent",
+                    FurnitureType::Misc(MiscHeight::High),
+                    vec2(-5.65, 1.625),
+                    vec2(0.2, 0.2),
+                    0,
+                )
+                .materials("MetalDark"),
                 Furniture::new(
                     FurnitureType::Kitchen(KitchenType::Sink),
                     vec2(-4.0, 2.7),
@@ -366,8 +369,8 @@ impl Home {
                 ),
                 Furniture::new(
                     FurnitureType::Storage(StorageType::Drawer),
-                    vec2(2.35, -0.9),
-                    vec2(1.6, 0.8),
+                    vec2(2.35, -0.87),
+                    vec2(1.54, 0.8),
                     -90,
                 )
                 .materials("WoodDark"),
