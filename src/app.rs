@@ -139,8 +139,7 @@ impl HomeFlow {
         let mut scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta)).y;
         if let Some(multi_touch) = ui.ctx().multi_touch() {
             let zoom_delta = multi_touch.zoom_delta as f64;
-            let diff = zoom_delta - self.last_multitouch_zoom;
-            scroll_delta = diff - 1.0;
+            scroll_delta = zoom_delta - self.last_multitouch_zoom;
             self.last_multitouch_zoom = zoom_delta;
         }
         if scroll_delta.abs() > 0.0 {
