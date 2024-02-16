@@ -22,7 +22,6 @@ pub struct HomeFlow {
     canvas_center: Vec2,
     mouse_pos: Vec2,
     mouse_pos_world: Vec2,
-    last_multitouch_zoom: f64,
 
     layout_server: Home,
     layout: Home,
@@ -63,7 +62,6 @@ impl Default for HomeFlow {
             canvas_center: Vec2::ZERO,
             mouse_pos: Vec2::ZERO,
             mouse_pos_world: Vec2::ZERO,
-            last_multitouch_zoom: 1.0,
 
             layout_server: Home::default(),
             layout: Home::default(),
@@ -137,13 +135,14 @@ impl HomeFlow {
 
         // Zoom
         let mut scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta)).y;
+        if scroll_delta.abs() > 0.0 {
+            scroll_delta = scroll_delta.signum() * 15.0;
+        }
         if let Some(multi_touch) = ui.ctx().multi_touch() {
-            let zoom_delta = multi_touch.zoom_delta as f64;
-            scroll_delta = zoom_delta - self.last_multitouch_zoom;
-            self.last_multitouch_zoom = zoom_delta;
+            scroll_delta = multi_touch.zoom_delta as f64 - 1.0;
         }
         if scroll_delta.abs() > 0.0 {
-            let zoom_amount = (scroll_delta.signum() * 15.0) * (self.stored.zoom / 100.0);
+            let zoom_amount = scroll_delta * (self.stored.zoom / 100.0);
             let mouse_world_before_zoom = self.pixels_to_world(self.mouse_pos);
             self.stored.zoom = (self.stored.zoom + zoom_amount).clamp(60.0, 300.0);
             let mouse_world_after_zoom = self.pixels_to_world(self.mouse_pos);
