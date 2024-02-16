@@ -163,7 +163,7 @@ impl HomeFlow {
         }
 
         // Hover furniture
-        let mut top_hover = None;
+        let mut furnitures_hovered = Vec::new();
         for furniture in &self.layout.furniture {
             if furniture.can_hover()
                 && Shape::Rectangle.contains(
@@ -173,7 +173,7 @@ impl HomeFlow {
                     furniture.rotation,
                 )
             {
-                top_hover = Some(furniture.id);
+                furnitures_hovered.push(furniture);
             }
             let rendered_data = furniture.rendered_data.as_ref().unwrap();
             for child in &rendered_data.children {
@@ -186,10 +186,14 @@ impl HomeFlow {
                         furniture.rotation + child.rotation,
                     )
                 {
-                    top_hover = Some(child.id);
+                    furnitures_hovered.push(child);
                 }
             }
         }
+        let mut furniture_sorted = furnitures_hovered.clone();
+        furniture_sorted.sort_by_key(|f| f.render_order());
+        let top_hover = furniture_sorted.last().map(|f| f.id);
+
         for furniture in &mut self.layout.furniture {
             let target = (Some(furniture.id) == top_hover) as u8 as f64;
             let difference = target - furniture.hover_amount;
@@ -207,6 +211,7 @@ impl HomeFlow {
                 }
             }
         }
+
         // Gather furniture and children
         let mut furniture_map = HashMap::new();
         let mut furniture_adjustments = HashMap::new();
@@ -216,10 +221,14 @@ impl HomeFlow {
             let (offset, offset_rot) = match child.furniture_type {
                 FurnitureType::Chair(_) => (vec2(hover * 0.15, hover * 0.3), hover * 20.0),
                 FurnitureType::AnimatedPiece(animated_piece_type) => match animated_piece_type {
-                    AnimatedPieceType::Drawer | AnimatedPieceType::DrawerHigh => {
+                    AnimatedPieceType::Drawer
+                    | AnimatedPieceType::DrawerMid
+                    | AnimatedPieceType::DrawerHigh => {
                         (vec2(0.0, child.size.y * hover * -0.6), 0.0)
                     }
-                    AnimatedPieceType::Door(side) | AnimatedPieceType::DoorHigh(side) => {
+                    AnimatedPieceType::Door(side)
+                    | AnimatedPieceType::DoorMid(side)
+                    | AnimatedPieceType::DoorHigh(side) => {
                         if side {
                             let rotate = -hover * 60.0;
                             let offset = rotate_point(
@@ -281,7 +290,8 @@ impl HomeFlow {
 
                     // Render shadow
                     let shadow_offset = vec2(0.01, -0.02);
-                    for triangles in &rendered_data.shadow_triangles {
+                    let (shadow_color, shadow_triangles) = &rendered_data.shadow_triangles;
+                    for triangles in shadow_triangles {
                         let vertices = triangles
                             .vertices
                             .iter()
@@ -294,7 +304,7 @@ impl HomeFlow {
                                     pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
                                     uv: egui::Pos2::ZERO,
                                     color: if is_interior {
-                                        Color::from_alpha(150)
+                                        *shadow_color
                                     } else {
                                         Color::TRANSPARENT
                                     }
@@ -344,7 +354,8 @@ impl HomeFlow {
         // Render wall shadows
         let rendered_data = self.layout.rendered_data.as_ref().unwrap();
         let shadow_offset = vec2(0.01, -0.02);
-        for triangles in &rendered_data.wall_shadows.1 {
+        let (shadow_color, shadow_triangles) = &rendered_data.wall_shadows.1;
+        for triangles in shadow_triangles {
             if triangles.vertices.is_empty() {
                 continue;
             }
@@ -358,7 +369,7 @@ impl HomeFlow {
                         pos: vec2_to_egui_pos(self.world_to_pixels(v + shadow_offset)),
                         uv: egui::Pos2::ZERO,
                         color: if is_interior {
-                            Color::from_alpha(150)
+                            *shadow_color
                         } else {
                             Color::TRANSPARENT
                         }

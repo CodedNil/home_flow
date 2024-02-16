@@ -3,7 +3,7 @@ use super::{
     furniture::{
         BathroomType, ChairType, Furniture, FurnitureType, KitchenType, StorageType, TableType,
     },
-    shape::ShadowTriangles,
+    shape::ShadowsData,
     utils::{clone_as_none, Material},
 };
 use derivative::Derivative;
@@ -126,7 +126,7 @@ pub struct HomeRender {
     pub walls_hash: u64,
     pub wall_triangles: Vec<Triangles>,
     pub wall_polygons: Vec<MultiPolygon>,
-    pub wall_shadows: (u64, Vec<ShadowTriangles>),
+    pub wall_shadows: (u64, ShadowsData),
 }
 
 pub struct RoomRender {
@@ -275,35 +275,45 @@ impl Home {
                     vec2(0.55, 0.25),
                     45,
                 ),
-                // Fridge
-                Furniture::new(
+                Furniture::named(
+                    "Fridge",
                     FurnitureType::Storage(StorageType::CupboardHigh),
                     vec2(-2.725, 1.075),
                     vec2(0.55, 0.55),
                     90,
                 ),
-                // Kitchen
-                Furniture::new(
+                Furniture::named(
+                    "Centre Island",
                     FurnitureType::Table(TableType::Empty),
                     vec2(-4.1, 1.3),
                     vec2(0.8, 0.8),
                     0,
                 ),
-                Furniture::new(
-                    FurnitureType::Kitchen(KitchenType::Microwave),
+                Furniture::named(
+                    "Microwave",
+                    FurnitureType::Storage(StorageType::CupboardMid),
                     vec2(-2.8, 2.65),
                     vec2(0.5, 0.4),
                     50,
-                ),
+                )
+                .materials("MetalDark"),
+                Furniture::named(
+                    "Oven",
+                    FurnitureType::Storage(StorageType::Drawer),
+                    vec2(-5.475, 1.625),
+                    vec2(0.55, 0.55),
+                    -90,
+                )
+                .materials("MetalDark"),
                 Furniture::new(
                     FurnitureType::Kitchen(KitchenType::Hob),
-                    vec2(-5.475, 2.725 - 0.55 * 2.0),
+                    vec2(-5.475, 1.625),
                     vec2(0.55, 0.55),
                     -90,
                 ),
                 Furniture::new(
                     FurnitureType::Kitchen(KitchenType::Sink),
-                    vec2(-4.05, 2.7),
+                    vec2(-4.0, 2.7),
                     vec2(0.65, 0.5),
                     0,
                 ),

@@ -395,7 +395,7 @@ pub fn combo_box_for_enum<T>(
 
 pub fn combo_box_for_materials(
     ui: &mut egui::Ui,
-    id: Uuid,
+    id: &str,
     materials: &[GlobalMaterial],
     selected: &mut String,
 ) {

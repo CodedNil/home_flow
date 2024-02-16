@@ -454,7 +454,7 @@ fn room_edit_widgets(
             }
             ui.end_row();
 
-            combo_box_for_materials(ui, room.id, materials, &mut room.material);
+            combo_box_for_materials(ui, &room.id.to_string(), materials, &mut room.material);
 
             edit_option(
                 ui,
@@ -537,7 +537,12 @@ fn room_edit_widgets(
                                 &mut operation.material,
                                 || room.material.clone(),
                                 |ui, content| {
-                                    combo_box_for_materials(ui, operation.id, materials, content);
+                                    combo_box_for_materials(
+                                        ui,
+                                        &operation.id.to_string(),
+                                        materials,
+                                        content,
+                                    );
                                 },
                             );
                         });
@@ -673,7 +678,20 @@ fn furniture_edit_widgets(
             _ => {}
         }
         if furniture.furniture_type.has_material() {
-            combo_box_for_materials(ui, furniture.id, materials, &mut furniture.material);
+            combo_box_for_materials(
+                ui,
+                &furniture.id.to_string(),
+                materials,
+                &mut furniture.material,
+            );
+        }
+        if furniture.furniture_type.has_children_material() {
+            combo_box_for_materials(
+                ui,
+                &format!("{} Children", furniture.id),
+                materials,
+                &mut furniture.material_children,
+            );
         }
         if ui.add(Button::new("Delete")).clicked() {
             alter_type = AlterObject::Delete;

@@ -145,7 +145,7 @@ impl Home {
             hasher.finish()
         };
 
-        let compute_shadows = || polygons_to_shadows(wall_polygons.iter().collect());
+        let compute_shadows = || polygons_to_shadows(wall_polygons.iter().collect(), 1.0);
         let wall_shadows = self.rendered_data.take().map_or_else(
             || (walls_hash, compute_shadows()),
             |rendered_data| {
@@ -561,13 +561,16 @@ fn intersection_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiP
     geo::BooleanOps::intersection(poly_a, poly_b)
 }
 
-pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles> {
+pub type ShadowsData = (Color, Vec<ShadowTriangles>);
+
+pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>, height: f64) -> ShadowsData {
+    let offset_size = height * 0.05;
     let mut shadow_exteriors = EMPTY_MULTI_POLYGON;
     let mut shadow_interiors = EMPTY_MULTI_POLYGON;
     let mut interior_points = Vec::new();
     for multipoly in polygons {
         for poly in multipoly {
-            let exterior = offset_polygon(poly, 0.05, JoinType::Round);
+            let exterior = offset_polygon(poly, offset_size, JoinType::Round);
             let interior = offset_polygon(poly, -0.025, JoinType::Miter);
 
             shadow_exteriors = union_polygons(&shadow_exteriors, &exterior);
@@ -608,7 +611,12 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>) -> Vec<ShadowTriangles>
             inners,
         });
     }
-    shadow_triangles
+
+    let intensity = 1.0 - height;
+    let (low, high) = (80.0, 150.0);
+    let shadow_color = Color::from_alpha((low + (high - low) * intensity) as u8);
+
+    (shadow_color, shadow_triangles)
 }
 
 impl Shape {

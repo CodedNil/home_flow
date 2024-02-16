@@ -1,7 +1,7 @@
 use super::{
     color::Color,
     layout::{GlobalMaterial, Shape, Triangles},
-    shape::{get_global_material, polygons_to_shadows, triangulate_polygon, ShadowTriangles},
+    shape::{get_global_material, polygons_to_shadows, triangulate_polygon, ShadowsData},
     utils::{clone_as_none, hash_vec2, Material},
 };
 use derivative::Derivative;
@@ -64,7 +64,6 @@ pub enum TableType {
 pub enum KitchenType {
     #[default]
     Hob,
-    Microwave,
     Sink,
 }
 
@@ -81,8 +80,10 @@ pub enum BathroomType {
 pub enum StorageType {
     #[default]
     Cupboard,
+    CupboardMid,
     CupboardHigh,
     Drawer,
+    DrawerMid,
     DrawerHigh,
 }
 
@@ -90,8 +91,10 @@ pub enum StorageType {
 pub enum AnimatedPieceType {
     #[default]
     Drawer,
+    DrawerMid,
     DrawerHigh,
     Door(bool),
+    DoorMid(bool),
     DoorHigh(bool),
 }
 
@@ -105,14 +108,21 @@ const METAL_DARK: FurnitureMaterial =
 impl FurnitureType {
     pub const fn render_order(self) -> u8 {
         match self {
-            Self::Storage(StorageType::CupboardHigh | StorageType::DrawerHigh) => 4,
-            Self::AnimatedPiece(AnimatedPieceType::DrawerHigh | AnimatedPieceType::DoorHigh(_)) => {
-                3
-            }
+            Self::Storage(StorageType::CupboardHigh | StorageType::DrawerHigh) => 6,
+            Self::Storage(StorageType::CupboardMid | StorageType::DrawerMid) => 4,
+            Self::AnimatedPiece(animated_type) => match animated_type {
+                AnimatedPieceType::DrawerHigh | AnimatedPieceType::DoorHigh(_) => 5,
+                AnimatedPieceType::DrawerMid | AnimatedPieceType::DoorMid(_) => 3,
+                AnimatedPieceType::Drawer | AnimatedPieceType::Door(_) => 1,
+            },
             Self::Chair(_) => 1,
-            Self::Rug(_) | Self::AnimatedPiece(_) => 0,
+            Self::Rug(_) => 0,
             _ => 2,
         }
+    }
+
+    pub fn height(self) -> f64 {
+        (self.render_order() as f64 / 4.0 + 0.5) / 1.5
     }
 
     pub const fn can_hover(self) -> bool {
@@ -123,6 +133,13 @@ impl FurnitureType {
         matches!(
             self,
             Self::Table(_) | Self::Chair(ChairType::Dining) | Self::Storage(_) | Self::Kitchen(_)
+        )
+    }
+
+    pub const fn has_children_material(self) -> bool {
+        matches!(
+            self,
+            Self::Table(TableType::Dining | TableType::Desk) | Self::Storage(_)
         )
     }
 }
@@ -140,6 +157,16 @@ impl Furniture {
             hover_amount: 0.0,
             rendered_data: None,
         }
+    }
+
+    pub fn named(
+        _: &str,
+        furniture_type: FurnitureType,
+        pos: Vec2,
+        size: Vec2,
+        rotation: i32,
+    ) -> Self {
+        Self::new(furniture_type, pos, size, rotation)
     }
 
     pub fn materials(&self, material: &str) -> Self {
@@ -182,7 +209,7 @@ impl Furniture {
     ) -> (
         FurniturePolygons,
         FurnitureTriangles,
-        Vec<ShadowTriangles>,
+        ShadowsData,
         Vec<Self>,
     ) {
         let global_material = get_global_material(materials, &self.material);
@@ -214,9 +241,9 @@ impl Furniture {
                 },
                 _ => vec![&full_shape],
             };
-            polygons_to_shadows(shadow_polys)
+            polygons_to_shadows(shadow_polys, self.furniture_type.height())
         } else {
-            Vec::new()
+            (Color::TRANSPARENT, Vec::new())
         };
 
         let children = self.render_children(materials);
@@ -322,8 +349,10 @@ impl Furniture {
                 Self::new(
                     FurnitureType::AnimatedPiece(match sub_type {
                         StorageType::Drawer => AnimatedPieceType::Drawer,
+                        StorageType::DrawerMid => AnimatedPieceType::DrawerMid,
                         StorageType::DrawerHigh => AnimatedPieceType::DrawerHigh,
                         StorageType::Cupboard => AnimatedPieceType::Door(side),
+                        StorageType::CupboardMid => AnimatedPieceType::DoorMid(side),
                         StorageType::CupboardHigh => AnimatedPieceType::DoorHigh(side),
                     }),
                     vec2(x_pos, 0.0),
@@ -353,7 +382,7 @@ impl Furniture {
             ChairType::Sofa(color) => FurnitureMaterial::new(Material::Fabric, color),
         };
 
-        polygons.push((material, rect(Vec2::ZERO, self.size)));
+        polygons.push((material, self.full_shape()));
         let inset = 0.1;
         if self.size.x > inset * 3.0 && self.size.y > inset * 3.0 {
             polygons.push((
@@ -371,14 +400,37 @@ impl Furniture {
     }
 
     fn kitchen_render(&self, polygons: &mut FurniturePolygons, sub_type: KitchenType) {
-        polygons.push((WOOD, self.full_shape()));
+        match sub_type {
+            KitchenType::Hob => {
+                polygons.push((
+                    FurnitureMaterial::new(Material::Empty, Color::from_rgb(80, 80, 80)),
+                    self.full_shape(),
+                ));
+                // Render 4 black circles
+                let black = FurnitureMaterial::new(Material::Empty, Color::from_rgb(40, 40, 40));
+                let circle_size = self.size.min_element() * 0.3;
+                for x in 0..2 {
+                    for y in 0..2 {
+                        let x_pos = (x as f64 - 0.5) * self.size.x * 0.5;
+                        let y_pos = (y as f64 - 0.5) * self.size.y * 0.5;
+                        polygons.push((
+                            black,
+                            Shape::Circle.polygons(vec2(x_pos, y_pos), Vec2::splat(circle_size), 0),
+                        ));
+                    }
+                }
+            }
+            KitchenType::Sink => {
+                fancy_rectangle(polygons, Vec2::ZERO, self.size, 0, METAL_DARK, 0.1, 0.05);
+            }
+        }
     }
 
     fn bathroom_render(&self, polygons: &mut FurniturePolygons, sub_type: BathroomType) {
         let ceramic_light = 0.06;
         match sub_type {
             BathroomType::Bath => {
-                polygons.push((CERAMIC, rect(Vec2::ZERO, self.size)));
+                polygons.push((CERAMIC, self.full_shape()));
                 let inset = 0.1;
                 if self.size.x > inset * 3.0 && self.size.y > inset * 4.0 {
                     polygons.push((
@@ -585,10 +637,14 @@ impl Furniture {
         sub_type: AnimatedPieceType,
     ) {
         match sub_type {
-            AnimatedPieceType::Drawer | AnimatedPieceType::DrawerHigh => {
+            AnimatedPieceType::Drawer
+            | AnimatedPieceType::DrawerMid
+            | AnimatedPieceType::DrawerHigh => {
                 fancy_rectangle(polygons, Vec2::ZERO, self.size, 0, material, 0.1, 0.05);
             }
-            AnimatedPieceType::Door(_) | AnimatedPieceType::DoorHigh(_) => {
+            AnimatedPieceType::Door(_)
+            | AnimatedPieceType::DoorMid(_)
+            | AnimatedPieceType::DoorHigh(_) => {
                 let depth = 0.05;
                 polygons.push((
                     material.lighten(0.1),
@@ -629,6 +685,7 @@ impl Hash for Furniture {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.furniture_type.hash(state);
         self.material.hash(state);
+        self.material_children.hash(state);
         hash_vec2(self.size, state);
     }
 }
@@ -659,6 +716,6 @@ pub struct FurnitureRender {
     pub hash: u64,
     pub polygons: FurniturePolygons,
     pub triangles: FurnitureTriangles,
-    pub shadow_triangles: Vec<ShadowTriangles>,
+    pub shadow_triangles: ShadowsData,
     pub children: Vec<Furniture>,
 }
