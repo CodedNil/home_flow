@@ -7,7 +7,7 @@ use crate::common::{
     utils::{rotate_point, rotate_point_i32, Material},
 };
 use egui::{
-    epaint::Vertex, Color32, ColorImage, Mesh, Painter, Rect, Shape as EShape, Stroke, TextureId,
+    epaint::Vertex, Color32, ColorImage, Mesh, Painter, Shape as EShape, Stroke, TextureId,
     TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -17,51 +17,7 @@ const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
 const DOOR_COLOR: Color32 = Color32::from_rgb(200, 130, 40);
 const WINDOW_COLOR: Color32 = Color32::from_rgb(80, 140, 240);
 
-const GRID_THIN: Stroke = Stroke {
-    width: 1.5,
-    color: Color32::from_rgb(55, 55, 70),
-};
-const GRID_THICK: Stroke = Stroke {
-    width: 1.5,
-    color: Color32::from_rgb(85, 85, 100),
-};
-
 impl HomeFlow {
-    pub fn render_grid(&self, painter: &Painter, visible_rect: &Rect) {
-        let grid_interval = 2.0_f64.powf((160.0 / self.stored.zoom).abs().log2().round()) / 4.0;
-
-        let bottom_edge_world = self.pixels_to_world_y(visible_rect.bottom() as f64);
-        let top_edge_world = self.pixels_to_world_y(visible_rect.top() as f64);
-        let left_edge_world = self.pixels_to_world_x(visible_rect.left() as f64);
-        let right_edge_world = self.pixels_to_world_x(visible_rect.right() as f64);
-
-        let vertical_lines = ((left_edge_world / grid_interval).ceil() as i32)
-            ..=((right_edge_world / grid_interval).floor() as i32);
-        for i in vertical_lines {
-            let x = self.world_to_pixels_x(i as f64 * grid_interval);
-            painter.line_segment(
-                [
-                    egui::pos2(x as f32, visible_rect.top()),
-                    egui::pos2(x as f32, visible_rect.bottom()),
-                ],
-                if i % 4 == 0 { GRID_THICK } else { GRID_THIN },
-            );
-        }
-
-        let horizontal_lines = ((bottom_edge_world / grid_interval).ceil() as i32)
-            ..=((top_edge_world / grid_interval).floor() as i32);
-        for i in horizontal_lines {
-            let y = self.world_to_pixels_y(i as f64 * grid_interval);
-            painter.line_segment(
-                [
-                    egui::pos2(visible_rect.left(), y as f32),
-                    egui::pos2(visible_rect.right(), y as f32),
-                ],
-                if i % 4 == 0 { GRID_THICK } else { GRID_THIN },
-            );
-        }
-    }
-
     pub fn ready_texture(&mut self, material: Material, ctx: &egui::Context) {
         self.textures
             .entry(material.to_string())

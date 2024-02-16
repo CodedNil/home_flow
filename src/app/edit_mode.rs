@@ -85,7 +85,10 @@ enum AlterObject {
 
 impl HomeFlow {
     pub fn edit_mode_settings(&mut self, ctx: &Context, ui: &mut Ui) {
-        // If in edit mode, show button to view save and discard changes
+        ui.checkbox(&mut self.edit_mode.resize_enabled, "Resizing");
+        if ui.button("Materials Editor").clicked() {
+            self.edit_mode.material_editor_open = !self.edit_mode.material_editor_open;
+        }
         if self.edit_mode.enabled {
             if ui.button("Preview Edits").clicked() {
                 self.edit_mode.preview_edits = !self.edit_mode.preview_edits;
@@ -116,10 +119,6 @@ impl HomeFlow {
             if ui.button("Discard Edits").clicked() {
                 self.layout = self.layout_server.clone();
                 self.edit_mode.enabled = false;
-            }
-            ui.checkbox(&mut self.edit_mode.resize_enabled, "Resizing");
-            if ui.button("Materials Editor").clicked() {
-                self.edit_mode.material_editor_open = !self.edit_mode.material_editor_open;
             }
 
             // Show preview edits

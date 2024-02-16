@@ -134,11 +134,14 @@ impl HomeFlow {
         }
 
         // Zoom
-        let scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta));
-        if scroll_delta != Vec2::ZERO {
-            let zoom_amount = (scroll_delta.y.signum() * 15.0) * (self.stored.zoom / 100.0);
+        let mut scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta)).y;
+        if let Some(multi_touch) = ui.ctx().multi_touch() {
+            scroll_delta = multi_touch.zoom_delta as f64;
+        }
+        if scroll_delta.abs() > 0.0 {
+            let zoom_amount = (scroll_delta.signum() * 15.0) * (self.stored.zoom / 100.0);
             let mouse_world_before_zoom = self.pixels_to_world(self.mouse_pos);
-            self.stored.zoom = (self.stored.zoom + zoom_amount).clamp(20.0, 300.0);
+            self.stored.zoom = (self.stored.zoom + zoom_amount).clamp(60.0, 300.0);
             let mouse_world_after_zoom = self.pixels_to_world(self.mouse_pos);
             let difference = mouse_world_after_zoom - mouse_world_before_zoom;
             self.stored.translation += Vec2::new(difference.x, -difference.y);
@@ -241,7 +244,7 @@ impl eframe::App for HomeFlow {
 
         CentralPanel::default()
             .frame(Frame {
-                fill: Color32::from_rgb(35, 35, 50),
+                fill: Color32::from_rgb(25, 25, 35),
                 ..Default::default()
             })
             .show(ctx, |ui| {
@@ -262,8 +265,6 @@ impl eframe::App for HomeFlow {
                 if !edit_mode_response.used_dragged {
                     self.handle_pan_zoom(&response, ui);
                 }
-
-                self.render_grid(&painter, &response.rect);
 
                 self.render_layout(&painter, ctx);
 
