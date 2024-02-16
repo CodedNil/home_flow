@@ -22,6 +22,7 @@ pub struct HomeFlow {
     canvas_center: Vec2,
     mouse_pos: Vec2,
     mouse_pos_world: Vec2,
+    last_multitouch_zoom: f64,
 
     layout_server: Home,
     layout: Home,
@@ -62,6 +63,7 @@ impl Default for HomeFlow {
             canvas_center: Vec2::ZERO,
             mouse_pos: Vec2::ZERO,
             mouse_pos_world: Vec2::ZERO,
+            last_multitouch_zoom: 1.0,
 
             layout_server: Home::default(),
             layout: Home::default(),
@@ -136,11 +138,10 @@ impl HomeFlow {
         // Zoom
         let mut scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta)).y;
         if let Some(multi_touch) = ui.ctx().multi_touch() {
-            // Proportional zoom factor (pinch gesture).
-            // zoom = 1: no change
-            // zoom < 1: pinch together
-            // zoom > 1: pinch spread
-            scroll_delta = multi_touch.zoom_delta as f64 - 1.0;
+            let zoom_delta = multi_touch.zoom_delta as f64;
+            let diff = zoom_delta - self.last_multitouch_zoom;
+            scroll_delta = diff - 1.0;
+            self.last_multitouch_zoom = zoom_delta;
         }
         if scroll_delta.abs() > 0.0 {
             let zoom_amount = (scroll_delta.signum() * 15.0) * (self.stored.zoom / 100.0);
