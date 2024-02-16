@@ -136,7 +136,11 @@ impl HomeFlow {
         // Zoom
         let mut scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta)).y;
         if let Some(multi_touch) = ui.ctx().multi_touch() {
-            scroll_delta = multi_touch.zoom_delta as f64;
+            // Proportional zoom factor (pinch gesture).
+            // zoom = 1: no change
+            // zoom < 1: pinch together
+            // zoom > 1: pinch spread
+            scroll_delta = multi_touch.zoom_delta as f64 - 1.0;
         }
         if scroll_delta.abs() > 0.0 {
             let zoom_amount = (scroll_delta.signum() * 15.0) * (self.stored.zoom / 100.0);
