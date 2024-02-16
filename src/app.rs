@@ -128,13 +128,20 @@ impl HomeFlow {
     fn world_to_pixels_y(&self, y: f64) -> f64 {
         (self.stored.translation.y - y) * self.stored.zoom + self.canvas_center.y
     }
+    fn world_to_pixels_pos(&self, v: Vec2) -> egui::Pos2 {
+        egui::pos2(
+            self.world_to_pixels_x(v.x) as f32,
+            self.world_to_pixels_y(v.y) as f32,
+        )
+    }
 
     fn handle_pan_zoom(&mut self, response: &egui::Response, ui: &egui::Ui) {
         // Drag
-        if response.dragged() {
-            self.stored.translation +=
-                egui_to_vec2(response.drag_delta()) * 0.01 / (self.stored.zoom / 100.0);
-        }
+        let mut translation_delta = if response.dragged() {
+            egui_to_vec2(response.drag_delta()) * 0.01
+        } else {
+            Vec2::ZERO
+        };
 
         // Zoom
         let mut scroll_delta = egui_to_vec2(ui.input(|i| i.raw_scroll_delta)).y;
@@ -142,7 +149,8 @@ impl HomeFlow {
             scroll_delta = scroll_delta.signum() * 15.0;
         }
         if let Some(multi_touch) = ui.ctx().multi_touch() {
-            scroll_delta = (multi_touch.zoom_delta as f64 - 1.0) * 15.0;
+            scroll_delta = (multi_touch.zoom_delta as f64 - 1.0) * 80.0;
+            translation_delta = egui_to_vec2(multi_touch.translation_delta) * 0.01;
         }
         if scroll_delta.abs() > 0.0 {
             let zoom_amount = scroll_delta * (self.stored.zoom / 100.0);
@@ -151,6 +159,10 @@ impl HomeFlow {
             let mouse_world_after_zoom = self.pixels_to_world(self.mouse_pos);
             let difference = mouse_world_after_zoom - mouse_world_before_zoom;
             self.stored.translation += Vec2::new(difference.x, -difference.y);
+        }
+
+        if translation_delta.length() > 0.0 {
+            self.stored.translation += translation_delta / (self.stored.zoom / 100.0);
         }
 
         // Clamp translation to bounds

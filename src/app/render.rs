@@ -7,8 +7,8 @@ use crate::common::{
     utils::{rotate_point, rotate_point_i32, Material},
 };
 use egui::{
-    epaint::Vertex, Color32, ColorImage, Mesh, Painter, Shape as EShape, Stroke, TextureId,
-    TextureOptions,
+    epaint::{CircleShape, TessellationOptions, Tessellator, Vertex},
+    Color32, ColorImage, Mesh, Painter, Shape as EShape, Stroke, TextureId, TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::collections::HashMap;
@@ -86,7 +86,7 @@ impl HomeFlow {
                         .vertices
                         .iter()
                         .map(|&v| Vertex {
-                            pos: vec2_to_egui_pos(self.world_to_pixels(v)),
+                            pos: self.world_to_pixels_pos(v),
                             uv: vec2_to_egui_pos(v * 0.2),
                             color: global_material.tint.to_egui(),
                         })
@@ -259,7 +259,7 @@ impl HomeFlow {
                                 let adjusted_v =
                                     rotate_point(v, Vec2::ZERO, -rot) + pos + shadow_offset;
                                 Vertex {
-                                    pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
+                                    pos: self.world_to_pixels_pos(adjusted_v),
                                     uv: egui::Pos2::ZERO,
                                     color: if is_interior {
                                         *shadow_color
@@ -292,7 +292,7 @@ impl HomeFlow {
                                 .map(|&v| {
                                     let adjusted_v = rotate_point(v, Vec2::ZERO, -rot) + pos;
                                     Vertex {
-                                        pos: vec2_to_egui_pos(self.world_to_pixels(adjusted_v)),
+                                        pos: self.world_to_pixels_pos(adjusted_v),
                                         uv: vec2_to_egui_pos(v * 0.2),
                                         color: material.tint.to_egui(),
                                     }
@@ -324,7 +324,7 @@ impl HomeFlow {
                 .map(|(i, &v)| {
                     let is_interior = *triangles.inners.get(i).unwrap_or(&false);
                     Vertex {
-                        pos: vec2_to_egui_pos(self.world_to_pixels(v + shadow_offset)),
+                        pos: self.world_to_pixels_pos(v + shadow_offset),
                         uv: egui::Pos2::ZERO,
                         color: if is_interior {
                             *shadow_color
@@ -376,35 +376,21 @@ impl HomeFlow {
                     (opening.rotation as f64).to_radians().sin(),
                 );
                 let hinge_pos = room.pos + opening.pos + rot_dir * (opening.width) / 2.0;
+                let end_pos = rotate_point(
+                    room.pos + opening.pos - rot_dir * opening.width / 2.0,
+                    hinge_pos,
+                    opening.open_amount * 40.0,
+                );
 
-                let vertices = Shape::Rectangle
-                    .vertices(
-                        room.pos + opening.pos,
-                        vec2(opening.width, depth),
-                        opening.rotation,
-                    )
-                    .iter()
-                    .map(|v| {
-                        let rotated = rotate_point(*v, hinge_pos, opening.open_amount * 40.0);
-                        Vertex {
-                            pos: vec2_to_egui_pos(self.world_to_pixels(rotated)),
-                            uv: egui::Pos2::default(),
-                            color,
-                        }
-                    })
-                    .collect();
+                let points = [
+                    self.world_to_pixels_pos(hinge_pos),
+                    self.world_to_pixels_pos(end_pos),
+                ];
+                let stroke = Stroke::new((depth * self.stored.zoom) as f32, color);
                 if opening.opening_type == OpeningType::Window {
-                    window_meshes.push(Mesh {
-                        indices: vec![0, 1, 2, 2, 3, 0],
-                        vertices,
-                        texture_id: TextureId::Managed(0),
-                    });
+                    window_meshes.push(EShape::LineSegment { points, stroke });
                 } else {
-                    painter.add(EShape::mesh(Mesh {
-                        indices: vec![0, 1, 2, 2, 3, 0],
-                        vertices,
-                        texture_id: TextureId::Managed(0),
-                    }));
+                    painter.add(EShape::LineSegment { points, stroke });
                 }
             }
         }
@@ -415,7 +401,7 @@ impl HomeFlow {
                 .vertices
                 .iter()
                 .map(|v| Vertex {
-                    pos: vec2_to_egui_pos(self.world_to_pixels(*v)),
+                    pos: self.world_to_pixels_pos(*v),
                     uv: egui::Pos2::default(),
                     color: WALL_COLOR,
                 })
@@ -429,20 +415,60 @@ impl HomeFlow {
 
         // Render windows above walls
         for mesh in window_meshes {
-            painter.add(EShape::mesh(mesh));
+            painter.add(mesh);
         }
 
         // Render lights
         for room in &self.layout.rooms {
             for light in &room.lights {
-                let pos = self.world_to_pixels(room.pos + light.pos);
-                let color = Color32::from_rgb(255, 255, 0).gamma_multiply(0.8);
-                painter.add(EShape::circle_filled(
-                    vec2_to_egui_pos(pos),
-                    0.1 * self.stored.zoom as f32,
-                    color,
-                ));
+                let pos_world = room.pos + light.pos;
+                let pos = self.world_to_pixels(pos_world);
+
+                let (min_opacity, max_opacity) = (0.25, 0.75);
+                let (min_distance, max_distance) = (0.5, 2.0);
+
+                // Normalize the distance within the range of min_distance to max_distance
+                let mouse_dist = self.mouse_pos_world.distance(pos_world) as f32;
+                let norm_dist =
+                    ((mouse_dist - min_distance) / (max_distance - min_distance)).clamp(0.0, 1.0);
+
+                // Calculate the opacity based on the normalized distance
+                let alpha = min_opacity + (max_opacity - min_opacity) * (1.0 - norm_dist);
+
+                let mut shape = CircleShape {
+                    center: vec2_to_egui_pos(pos),
+                    radius: 0.05 * self.stored.zoom as f32,
+                    fill: Color32::from_black_alpha((100.0 * alpha).round() as u8),
+                    stroke: Stroke::NONE,
+                };
+
+                // Add shadow
+                let mut tessellator = simple_tessellator(0.05 * self.stored.zoom as f32);
+                let mut out_mesh = Mesh::default();
+                tessellator.tessellate_circle(shape, &mut out_mesh);
+                painter.add(EShape::mesh(out_mesh));
+
+                // Add light circle
+                shape.fill = Color32::from_rgb(255, 255, 150).gamma_multiply(alpha);
+                shape.stroke = Stroke::new(
+                    0.01 * self.stored.zoom as f32,
+                    Color32::from_rgb(150, 150, 75).gamma_multiply(alpha),
+                );
+                painter.add(shape);
             }
         }
     }
+}
+
+fn simple_tessellator(extrusion: f32) -> Tessellator {
+    Tessellator::new(
+        1.0,
+        TessellationOptions {
+            feathering: true,
+            feathering_size_in_pixels: extrusion,
+            ..Default::default()
+        },
+        [1; 2],
+        Vec::new(),
+    )
 }
