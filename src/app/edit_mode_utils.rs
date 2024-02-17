@@ -4,7 +4,7 @@ use super::{
 };
 use crate::common::{
     layout::GlobalMaterial,
-    shape::coord_to_vec2,
+    shape::point_to_vec2,
     utils::{rotate_point_i32, RoundFactor},
 };
 use egui::{ComboBox, DragValue, Key, Ui};
@@ -218,8 +218,8 @@ impl HomeFlow {
                     // Iterate over pairs of consecutive points to represent the edges of the polygon
                     let points: Vec<_> = poly.exterior().points().collect();
                     for i in 0..points.len() {
-                        let p1 = coord_to_vec2(points[i]);
-                        let p2 = coord_to_vec2(points[(i + 1) % points.len()]);
+                        let p1 = point_to_vec2(points[i]);
+                        let p2 = point_to_vec2(points[(i + 1) % points.len()]);
 
                         // Calculate the closest point on the line segment from p1 to p2 to new_pos
                         let line_vec = p2 - p1;

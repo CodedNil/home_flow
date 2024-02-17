@@ -341,6 +341,50 @@ impl Hash for TileOptions {
     }
 }
 
+impl Walls {
+    pub const NONE: Self = Self {
+        left: false,
+        top: false,
+        right: false,
+        bottom: false,
+    };
+
+    pub const WALL: Self = Self {
+        left: true,
+        top: true,
+        right: true,
+        bottom: true,
+    };
+
+    pub const fn left(self, is_wall: bool) -> Self {
+        Self {
+            left: is_wall,
+            ..self
+        }
+    }
+
+    pub const fn top(self, is_wall: bool) -> Self {
+        Self {
+            top: is_wall,
+            ..self
+        }
+    }
+
+    pub const fn right(self, is_wall: bool) -> Self {
+        Self {
+            right: is_wall,
+            ..self
+        }
+    }
+
+    pub const fn bottom(self, is_wall: bool) -> Self {
+        Self {
+            bottom: is_wall,
+            ..self
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
 pub enum Material {
     #[default]

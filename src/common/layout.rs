@@ -2,7 +2,7 @@ use super::{
     color::Color,
     furniture::Furniture,
     light_render::LightData,
-    shape::ShadowsData,
+    shape::{Line, ShadowsData},
     utils::{clone_as_none, Material},
 };
 use derivative::Derivative;
@@ -74,7 +74,7 @@ pub struct Light {
     pub pos: Vec2,
     pub intensity: f64,
     pub radius: f64,
-    #[serde(skip)]
+    // #[serde(skip)]
     pub state: u8,
 }
 
@@ -149,6 +149,7 @@ pub struct RoomRender {
     pub material_polygons: IndexMap<String, MultiPolygon>,
     pub material_triangles: IndexMap<String, Vec<Triangles>>,
     pub wall_polygons: MultiPolygon,
+    pub wall_lines: Vec<Line>,
 }
 
 pub struct Triangles {

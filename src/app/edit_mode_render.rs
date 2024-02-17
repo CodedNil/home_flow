@@ -2,7 +2,7 @@ use super::{edit_mode::EditResponse, vec2_to_egui_pos, HomeFlow};
 use crate::common::{
     furniture::Furniture,
     layout::{Action, OpeningType, Room, Shape},
-    shape::coord_to_vec2,
+    shape::point_to_vec2,
     utils::RoundFactor,
 };
 use egui::{Align2, Color32, Context, Painter, Shape as EShape, Stroke, Window};
@@ -85,7 +85,7 @@ impl HomeFlow {
 
             // Render outline
             for poly in &rendered_data.polygons {
-                let points: Vec<Vec2> = poly.exterior().points().map(coord_to_vec2).collect();
+                let points: Vec<Vec2> = poly.exterior().points().map(point_to_vec2).collect();
                 self.closed_dashed_line_with_offset(
                     painter,
                     &points,
@@ -94,7 +94,7 @@ impl HomeFlow {
                     self.time * 50.0,
                 );
                 for interior in poly.interiors() {
-                    let points: Vec<Vec2> = interior.points().map(coord_to_vec2).collect();
+                    let points: Vec<Vec2> = interior.points().map(point_to_vec2).collect();
                     self.closed_dashed_line_with_offset(
                         painter,
                         &points,
