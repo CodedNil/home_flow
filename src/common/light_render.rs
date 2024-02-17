@@ -4,7 +4,7 @@ use image::{ImageBuffer, Luma};
 use rayon::prelude::*;
 use std::f64::consts::PI;
 
-const PIXELS_PER_METER: f64 = 40.0;
+const PIXELS_PER_METER: f64 = 30.0;
 const CHUNK_SIZE: usize = 512;
 const LIGHT_SAMPLES: u8 = 10; // Number of samples within the light's radius for anti-aliasing
 
@@ -32,6 +32,28 @@ pub fn render_room_lighting(
     let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
     let image_width = image_buffer.width() as usize;
 
+    // Precompute walls sorted by distance to each light
+    let mut walls_by_distance = Vec::with_capacity(lights.len());
+    for light in lights {
+        // Sort lines by their distance to the light
+        let mut lines_with_distances = lines
+            .iter()
+            .map(|(start, end)| {
+                let distance = light.pos.distance(*start).min(light.pos.distance(*end));
+                ((start, end), distance)
+            })
+            .collect::<Vec<_>>();
+        lines_with_distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        // Remove distance, keeping only the lines
+        walls_by_distance.push(
+            lines_with_distances
+                .into_iter()
+                .map(|(line, _)| line)
+                .collect::<Vec<_>>(),
+        );
+    }
+
     image_buffer
         .par_chunks_mut(CHUNK_SIZE)
         .enumerate()
@@ -44,22 +66,21 @@ pub fn render_room_lighting(
                 let x = (start_x + i % CHUNK_SIZE) % image_width;
                 let y = start_y + (start_x + i % CHUNK_SIZE) / image_width;
 
-                // Use x and y here
                 let point = vec2(x as f64 / width, 1.0 - (y as f64 / height));
                 let point_in_world = bounds_min + point * new_size;
 
                 let mut total_light_intensity = 0.0;
-                for light in lights {
+                for (light_index, light) in lights.iter().enumerate() {
+                    let light_state_intensity = light.intensity * (light.state as f64 / 255.0);
                     let distance_to_light = (point_in_world - light.pos).length();
-                    let lights_intensity = light.intensity * (light.state as f64 / 255.0);
-                    if distance_to_light > lights_intensity * 8.0 {
+                    if distance_to_light > light_state_intensity * 8.0 {
                         continue;
                     }
                     let mut sampled_light_intensity = 0.0;
 
                     // Do more samples the closer we are to the light
                     let dynamic_samples = ((LIGHT_SAMPLES as f64
-                        * (1.0 - distance_to_light / (lights_intensity * 8.0)))
+                        * (1.0 - distance_to_light / (light_state_intensity * 8.0)))
                         .round() as u8)
                         .max(1);
 
@@ -73,21 +94,15 @@ pub fn render_room_lighting(
                         };
 
                         // Check if the sample light position and pixel intersect with any lines
-                        let mut light_visible = true;
-                        for (p1, p2) in lines {
-                            if lines_intersect(*p1, *p2, sample_light_position, point_in_world) {
-                                light_visible = false;
-                                break;
-                            }
-                        }
-
-                        if !light_visible {
+                        if walls_by_distance[light_index].iter().any(|(p1, p2)| {
+                            lines_intersect(**p1, **p2, sample_light_position, point_in_world)
+                        }) {
                             continue;
                         }
 
                         // Calculate distance and intensity for the sample
                         let distance = (point_in_world - sample_light_position).length() * 2.0
-                            / lights_intensity;
+                            / light_state_intensity;
                         sampled_light_intensity += 1.0 / (1.0 + distance * distance);
                     }
 
