@@ -40,9 +40,7 @@ impl HomeFlow {
 
     pub fn render_layout(&mut self, painter: &Painter, ctx: &egui::Context) {
         self.layout.render();
-        if self.next_lights_render_time < self.time && self.layout.render_lighting() {
-            self.next_lights_render_time = self.time + 0.5;
-        }
+        self.layout.render_lighting();
 
         // Get bounds
         let mut min = Vec2::splat(f64::INFINITY);

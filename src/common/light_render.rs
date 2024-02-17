@@ -16,6 +16,7 @@ use uuid::Uuid;
 const PIXELS_PER_METER: f64 = 40.0;
 const CHUNK_SIZE: u32 = 4096;
 const LIGHT_SAMPLES: u8 = 16; // Number of samples within the light's radius for anti-aliasing
+const MAX_LIGHTS_PER_FRAME: u32 = 1;
 
 pub struct LightData {
     pub hash: u64,
@@ -38,7 +39,7 @@ pub fn combine_lighting(
 
     // Create an image buffer with the calculated size, filled with transparent pixels
     let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
-    let image_width = image_buffer.width();
+    let (image_width, image_height) = (image_buffer.width(), image_buffer.height());
 
     // Create vec of lights references
     let mut lights = Vec::new();
@@ -69,13 +70,21 @@ pub fn combine_lighting(
 
                 let mut light_intensity: f64 = 0.0;
                 for light in &lights {
-                    let (_, light_data) = light.light_data.as_ref().unwrap();
-                    let light_image = &light_data.image;
-                    let light_pixel = light_image.get_pixel(x, y).0[0];
-                    light_intensity += light_pixel as f64 / 255.0;
-                    if light_intensity >= 255.0 {
-                        light_intensity = 255.0;
-                        break;
+                    if let Some((_, light_data)) = &light.light_data {
+                        let light_image = &light_data.image;
+
+                        // If lights image size doesnt match, skip this one
+                        let (w, h) = (light_image.width(), light_image.height());
+                        if w != image_width || h != image_height {
+                            continue;
+                        }
+
+                        let light_pixel = light_image.get_pixel(x, y).0[0];
+                        light_intensity += light_pixel as f64 / 255.0;
+                        if light_intensity >= 255.0 {
+                            light_intensity = 255.0;
+                            break;
+                        }
                     }
                 }
                 *pixel = ((1.0 - light_intensity) * 200.0) as u8;
@@ -95,7 +104,8 @@ pub fn render_lighting(
     bounds_max: Vec2,
     rooms: &Vec<Room>,
     all_walls: &[Line],
-) -> HashMap<Uuid, (u64, LightData)> {
+) -> (bool, HashMap<Uuid, (u64, LightData)>) {
+    let mut cur_changed = 0;
     let mut new_light_data = HashMap::new();
     for room in rooms {
         for light in &room.lights {
@@ -119,10 +129,14 @@ pub fn render_lighting(
                     room.pos + light.pos,
                 );
                 new_light_data.insert(light.id, (hash, light_data));
+                cur_changed += 1;
+            }
+            if cur_changed >= MAX_LIGHTS_PER_FRAME {
+                return (false, new_light_data);
             }
         }
     }
-    new_light_data
+    (true, new_light_data)
 }
 
 fn render_light(

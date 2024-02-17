@@ -31,7 +31,6 @@ pub struct HomeFlow {
     layout: Home,
     textures: HashMap<String, TextureHandle>,
     light_data: Option<(u64, TextureHandle)>,
-    next_lights_render_time: f64,
     bounds: (Vec2, Vec2),
 
     toasts: Arc<Mutex<Toasts>>,
@@ -73,7 +72,6 @@ impl Default for HomeFlow {
             layout: Home::default(),
             textures: HashMap::new(),
             light_data: None,
-            next_lights_render_time: -1.0,
             bounds: (Vec2::ZERO, Vec2::ZERO),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),

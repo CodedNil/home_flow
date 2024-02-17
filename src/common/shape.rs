@@ -197,7 +197,7 @@ impl Home {
         });
     }
 
-    pub fn render_lighting(&mut self) -> bool {
+    pub fn render_lighting(&mut self) {
         let mut hasher = DefaultHasher::new();
         for room in &self.rooms {
             hash_vec2(room.pos, &mut hasher);
@@ -206,20 +206,18 @@ impl Home {
             room.walls.hash(&mut hasher);
             room.lights.hash(&mut hasher);
         }
-        let hash = hasher.finish();
+        let mut hash = hasher.finish();
         if let Some(light_data) = &self.light_data {
             if light_data.hash == hash {
-                return false;
+                return;
             }
         }
 
         let all_walls = &self.rendered_data.as_ref().unwrap().wall_lines;
 
         let (bounds_min, bounds_max) = self.bounds();
-        let mut light_data = render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
-
-        let lights_changed = light_data.len();
-        let total_lights = self.rooms.iter().map(|r| r.lights.len()).sum();
+        let (update_complete, mut light_data) =
+            render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
 
         // Override light data for each light
         for room in &mut self.rooms {
@@ -231,9 +229,10 @@ impl Home {
         }
 
         // Combine each lights contribution into a single image
+        if !update_complete {
+            hash -= 1;
+        }
         self.light_data = Some(combine_lighting(bounds_min, bounds_max, &self.rooms, hash));
-
-        lights_changed == total_lights
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
