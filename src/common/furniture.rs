@@ -155,7 +155,7 @@ impl FurnitureType {
 impl Furniture {
     pub fn new(furniture_type: FurnitureType, pos: Vec2, size: Vec2, rotation: i32) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
+            id: Uuid::new_v4(),
             furniture_type,
             material: "Wood".to_owned(),
             material_children: "Wood".to_owned(),

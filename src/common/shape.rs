@@ -23,33 +23,6 @@ pub const CLIPPER_PRECISION: f64 = 1e4; // How many decimal places to use for cl
 
 impl Home {
     pub fn render(&mut self) {
-        // Compute lighting for each room
-        let all_lights = self
-            .rooms
-            .iter()
-            .flat_map(|room| {
-                room.lights.iter().map(|l| Light {
-                    pos: room.pos + l.pos,
-                    ..*l
-                })
-            })
-            .collect::<Vec<_>>();
-        for room in &mut self.rooms {
-            let mut hasher = DefaultHasher::new();
-            room.hash(&mut hasher);
-            room.lights.hash(&mut hasher);
-            let hash = hasher.finish();
-            if room.light_data.is_none() || room.light_data.as_ref().unwrap().hash != hash {
-                let light_data = render_room_lighting(room, &all_lights);
-                room.light_data = Some(LightData {
-                    hash,
-                    image: light_data.image,
-                    image_center: light_data.image_center,
-                    image_size: light_data.image_size,
-                });
-            }
-        }
-
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
         let home_hash = hasher.finish();
@@ -138,6 +111,7 @@ impl Home {
                 }
             }
         }
+        let wall_polygons_full = wall_polygons.clone();
         // Subtract doors
         for room in &self.rooms {
             for opening in &room.openings {
@@ -190,12 +164,64 @@ impl Home {
             walls_hash,
             wall_triangles,
             wall_polygons,
+            wall_polygons_full,
             wall_shadows,
+        });
+    }
+
+    pub fn render_lighting(&mut self) {
+        let mut hasher = DefaultHasher::new();
+        for room in &self.rooms {
+            room.hash(&mut hasher);
+            room.lights.hash(&mut hasher);
+        }
+        let hash = hasher.finish();
+        if let Some(light_data) = &self.light_data {
+            if light_data.hash == hash {
+                return;
+            }
+        }
+
+        let start = std::time::Instant::now();
+
+        let lights = self
+            .rooms
+            .iter()
+            .flat_map(|room| {
+                room.lights.iter().map(|l| Light {
+                    pos: room.pos + l.pos,
+                    ..*l
+                })
+            })
+            .collect::<Vec<_>>();
+        let wall_polygons = &self.rendered_data.as_ref().unwrap().wall_polygons_full;
+
+        let (bounds_min, bounds_max) = self.bounds();
+        let light_data = render_room_lighting(bounds_min, bounds_max, &lights, wall_polygons);
+
+        log::info!("Lighting render time: {:?}", start.elapsed());
+
+        self.light_data = Some(LightData {
+            hash,
+            image: light_data.image,
+            image_center: light_data.image_center,
+            image_size: light_data.image_size,
         });
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
         get_global_material(&self.materials, string)
+    }
+
+    pub fn bounds(&self) -> (Vec2, Vec2) {
+        let mut min = Vec2::splat(f64::INFINITY);
+        let mut max = Vec2::splat(f64::NEG_INFINITY);
+        for room in &self.rooms {
+            let (room_min, room_max) = room.bounds();
+            min = min.min(room_min);
+            max = max.max(room_max);
+        }
+        (min, max)
     }
 }
 

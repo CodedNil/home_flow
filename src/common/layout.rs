@@ -26,6 +26,9 @@ pub struct Home {
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<HomeRender>,
+    #[serde(skip)]
+    #[derivative(Clone(clone_with = "clone_as_none"))]
+    pub light_data: Option<LightData>,
 }
 
 #[derive(Serialize, Deserialize, Derivative)]
@@ -44,9 +47,6 @@ pub struct Room {
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<RoomRender>,
-    #[serde(skip)]
-    #[derivative(Clone(clone_with = "clone_as_none"))]
-    pub light_data: Option<LightData>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
@@ -72,6 +72,9 @@ pub struct Opening {
 pub struct Light {
     pub id: Uuid,
     pub pos: Vec2,
+    pub intensity: f64,
+    #[serde(skip)]
+    pub state: u8,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -135,6 +138,7 @@ pub struct HomeRender {
     pub walls_hash: u64,
     pub wall_triangles: Vec<Triangles>,
     pub wall_polygons: Vec<MultiPolygon>,
+    pub wall_polygons_full: Vec<MultiPolygon>,
     pub wall_shadows: (u64, ShadowsData),
 }
 

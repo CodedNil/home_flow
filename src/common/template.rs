@@ -364,5 +364,6 @@ pub fn template_home() -> Home {
             Furniture::new(FurnitureType::Boiler, vec2(1.5, -0.65), vec2(0.6, 0.6), 0),
         ],
         rendered_data: None,
+        light_data: None,
     }
 }

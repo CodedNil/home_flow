@@ -9,6 +9,7 @@ use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use strum_macros::{Display, EnumIter};
+use uuid::Uuid;
 
 pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
     vec.x.to_bits().hash(state);
@@ -55,7 +56,7 @@ impl Hash for Home {
 impl Room {
     pub fn new(name: &str, pos: Vec2, size: Vec2, material: &str) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
+            id: Uuid::new_v4(),
             name: name.to_owned(),
             material: material.to_owned(),
             pos,
@@ -66,25 +67,11 @@ impl Room {
             lights: Vec::new(),
             outline: None,
             rendered_data: None,
-            light_data: None,
         }
     }
 
     pub fn default() -> Self {
-        Self {
-            id: uuid::Uuid::new_v4(),
-            name: "New Room".to_owned(),
-            material: String::new(),
-            pos: Vec2::ZERO,
-            size: vec2(1.0, 1.0),
-            walls: Walls::WALL,
-            operations: Vec::new(),
-            openings: Vec::new(),
-            lights: Vec::new(),
-            outline: None,
-            rendered_data: None,
-            light_data: None,
-        }
+        Self::new("New Room", Vec2::ZERO, vec2(1.0, 1.0), "")
     }
 
     pub fn outline(&self, outline: Outline) -> Self {
@@ -214,7 +201,7 @@ impl Hash for Room {
 impl Opening {
     pub fn new(opening_type: OpeningType, pos: Vec2, rotation: i32) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
+            id: Uuid::new_v4(),
             opening_type,
             pos,
             rotation,
@@ -224,14 +211,7 @@ impl Opening {
     }
 
     pub fn default() -> Self {
-        Self {
-            id: uuid::Uuid::new_v4(),
-            opening_type: OpeningType::Door,
-            pos: Vec2::ZERO,
-            rotation: 0,
-            width: 0.8,
-            open_amount: 0.0,
-        }
+        Self::new(OpeningType::Door, Vec2::ZERO, 0)
     }
 
     pub const fn width(&self, width: f64) -> Self {
@@ -250,16 +230,15 @@ impl Hash for Opening {
 impl Light {
     pub fn new(pos: Vec2) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
+            id: Uuid::new_v4(),
             pos,
+            intensity: 1.0,
+            state: 255,
         }
     }
 
     pub fn default() -> Self {
-        Self {
-            id: uuid::Uuid::new_v4(),
-            pos: Vec2::ZERO,
-        }
+        Self::new(Vec2::ZERO)
     }
 }
 impl Hash for Light {
@@ -271,7 +250,7 @@ impl Hash for Light {
 impl Operation {
     pub fn new(action: Action, shape: Shape, pos: Vec2, size: Vec2) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
+            id: Uuid::new_v4(),
             action,
             shape,
             material: None,
@@ -282,15 +261,7 @@ impl Operation {
     }
 
     pub fn default() -> Self {
-        Self {
-            id: uuid::Uuid::new_v4(),
-            action: Action::Add,
-            shape: Shape::Rectangle,
-            material: None,
-            pos: Vec2::ZERO,
-            size: vec2(1.0, 1.0),
-            rotation: 0,
-        }
+        Self::new(Action::Add, Shape::Rectangle, Vec2::ZERO, vec2(1.0, 1.0))
     }
 
     pub fn set_material(&self, material: &str) -> Self {
@@ -317,10 +288,7 @@ impl Outline {
     }
 
     pub const fn default() -> Self {
-        Self {
-            thickness: 0.05,
-            color: Color::WHITE,
-        }
+        Self::new(0.05, Color::WHITE)
     }
 }
 impl Hash for Outline {

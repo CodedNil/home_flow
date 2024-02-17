@@ -12,7 +12,6 @@ use glam::{dvec2 as vec2, DVec2 as Vec2};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
-use uuid::Uuid;
 
 mod edit_mode;
 mod edit_mode_render;
@@ -30,7 +29,7 @@ pub struct HomeFlow {
     layout_server: Home,
     layout: Home,
     textures: HashMap<String, TextureHandle>,
-    light_data: HashMap<Uuid, (u64, TextureHandle)>,
+    light_data: Option<(u64, TextureHandle)>,
     bounds: (Vec2, Vec2),
 
     toasts: Arc<Mutex<Toasts>>,
@@ -71,7 +70,7 @@ impl Default for HomeFlow {
             layout_server: Home::default(),
             layout: Home::default(),
             textures: HashMap::new(),
-            light_data: HashMap::new(),
+            light_data: None,
             bounds: (Vec2::ZERO, Vec2::ZERO),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),

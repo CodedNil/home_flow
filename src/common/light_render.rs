@@ -1,4 +1,6 @@
-use super::layout::{Light, Room};
+use super::{layout::Light, shape::vec2_to_coord};
+use geo::Intersects;
+use geo_types::{LineString, MultiPolygon};
 use glam::DVec2 as Vec2;
 use image::{ImageBuffer, Luma};
 use rayon::prelude::*;
@@ -13,9 +15,12 @@ pub struct LightData {
     pub image_size: Vec2,
 }
 
-pub fn render_room_lighting(room: &Room, lights: &[Light]) -> LightData {
-    // Calculate the center and size of the home
-    let (bounds_min, bounds_max) = room.bounds();
+pub fn render_room_lighting(
+    bounds_min: Vec2,
+    bounds_max: Vec2,
+    lights: &[Light],
+    polygons: &[MultiPolygon],
+) -> LightData {
     let new_center = (bounds_min + bounds_max) / 2.0;
     let new_size = bounds_max - bounds_min;
 
@@ -43,7 +48,6 @@ pub fn render_room_lighting(room: &Room, lights: &[Light]) -> LightData {
             let chunk_height = std::cmp::min(CHUNK_SIZE, image_height - chunk_y * CHUNK_SIZE);
 
             let mut chunk_buffer = vec![Luma([0]); (chunk_width * chunk_height) as usize];
-            let mut chunk_edited = false;
             let start_x = chunk_x * CHUNK_SIZE;
             let start_y = chunk_y * CHUNK_SIZE;
 
@@ -52,44 +56,45 @@ pub fn render_room_lighting(room: &Room, lights: &[Light]) -> LightData {
                     let x = start_x + chunk_x;
                     let y = start_y + chunk_y;
 
-                    let mut pixel_alpha = 0;
-
                     let point = Vec2 {
                         x: x as f64 / width,
                         y: 1.0 - (y as f64 / height),
                     };
                     let point_in_world = bounds_min + point * new_size;
 
-                    if room.contains(point_in_world) {
-                        let mut total_light_intensity = 0.0;
-                        for light in lights {
-                            let distance = (point_in_world - light.pos).length() * 2.0;
-                            let light_intensity = 1.0 / (1.0 + distance * distance);
-                            total_light_intensity += light_intensity;
+                    let mut total_light_intensity = 0.0;
+                    for light in lights {
+                        // Check if the light and pixel intersect with any polygon
+                        let mut light_visible = true;
+                        for polygon in polygons {
+                            // intersects(&self, rhs: &Rhs) -> bool
+                            if polygon.intersects(&LineString::new(vec![
+                                vec2_to_coord(&light.pos),
+                                vec2_to_coord(&point_in_world),
+                            ])) {
+                                light_visible = false;
+                                break;
+                            }
                         }
-                        pixel_alpha = ((1.0 - total_light_intensity) * 255.0) as u8;
-                        chunk_edited = true;
+                        if !light_visible {
+                            continue;
+                        }
+                        let distance = (point_in_world - light.pos).length() * 2.0
+                            / (light.intensity * (light.state as f64 / 255.0));
+                        let light_intensity = 1.0 / (1.0 + distance * distance);
+                        total_light_intensity += light_intensity;
                     }
+                    let pixel_alpha = ((1.0 - total_light_intensity) * 255.0) as u8;
 
                     chunk_buffer[(chunk_y * chunk_width + chunk_x) as usize] = Luma([pixel_alpha]);
                 }
             }
-            (
-                start_x,
-                start_y,
-                chunk_width,
-                chunk_height,
-                chunk_buffer,
-                chunk_edited,
-            )
+            (start_x, start_y, chunk_width, chunk_height, chunk_buffer)
         })
         .collect();
 
     // Combine the chunks back into the main image buffer
-    for (start_x, start_y, chunk_width, chunk_height, chunk, chunk_edited) in chunks {
-        if !chunk_edited {
-            continue;
-        }
+    for (start_x, start_y, chunk_width, chunk_height, chunk) in chunks {
         for y in 0..chunk_height {
             for x in 0..chunk_width {
                 let pixel = chunk[(y * chunk_width + x) as usize];

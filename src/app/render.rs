@@ -40,6 +40,7 @@ impl HomeFlow {
 
     pub fn render_layout(&mut self, painter: &Painter, ctx: &egui::Context) {
         self.layout.render();
+        self.layout.render_lighting();
 
         // Get bounds
         let mut min = Vec2::splat(f64::INFINITY);
@@ -343,43 +344,38 @@ impl HomeFlow {
         }
 
         // Render lighting
-        for room in &self.layout.rooms {
-            if let Some(light_data) = &room.light_data {
-                // Invalidate old texture handles
-                if let Some((hash, _)) = self.light_data.get(&room.id) {
-                    if *hash != light_data.hash {
-                        self.light_data.remove(&room.id);
-                    }
-                }
-                // Load texture
-                let texture_handle = self
-                    .light_data
-                    .entry(room.id)
-                    .or_insert_with(|| {
-                        let canvas_size = light_data.image.dimensions();
+        if let Some(light_data) = &self.layout.light_data {
+            // Check if the light data has changed and needs to be reloaded.
+            let needs_reload = self
+                .light_data
+                .as_ref()
+                .map_or(true, |(hash, _)| *hash != light_data.hash);
 
-                        let rgba_image_data = (0..canvas_size.1)
-                            .flat_map(|y| {
-                                (0..canvas_size.0).flat_map(move |x| {
-                                    let gray_value = light_data.image.get_pixel(x, y).0[0];
-                                    vec![0, 0, 0, gray_value].into_iter()
-                                })
-                            })
-                            .collect::<Vec<_>>();
-
-                        let texture = ctx.load_texture(
-                            format!("lighting_{}", room.name),
-                            ColorImage::from_rgba_unmultiplied(
-                                [canvas_size.0 as usize, canvas_size.1 as usize],
-                                &rgba_image_data,
-                            ),
-                            TextureOptions::LINEAR,
-                        );
-                        (light_data.hash, texture)
+            if needs_reload {
+                let rgba_image_data = light_data
+                    .image
+                    .pixels()
+                    .flat_map(|pixel| {
+                        std::iter::once(0)
+                            .chain(std::iter::once(0))
+                            .chain(std::iter::once(0))
+                            .chain(std::iter::once(pixel.0[0]))
                     })
-                    .1
-                    .clone();
+                    .collect::<Vec<_>>();
+                let (width, height) = light_data.image.dimensions();
+                let texture = ctx.load_texture(
+                    "lighting".to_string(),
+                    ColorImage::from_rgba_unmultiplied(
+                        [width as usize, height as usize],
+                        &rgba_image_data,
+                    ),
+                    TextureOptions::LINEAR,
+                );
+                self.light_data = Some((light_data.hash, texture));
+            }
 
+            // Render the texture.
+            if let Some((_, texture_handle)) = &self.light_data {
                 painter.image(
                     texture_handle.id(),
                     Rect::from_center_size(
