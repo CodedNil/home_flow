@@ -1,5 +1,5 @@
 use super::{
-    layout::{Light, Room, Walls},
+    layout::{Home, Light, Walls},
     shape::Line,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -7,9 +7,9 @@ use image::{ImageBuffer, Luma};
 use rayon::prelude::*;
 use std::f64::consts::PI;
 
-const PIXELS_PER_METER: f64 = 30.0;
+const PIXELS_PER_METER: f64 = 20.0;
 const CHUNK_SIZE: usize = 512;
-const LIGHT_SAMPLES: u8 = 10; // Number of samples within the light's radius for anti-aliasing
+const LIGHT_SAMPLES: u8 = 8; // Number of samples within the light's radius for anti-aliasing
 
 pub struct LightData {
     pub hash: u64,
@@ -21,12 +21,12 @@ pub struct LightData {
 pub fn render_room_lighting(
     bounds_min: Vec2,
     bounds_max: Vec2,
-    rooms: &[Room],
+    home: &Home,
     all_walls: &[Line],
 ) -> LightData {
     let mut lights = Vec::new();
     let mut lights_enclosed = Vec::new();
-    for room in rooms {
+    for room in &home.rooms {
         let enclosed = room.walls == Walls::WALL;
         lights.extend(room.lights.iter().map(|light| Light {
             pos: room.pos + light.pos,
@@ -41,7 +41,7 @@ pub fn render_room_lighting(
         .zip(&lights_enclosed)
         .map(|(light, &enclosed)| {
             if enclosed {
-                rooms
+                home.rooms
                     .iter()
                     .find(|r| r.lights.iter().any(|l| l.id == light.id))
                     .and_then(|room| room.rendered_data.as_ref())
@@ -79,6 +79,11 @@ pub fn render_room_lighting(
                 let point = vec2(x as f64 / width, 1.0 - (y as f64 / height));
                 let point_in_world = bounds_min + point * new_size;
 
+                if !home.contains(point_in_world) {
+                    *pixel = 0;
+                    continue;
+                }
+
                 let mut total_light_intensity = 0.0;
                 for (light_index, light) in lights.iter().enumerate() {
                     let light_state_intensity = light.intensity * (light.state as f64 / 255.0);
@@ -90,7 +95,7 @@ pub fn render_room_lighting(
 
                     // Do more samples the closer we are to the light
                     let dynamic_samples = ((LIGHT_SAMPLES as f64
-                        * (1.0 - distance_to_light / (light_state_intensity * 8.0)))
+                        * (1.0 - distance_to_light / (light_state_intensity * 4.0)))
                         .round() as u8)
                         .max(1);
 
@@ -123,8 +128,7 @@ pub fn render_room_lighting(
                         break;
                     }
                 }
-                let pixel_alpha = ((1.0 - total_light_intensity) * 200.0) as u8;
-                *pixel = pixel_alpha;
+                *pixel = ((1.0 - total_light_intensity) * 200.0) as u8;
             }
         });
 
@@ -169,7 +173,7 @@ fn generate_points_for_wall_segment(start: Vec2, end: Vec2) -> Vec<Vec2> {
     let total_distance = start.distance(end);
     if total_distance > POINTS_DISTANCE {
         let direction = (end - start).normalize();
-        let num_points = (total_distance / POINTS_DISTANCE).ceil() as usize;
+        let num_points = (total_distance / POINTS_DISTANCE).ceil() as usize - 1;
         for i in 1..num_points {
             points.push(start + direction * (POINTS_DISTANCE * i as f64));
         }

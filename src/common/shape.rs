@@ -194,13 +194,20 @@ impl Home {
 
         #[cfg(not(target_arch = "wasm32"))]
         let start = std::time::Instant::now();
+
         let all_walls = &self
             .rendered_data
             .as_ref()
             .map_or_else(Vec::new, |data| data.wall_lines.clone());
+        // Remove walls that have size close to zero
+        let all_walls = all_walls
+            .iter()
+            .filter(|(start, end)| start.distance(*end) > f64::EPSILON)
+            .copied()
+            .collect::<Vec<_>>();
 
         let (bounds_min, bounds_max) = self.bounds();
-        let light_data = render_room_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
+        let light_data = render_room_lighting(bounds_min, bounds_max, self, &all_walls);
 
         #[cfg(not(target_arch = "wasm32"))]
         log::info!("Lighting render time: {:?}", start.elapsed());
@@ -226,6 +233,15 @@ impl Home {
             max = max.max(room_max);
         }
         (min, max)
+    }
+
+    pub fn contains(&self, point: Vec2) -> bool {
+        for room in &self.rooms {
+            if room.contains(point) {
+                return true;
+            }
+        }
+        false
     }
 }
 
