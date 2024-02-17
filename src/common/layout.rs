@@ -68,14 +68,18 @@ pub struct Opening {
     pub open_amount: f64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Clone)]
 pub struct Light {
     pub id: Uuid,
     pub pos: Vec2,
     pub intensity: f64,
     pub radius: f64,
-    // #[serde(skip)]
+    #[serde(skip)]
     pub state: u8,
+    #[serde(skip)]
+    #[derivative(Clone(clone_with = "clone_as_none"))]
+    pub light_data: Option<(u64, LightData)>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

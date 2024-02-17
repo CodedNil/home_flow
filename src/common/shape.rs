@@ -1,3 +1,5 @@
+use crate::common::light_render::combine_lighting;
+
 use super::{
     color::Color,
     furniture::FurnitureRender,
@@ -5,7 +7,7 @@ use super::{
         Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
         Triangles, Walls,
     },
-    light_render::{render_room_lighting, LightData},
+    light_render::render_lighting,
     utils::{rotate_point_i32, Material},
 };
 use geo::{
@@ -118,10 +120,26 @@ impl Home {
                     wall_lines = difference_lines(&wall_lines, poly);
                 }
                 for line in &rendered_data.wall_lines {
-                    wall_lines.push(*line);
+                    // Check if wall lines doesnt already contain the line or the reverse of the line
+                    let merge_dist = 0.01;
+                    let contains_line = wall_lines.iter().any(|(start, end)| {
+                        (start.distance(line.0) < merge_dist && end.distance(line.1) < merge_dist)
+                            || (start.distance(line.1) < merge_dist
+                                && end.distance(line.0) < merge_dist)
+                    });
+                    if !contains_line {
+                        wall_lines.push(*line);
+                    }
                 }
             }
         }
+        // Remove walls that have size close to zero
+        let wall_lines = wall_lines
+            .iter()
+            .filter(|(start, end)| start.distance(*end) > f64::EPSILON)
+            .copied()
+            .collect::<Vec<_>>();
+
         // Subtract doors
         for room in &self.rooms {
             for opening in &room.openings {
@@ -192,32 +210,22 @@ impl Home {
             }
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        let start = std::time::Instant::now();
-
-        let all_walls = &self
-            .rendered_data
-            .as_ref()
-            .map_or_else(Vec::new, |data| data.wall_lines.clone());
-        // Remove walls that have size close to zero
-        let all_walls = all_walls
-            .iter()
-            .filter(|(start, end)| start.distance(*end) > f64::EPSILON)
-            .copied()
-            .collect::<Vec<_>>();
+        let all_walls = &self.rendered_data.as_ref().unwrap().wall_lines;
 
         let (bounds_min, bounds_max) = self.bounds();
-        let light_data = render_room_lighting(bounds_min, bounds_max, self, &all_walls);
+        let mut light_data = render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
 
-        #[cfg(not(target_arch = "wasm32"))]
-        log::info!("Lighting render time: {:?}", start.elapsed());
+        // Override light data for each light
+        for room in &mut self.rooms {
+            for light in &mut room.lights {
+                if let Some(data) = light_data.remove(&light.id) {
+                    light.light_data = Some(data);
+                }
+            }
+        }
 
-        self.light_data = Some(LightData {
-            hash,
-            image: light_data.image,
-            image_center: light_data.image_center,
-            image_size: light_data.image_size,
-        });
+        // Combine each lights contribution into a single image
+        self.light_data = Some(combine_lighting(bounds_min, bounds_max, &self.rooms, hash));
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
@@ -233,15 +241,6 @@ impl Home {
             max = max.max(room_max);
         }
         (min, max)
-    }
-
-    pub fn contains(&self, point: Vec2) -> bool {
-        for room in &self.rooms {
-            if room.contains(point) {
-                return true;
-            }
-        }
-        false
     }
 }
 

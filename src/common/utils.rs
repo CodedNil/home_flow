@@ -232,9 +232,10 @@ impl Light {
         Self {
             id: Uuid::new_v4(),
             pos,
-            intensity: 1.0,
-            radius: 0.075,
+            intensity: 4.0,
+            radius: 0.025,
             state: 255,
+            light_data: None,
         }
     }
 
