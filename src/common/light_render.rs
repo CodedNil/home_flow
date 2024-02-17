@@ -1,3 +1,5 @@
+use std::f64::consts::PI;
+
 use super::{layout::Light, shape::vec2_to_coord};
 use geo::Intersects;
 use geo_types::{LineString, MultiPolygon};
@@ -64,25 +66,47 @@ pub fn render_room_lighting(
 
                     let mut total_light_intensity = 0.0;
                     for light in lights {
-                        // Check if the light and pixel intersect with any polygon
-                        let mut light_visible = true;
-                        for polygon in polygons {
-                            // intersects(&self, rhs: &Rhs) -> bool
-                            if polygon.intersects(&LineString::new(vec![
-                                vec2_to_coord(&light.pos),
-                                vec2_to_coord(&point_in_world),
-                            ])) {
-                                light_visible = false;
-                                break;
+                        let samples = 10; // Number of samples within the light's radius for anti-aliasing
+                        let mut sampled_light_intensity = 0.0;
+
+                        for i in 0..samples {
+                            // Calculate offset for current sample
+                            let angle = 2.0 * PI * (i as f64 / samples as f64);
+                            let radius_offset = light.radius * angle.cos();
+                            let vertical_offset = light.radius * angle.sin();
+                            let sample_light_position =
+                                light.pos + Vec2::new(radius_offset, vertical_offset);
+
+                            // Check if the sample light position and pixel intersect with any polygon
+                            let mut light_visible = true;
+                            for polygon in polygons {
+                                if polygon.intersects(&LineString::new(vec![
+                                    vec2_to_coord(&sample_light_position),
+                                    vec2_to_coord(&point_in_world),
+                                ])) {
+                                    light_visible = false;
+                                    break;
+                                }
                             }
+
+                            if !light_visible {
+                                continue;
+                            }
+
+                            // Calculate distance and intensity for the sample
+                            let distance = (point_in_world - sample_light_position).length() * 2.0
+                                / (light.intensity * (light.state as f64 / 255.0));
+                            let light_intensity = 1.0 / (1.0 + distance * distance);
+                            sampled_light_intensity += light_intensity;
                         }
-                        if !light_visible {
-                            continue;
-                        }
-                        let distance = (point_in_world - light.pos).length() * 2.0
-                            / (light.intensity * (light.state as f64 / 255.0));
-                        let light_intensity = 1.0 / (1.0 + distance * distance);
-                        total_light_intensity += light_intensity;
+
+                        // Average the light intensity from all samples
+                        let averaged_light_intensity = if samples > 0 {
+                            sampled_light_intensity / samples as f64
+                        } else {
+                            0.0
+                        };
+                        total_light_intensity += averaged_light_intensity;
                     }
                     let pixel_alpha = ((1.0 - total_light_intensity) * 255.0) as u8;
 

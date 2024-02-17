@@ -468,7 +468,6 @@ impl HomeFlow {
         for room in &self.layout.rooms {
             for light in &room.lights {
                 let pos_world = room.pos + light.pos;
-                let pos = self.world_to_pixels(pos_world);
 
                 let (min_opacity, max_opacity) = (0.25, 0.75);
                 let (min_distance, max_distance) = (0.5, 2.0);
@@ -485,7 +484,7 @@ impl HomeFlow {
                 let radius = ((0.05 + 0.05 * norm_dist_big) * self.stored.zoom as f32).max(5.0);
 
                 let mut shape = CircleShape {
-                    center: vec2_to_egui_pos(pos),
+                    center: self.world_to_pixels_pos(pos_world),
                     radius,
                     fill: Color32::from_black_alpha((100.0 * alpha).round() as u8),
                     stroke: Stroke::NONE,

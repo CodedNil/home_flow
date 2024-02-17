@@ -233,6 +233,7 @@ impl Light {
             id: Uuid::new_v4(),
             pos,
             intensity: 1.0,
+            radius: 0.075,
             state: 255,
         }
     }
@@ -244,6 +245,9 @@ impl Light {
 impl Hash for Light {
     fn hash<H: Hasher>(&self, state: &mut H) {
         hash_vec2(self.pos, state);
+        self.intensity.to_bits().hash(state);
+        self.radius.to_bits().hash(state);
+        self.state.hash(state);
     }
 }
 

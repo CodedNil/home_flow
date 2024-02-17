@@ -16,6 +16,7 @@ use std::{collections::HashMap, sync::Arc};
 mod edit_mode;
 mod edit_mode_render;
 mod edit_mode_utils;
+mod interaction;
 mod render;
 
 pub struct HomeFlow {
@@ -290,6 +291,8 @@ impl eframe::App for HomeFlow {
 
                 if self.edit_mode.enabled {
                     self.paint_edit_mode(&painter, &edit_mode_response, ctx);
+                } else {
+                    self.interact_with_layout(ctx);
                 }
 
                 Window::new("Bottom Right")

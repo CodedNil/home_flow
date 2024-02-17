@@ -73,6 +73,7 @@ pub struct Light {
     pub id: Uuid,
     pub pos: Vec2,
     pub intensity: f64,
+    pub radius: f64,
     #[serde(skip)]
     pub state: u8,
 }

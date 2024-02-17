@@ -182,6 +182,7 @@ impl Home {
             }
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         let start = std::time::Instant::now();
 
         let lights = self
@@ -199,6 +200,7 @@ impl Home {
         let (bounds_min, bounds_max) = self.bounds();
         let light_data = render_room_lighting(bounds_min, bounds_max, &lights, wall_polygons);
 
+        #[cfg(not(target_arch = "wasm32"))]
         log::info!("Lighting render time: {:?}", start.elapsed());
 
         self.light_data = Some(LightData {
