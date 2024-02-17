@@ -126,14 +126,15 @@ impl Room {
         self.opening(Opening::new(OpeningType::Door, pos, rotation).width(width))
     }
 
-    pub fn light(&self, x: f64, y: f64) -> Self {
+    pub fn light(&self, name: &str, x: f64, y: f64) -> Self {
         let mut clone = self.clone();
-        clone.lights.push(Light::new(vec2(x, y)));
+        clone.lights.push(Light::new(name, vec2(x, y)));
         clone
     }
 
     pub fn lights_grid_offset(
         &self,
+        name: &str,
         cols: i32,
         rows: i32,
         padding: f64,
@@ -147,18 +148,18 @@ impl Room {
             let x_pos = (col as f64 - (cols - 1) as f64 * 0.5) * spacing.x + off_x;
             for row in 0..rows {
                 let y_pos = (row as f64 - (rows - 1) as f64 * 0.5) * spacing.y + off_y;
-                clone.lights.push(Light::new(vec2(x_pos, y_pos)));
+                clone.lights.push(Light::new(name, vec2(x_pos, y_pos)));
             }
         }
         clone
     }
 
-    pub fn lights_grid(&self, cols: i32, rows: i32, padding: f64) -> Self {
-        self.lights_grid_offset(cols, rows, padding, 0.0, 0.0)
+    pub fn lights_grid(&self, name: &str, cols: i32, rows: i32, padding: f64) -> Self {
+        self.lights_grid_offset(name, cols, rows, padding, 0.0, 0.0)
     }
 
-    pub fn light_center(&self) -> Self {
-        self.light(0.0, 0.0)
+    pub fn light_center(&self, name: &str) -> Self {
+        self.light(name, 0.0, 0.0)
     }
 
     pub fn operation(&self, operation: Operation) -> Self {
@@ -228,11 +229,12 @@ impl Hash for Opening {
 }
 
 impl Light {
-    pub fn new(pos: Vec2) -> Self {
+    pub fn new(name: &str, pos: Vec2) -> Self {
         Self {
             id: Uuid::new_v4(),
+            name: name.to_owned(),
             pos,
-            intensity: 4.0,
+            intensity: 2.0,
             radius: 0.025,
             state: 255,
             light_data: None,
@@ -240,7 +242,7 @@ impl Light {
     }
 
     pub fn default() -> Self {
-        Self::new(Vec2::ZERO)
+        Self::new("", Vec2::ZERO)
     }
 }
 impl Hash for Light {

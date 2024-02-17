@@ -226,7 +226,9 @@ fn render_light(
                     // Calculate distance and intensity for the sample
                     let distance =
                         (world - sample_light_position).length() * 2.0 / light_state_intensity;
-                    sampled_light_intensity += 1.0 / (1.0 + distance * distance);
+                    sampled_light_intensity += (1.0 / (1.0 + distance * distance)) * 0.75;
+                    // Add a little fake light not adhering to inverse square law, for a more natural look
+                    sampled_light_intensity += (1.0 / (1.0 + distance)) * 0.25;
                 }
 
                 // Average the light intensity from all samples

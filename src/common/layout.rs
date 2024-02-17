@@ -72,6 +72,7 @@ pub struct Opening {
 #[derivative(Clone)]
 pub struct Light {
     pub id: Uuid,
+    pub name: String,
     pub pos: Vec2,
     pub intensity: f64,
     pub radius: f64,

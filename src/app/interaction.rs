@@ -15,14 +15,14 @@ impl HomeFlow {
                 let pos_world = room.pos + light.pos;
                 let mouse_dist = self.mouse_pos_world.distance(pos_world) as f32;
                 if mouse_dist < 0.2 {
-                    light_clicked = Some(light.id);
+                    light_clicked = Some(light.name.clone());
                 }
             }
         }
-        if let Some(light_id) = light_clicked {
+        if let Some(light_name) = light_clicked {
             for room in &mut self.layout.rooms {
                 for light in &mut room.lights {
-                    if light.id == light_id {
+                    if light.name == light_name {
                         light.state = if light.state < 130 { 255 } else { 0 };
                     }
                 }
