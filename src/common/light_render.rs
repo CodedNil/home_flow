@@ -1,6 +1,7 @@
 use super::{
-    layout::{Light, Room},
+    layout::{Light, Room, Walls},
     shape::Line,
+    utils::hash_vec2,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use image::{ImageBuffer, Luma};
@@ -12,8 +13,8 @@ use std::{
 };
 use uuid::Uuid;
 
-const PIXELS_PER_METER: f64 = 30.0;
-const CHUNK_SIZE: u32 = 512;
+const PIXELS_PER_METER: f64 = 40.0;
+const CHUNK_SIZE: u32 = 4096;
 const LIGHT_SAMPLES: u8 = 16; // Number of samples within the light's radius for anti-aliasing
 
 pub struct LightData {
@@ -58,6 +59,13 @@ pub fn combine_lighting(
             for (i, pixel) in chunk.iter_mut().enumerate() {
                 let x = (start_x + i as u32 % CHUNK_SIZE) % image_width;
                 let y = start_y + (start_x + i as u32 % CHUNK_SIZE) / image_width;
+                let world =
+                    bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
+
+                if !rooms.iter().any(|r| r.contains(world)) {
+                    *pixel = 0;
+                    continue;
+                }
 
                 let mut light_intensity: f64 = 0.0;
                 for light in &lights {
@@ -93,6 +101,12 @@ pub fn render_lighting(
         for light in &room.lights {
             let mut hasher = DefaultHasher::new();
             light.hash(&mut hasher);
+            for room in rooms {
+                hash_vec2(room.pos, &mut hasher);
+                hash_vec2(room.size, &mut hasher);
+                room.operations.hash(&mut hasher);
+                room.walls.hash(&mut hasher);
+            }
             let hash = hasher.finish();
 
             if light.light_data.is_none() || light.light_data.as_ref().unwrap().0 != hash {
@@ -128,6 +142,19 @@ fn render_light(
     let width = new_size.x * PIXELS_PER_METER;
     let height = new_size.y * PIXELS_PER_METER;
 
+    // Calculate the rooms to check against, if lights room is enclosed then only that, if its not then only rooms that arent enclosed
+    let mut rooms_to_check = Vec::new();
+    let light_room = rooms.iter().find(|room| room.contains(light_pos)).unwrap();
+    if light_room.walls == Walls::WALL {
+        rooms_to_check.push(light_room);
+    } else {
+        for room in rooms {
+            if room.walls != Walls::WALL {
+                rooms_to_check.push(room);
+            }
+        }
+    }
+
     // Create an image buffer with the calculated size, filled with transparent pixels
     let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
     let image_width = image_buffer.width();
@@ -142,11 +169,10 @@ fn render_light(
             for (i, pixel) in chunk.iter_mut().enumerate() {
                 let x = (start_x + i as u32 % CHUNK_SIZE) % image_width;
                 let y = start_y + (start_x + i as u32 % CHUNK_SIZE) / image_width;
+                let world =
+                    bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
 
-                let point = vec2(x as f64 / width, 1.0 - (y as f64 / height));
-                let point_in_world = bounds_min + point * new_size;
-
-                if !rooms.iter().any(|room| room.contains(point_in_world)) {
+                if !rooms_to_check.iter().any(|r| r.contains(world)) {
                     *pixel = 0;
                     continue;
                 }
@@ -154,7 +180,7 @@ fn render_light(
                 let mut total_light_intensity = 0.0;
 
                 let light_state_intensity = light.intensity * (light.state as f64 / 255.0);
-                let distance_to_light = (point_in_world - light_pos).length();
+                let distance_to_light = (world - light_pos).length();
                 if distance_to_light > light_state_intensity * 8.0 {
                     continue;
                 }
@@ -176,15 +202,16 @@ fn render_light(
                     };
 
                     // Check if the sample light position and pixel intersect with any lines
-                    if walls_for_light.iter().any(|(p1, p2)| {
-                        lines_intersect(sample_light_position, point_in_world, *p1, *p2)
-                    }) {
+                    if walls_for_light
+                        .iter()
+                        .any(|(p1, p2)| lines_intersect(sample_light_position, world, *p1, *p2))
+                    {
                         continue;
                     }
 
                     // Calculate distance and intensity for the sample
-                    let distance = (point_in_world - sample_light_position).length() * 2.0
-                        / light_state_intensity;
+                    let distance =
+                        (world - sample_light_position).length() * 2.0 / light_state_intensity;
                     sampled_light_intensity += 1.0 / (1.0 + distance * distance);
                 }
 

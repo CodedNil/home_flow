@@ -1,4 +1,4 @@
-use crate::common::light_render::combine_lighting;
+use crate::common::{light_render::combine_lighting, utils::hash_vec2};
 
 use super::{
     color::Color,
@@ -197,16 +197,19 @@ impl Home {
         });
     }
 
-    pub fn render_lighting(&mut self) {
+    pub fn render_lighting(&mut self) -> bool {
         let mut hasher = DefaultHasher::new();
         for room in &self.rooms {
-            room.hash(&mut hasher);
+            hash_vec2(room.pos, &mut hasher);
+            hash_vec2(room.size, &mut hasher);
+            room.operations.hash(&mut hasher);
+            room.walls.hash(&mut hasher);
             room.lights.hash(&mut hasher);
         }
         let hash = hasher.finish();
         if let Some(light_data) = &self.light_data {
             if light_data.hash == hash {
-                return;
+                return false;
             }
         }
 
@@ -214,6 +217,9 @@ impl Home {
 
         let (bounds_min, bounds_max) = self.bounds();
         let mut light_data = render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
+
+        let lights_changed = light_data.len();
+        let total_lights = self.rooms.iter().map(|r| r.lights.len()).sum();
 
         // Override light data for each light
         for room in &mut self.rooms {
@@ -226,6 +232,8 @@ impl Home {
 
         // Combine each lights contribution into a single image
         self.light_data = Some(combine_lighting(bounds_min, bounds_max, &self.rooms, hash));
+
+        lights_changed == total_lights
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
