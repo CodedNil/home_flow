@@ -14,7 +14,7 @@ impl HomeFlow {
             for light in &room.lights {
                 let pos_world = room.pos + light.pos;
                 let mouse_dist = self.mouse_pos_world.distance(pos_world) as f32;
-                if mouse_dist < 0.5 {
+                if mouse_dist < 0.2 {
                     light_clicked = Some(light.id);
                 }
             }

@@ -751,6 +751,18 @@ fn room_edit_widgets(
         for (index, light) in room.lights.iter_mut().enumerate() {
             ui.horizontal(|ui| {
                 edit_vec2(ui, "Pos", &mut light.pos, 0.1);
+                ui.add(
+                    DragValue::new(&mut light.intensity)
+                        .speed(0.1)
+                        .clamp_range(0.1..=10.0)
+                        .suffix("cd"),
+                );
+                ui.add(
+                    DragValue::new(&mut light.radius)
+                        .speed(0.01)
+                        .clamp_range(0.01..=0.5)
+                        .suffix("m"),
+                );
                 if ui.button("Delete").clicked() {
                     alterations[index] = AlterObject::Delete;
                 }

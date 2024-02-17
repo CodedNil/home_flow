@@ -424,7 +424,6 @@ impl Room {
         }
 
         let width_half = WALL_WIDTH / 2.0;
-        let mut new_polys = MultiPolygon(vec![]);
 
         let mut polygon_outside = EMPTY_MULTI_POLYGON;
         let mut polygon_inside = EMPTY_MULTI_POLYGON;
@@ -439,8 +438,7 @@ impl Room {
             );
         }
 
-        let diff = difference_polygons(&polygon_outside, &polygon_inside);
-        new_polys = union_polygons(&new_polys, &diff);
+        let mut new_polys = difference_polygons(&polygon_outside, &polygon_inside);
 
         // Subtract operations that are SubtractWall
         for operation in &self.operations {

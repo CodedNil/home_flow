@@ -3,12 +3,13 @@ use std::f64::consts::PI;
 use super::{layout::Light, shape::vec2_to_coord};
 use geo::Intersects;
 use geo_types::{LineString, MultiPolygon};
-use glam::DVec2 as Vec2;
+use glam::{dvec2 as vec2, DVec2 as Vec2};
 use image::{ImageBuffer, Luma};
 use rayon::prelude::*;
 
 const PIXELS_PER_METER: f64 = 40.0;
 const CHUNK_SIZE: u32 = 64;
+const LIGHT_SAMPLES: u8 = 10; // Number of samples within the light's radius for anti-aliasing
 
 pub struct LightData {
     pub hash: u64,
@@ -66,16 +67,28 @@ pub fn render_room_lighting(
 
                     let mut total_light_intensity = 0.0;
                     for light in lights {
-                        let samples = 10; // Number of samples within the light's radius for anti-aliasing
+                        let distance_to_light = (point_in_world - light.pos).length();
+                        let lights_intensity = light.intensity * (light.state as f64 / 255.0);
+                        if distance_to_light > lights_intensity * 8.0 {
+                            continue;
+                        }
                         let mut sampled_light_intensity = 0.0;
 
-                        for i in 0..samples {
+                        // Do more samples the closer we are to the light
+                        let dynamic_samples = ((LIGHT_SAMPLES as f64
+                            * (1.0 - distance_to_light / (lights_intensity * 8.0)))
+                            .round() as u8)
+                            .max(1);
+
+                        for i in 0..dynamic_samples {
                             // Calculate offset for current sample
-                            let angle = 2.0 * PI * (i as f64 / samples as f64);
-                            let radius_offset = light.radius * angle.cos();
-                            let vertical_offset = light.radius * angle.sin();
-                            let sample_light_position =
-                                light.pos + Vec2::new(radius_offset, vertical_offset);
+                            let sample_light_position = if dynamic_samples == 1 {
+                                light.pos
+                            } else {
+                                let angle = 2.0 * PI * (i as f64 / dynamic_samples as f64);
+                                light.pos
+                                    + vec2(light.radius * angle.cos(), light.radius * angle.sin())
+                            };
 
                             // Check if the sample light position and pixel intersect with any polygon
                             let mut light_visible = true;
@@ -95,20 +108,18 @@ pub fn render_room_lighting(
 
                             // Calculate distance and intensity for the sample
                             let distance = (point_in_world - sample_light_position).length() * 2.0
-                                / (light.intensity * (light.state as f64 / 255.0));
-                            let light_intensity = 1.0 / (1.0 + distance * distance);
-                            sampled_light_intensity += light_intensity;
+                                / lights_intensity;
+                            sampled_light_intensity += 1.0 / (1.0 + distance * distance);
                         }
 
                         // Average the light intensity from all samples
-                        let averaged_light_intensity = if samples > 0 {
-                            sampled_light_intensity / samples as f64
-                        } else {
-                            0.0
-                        };
-                        total_light_intensity += averaged_light_intensity;
+                        total_light_intensity += sampled_light_intensity / dynamic_samples as f64;
+                        if total_light_intensity > 1.0 {
+                            total_light_intensity = 1.0;
+                            break;
+                        }
                     }
-                    let pixel_alpha = ((1.0 - total_light_intensity) * 255.0) as u8;
+                    let pixel_alpha = ((1.0 - total_light_intensity) * 200.0) as u8;
 
                     chunk_buffer[(chunk_y * chunk_width + chunk_x) as usize] = Luma([pixel_alpha]);
                 }
