@@ -66,6 +66,7 @@ impl Room {
             lights: Vec::new(),
             outline: None,
             rendered_data: None,
+            light_data: None,
         }
     }
 
@@ -82,6 +83,7 @@ impl Room {
             lights: Vec::new(),
             outline: None,
             rendered_data: None,
+            light_data: None,
         }
     }
 
@@ -375,7 +377,6 @@ pub enum Material {
     Fabric,
     Marble,
     Granite,
-    Limestone,
     Wood,
 }
 
@@ -387,7 +388,6 @@ impl Material {
             Self::Fabric => include_bytes!("../../assets/textures/fabric.png"),
             Self::Marble => include_bytes!("../../assets/textures/marble.png"),
             Self::Granite => include_bytes!("../../assets/textures/granite.png"),
-            Self::Limestone => include_bytes!("../../assets/textures/limestone.png"),
             Self::Wood => include_bytes!("../../assets/textures/wood.png"),
         }
     }

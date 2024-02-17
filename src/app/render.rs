@@ -1,4 +1,4 @@
-use super::{vec2_to_egui_pos, HomeFlow};
+use super::{vec2_to_egui_pos, vec2_to_egui_vec, HomeFlow};
 use crate::common::{
     color::Color,
     furniture::{AnimatedPieceType, Furniture, FurnitureType},
@@ -8,7 +8,7 @@ use crate::common::{
 };
 use egui::{
     epaint::{CircleShape, TessellationOptions, Tessellator, Vertex},
-    Color32, ColorImage, Mesh, Painter, Shape as EShape, Stroke, TextureId, TextureOptions,
+    Color32, ColorImage, Mesh, Painter, Rect, Shape as EShape, Stroke, TextureId, TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::collections::HashMap;
@@ -342,6 +342,56 @@ impl HomeFlow {
             }));
         }
 
+        // Render lighting
+        for room in &self.layout.rooms {
+            if let Some(light_data) = &room.light_data {
+                // Invalidate old texture handles
+                if let Some((hash, _)) = self.light_data.get(&room.id) {
+                    if *hash != light_data.hash {
+                        self.light_data.remove(&room.id);
+                    }
+                }
+                // Load texture
+                let texture_handle = self
+                    .light_data
+                    .entry(room.id)
+                    .or_insert_with(|| {
+                        let canvas_size = light_data.image.dimensions();
+
+                        let rgba_image_data = (0..canvas_size.1)
+                            .flat_map(|y| {
+                                (0..canvas_size.0).flat_map(move |x| {
+                                    let gray_value = light_data.image.get_pixel(x, y).0[0];
+                                    vec![0, 0, 0, gray_value].into_iter()
+                                })
+                            })
+                            .collect::<Vec<_>>();
+
+                        let texture = ctx.load_texture(
+                            format!("lighting_{}", room.name),
+                            ColorImage::from_rgba_unmultiplied(
+                                [canvas_size.0 as usize, canvas_size.1 as usize],
+                                &rgba_image_data,
+                            ),
+                            TextureOptions::LINEAR,
+                        );
+                        (light_data.hash, texture)
+                    })
+                    .1
+                    .clone();
+
+                painter.image(
+                    texture_handle.id(),
+                    Rect::from_center_size(
+                        self.world_to_pixels_pos(light_data.image_center),
+                        vec2_to_egui_vec(light_data.image_size * self.stored.zoom),
+                    ),
+                    Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+            }
+        }
+
         // Open the door if mouse is nearby
         for room in &mut self.layout.rooms {
             for opening in &mut room.openings {
@@ -426,24 +476,27 @@ impl HomeFlow {
 
                 let (min_opacity, max_opacity) = (0.25, 0.75);
                 let (min_distance, max_distance) = (0.5, 2.0);
+                let big_distance = 0.5;
 
                 // Normalize the distance within the range of min_distance to max_distance
                 let mouse_dist = self.mouse_pos_world.distance(pos_world) as f32;
                 let norm_dist =
                     ((mouse_dist - min_distance) / (max_distance - min_distance)).clamp(0.0, 1.0);
+                let norm_dist_big = 1.0 - (mouse_dist / big_distance).clamp(0.0, 1.0);
 
                 // Calculate the opacity based on the normalized distance
                 let alpha = min_opacity + (max_opacity - min_opacity) * (1.0 - norm_dist);
+                let radius = ((0.05 + 0.05 * norm_dist_big) * self.stored.zoom as f32).max(5.0);
 
                 let mut shape = CircleShape {
                     center: vec2_to_egui_pos(pos),
-                    radius: 0.05 * self.stored.zoom as f32,
+                    radius,
                     fill: Color32::from_black_alpha((100.0 * alpha).round() as u8),
                     stroke: Stroke::NONE,
                 };
 
                 // Add shadow
-                let mut tessellator = simple_tessellator(0.05 * self.stored.zoom as f32);
+                let mut tessellator = simple_tessellator(radius);
                 let mut out_mesh = Mesh::default();
                 tessellator.tessellate_circle(shape, &mut out_mesh);
                 painter.add(EShape::mesh(out_mesh));
@@ -451,7 +504,7 @@ impl HomeFlow {
                 // Add light circle
                 shape.fill = Color32::from_rgb(255, 255, 150).gamma_multiply(alpha);
                 shape.stroke = Stroke::new(
-                    0.01 * self.stored.zoom as f32,
+                    radius * 0.2,
                     Color32::from_rgb(150, 150, 75).gamma_multiply(alpha),
                 );
                 painter.add(shape);

@@ -1,6 +1,7 @@
 use super::{
     color::Color,
     furniture::Furniture,
+    light_render::LightData,
     shape::ShadowsData,
     utils::{clone_as_none, Material},
 };
@@ -43,6 +44,9 @@ pub struct Room {
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub rendered_data: Option<RoomRender>,
+    #[serde(skip)]
+    #[derivative(Clone(clone_with = "clone_as_none"))]
+    pub light_data: Option<LightData>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]

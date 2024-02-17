@@ -25,13 +25,13 @@ pub fn template_home() -> Home {
                 Material::Marble,
                 Color::from_rgb(255, 250, 230),
             )
-            .tiles(0.4, 0.04, Color::from_rgba(80, 80, 80, 100)),
+            .tiles(0.4, 0.02, Color::from_rgba(80, 80, 80, 100)),
             GlobalMaterial::new(
                 "GraniteTiles",
                 Material::Granite,
-                Color::from_rgb(50, 50, 50),
+                Color::from_rgb(40, 40, 40),
             )
-            .tiles(0.4, 0.04, Color::from_rgba(80, 80, 80, 200)),
+            .tiles(0.4, 0.02, Color::from_rgba(60, 60, 60, 200)),
         ],
         rooms: vec![
             Room::new("Hall", vec2(0.5, 0.5), vec2(6.2, 1.10), "Carpet")

@@ -2,9 +2,10 @@ use super::{
     color::Color,
     furniture::FurnitureRender,
     layout::{
-        Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
-        Triangles, Walls,
+        Action, GlobalMaterial, Home, HomeRender, Light, OpeningType, Operation, Room, RoomRender,
+        Shape, Triangles, Walls,
     },
+    light_render::{render_room_lighting, LightData},
     utils::{rotate_point_i32, Material},
 };
 use geo::{
@@ -22,6 +23,33 @@ pub const CLIPPER_PRECISION: f64 = 1e4; // How many decimal places to use for cl
 
 impl Home {
     pub fn render(&mut self) {
+        // Compute lighting for each room
+        let all_lights = self
+            .rooms
+            .iter()
+            .flat_map(|room| {
+                room.lights.iter().map(|l| Light {
+                    pos: room.pos + l.pos,
+                    ..*l
+                })
+            })
+            .collect::<Vec<_>>();
+        for room in &mut self.rooms {
+            let mut hasher = DefaultHasher::new();
+            room.hash(&mut hasher);
+            room.lights.hash(&mut hasher);
+            let hash = hasher.finish();
+            if room.light_data.is_none() || room.light_data.as_ref().unwrap().hash != hash {
+                let light_data = render_room_lighting(room, &all_lights);
+                room.light_data = Some(LightData {
+                    hash,
+                    image: light_data.image,
+                    image_center: light_data.image_center,
+                    image_size: light_data.image_size,
+                });
+            }
+        }
+
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
         let home_hash = hasher.finish();

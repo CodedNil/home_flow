@@ -88,11 +88,11 @@ enum AlterObject {
 
 impl HomeFlow {
     pub fn edit_mode_settings(&mut self, ctx: &Context, ui: &mut Ui) {
-        ui.checkbox(&mut self.edit_mode.resize_enabled, "Resizing");
-        if ui.button("Materials Editor").clicked() {
-            self.edit_mode.material_editor_open = !self.edit_mode.material_editor_open;
-        }
         if self.edit_mode.enabled {
+            ui.checkbox(&mut self.edit_mode.resize_enabled, "Resizing");
+            if ui.button("Materials Editor").clicked() {
+                self.edit_mode.material_editor_open = !self.edit_mode.material_editor_open;
+            }
             if ui.button("Preview Edits").clicked() {
                 self.edit_mode.preview_edits = !self.edit_mode.preview_edits;
             }
@@ -746,7 +746,7 @@ fn room_edit_widgets(
         });
     })
     .body(|ui| {
-        let num_objects = room.operations.len();
+        let num_objects = room.lights.len();
         let mut alterations = vec![AlterObject::None; num_objects];
         for (index, light) in room.lights.iter_mut().enumerate() {
             ui.horizontal(|ui| {
