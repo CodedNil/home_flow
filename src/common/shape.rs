@@ -2,15 +2,15 @@ use super::{
     color::Color,
     furniture::FurnitureRender,
     layout::{
-        Action, GlobalMaterial, Home, HomeRender, Light, OpeningType, Operation, Room, RoomRender,
-        Shape, Triangles, Walls,
+        Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
+        Triangles, Walls,
     },
     light_render::{render_room_lighting, LightData},
     utils::{rotate_point_i32, Material},
 };
 use geo::{
-    triangulate_spade::SpadeTriangulationConfig, BoundingRect, Intersects, TriangulateEarcut,
-    TriangulateSpade,
+    triangulate_spade::SpadeTriangulationConfig, BoundingRect, Contains, Intersects,
+    TriangulateEarcut, TriangulateSpade,
 };
 use geo_types::{Coord, MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -104,7 +104,8 @@ impl Home {
         }
 
         // Collect all the rooms together to build up the walls
-        let mut wall_polygons: Vec<MultiPolygon> = vec![];
+        let mut wall_polygons = vec![];
+        let mut wall_lines: Vec<Line> = vec![];
         for room in &self.rooms {
             if let Some(rendered_data) = &room.rendered_data {
                 for poly in &mut wall_polygons {
@@ -113,9 +114,14 @@ impl Home {
                 for poly in &rendered_data.wall_polygons {
                     wall_polygons.push(poly.clone().into());
                 }
+                for poly in &rendered_data.polygons {
+                    wall_lines = difference_lines(&wall_lines, poly);
+                }
+                for line in &rendered_data.wall_lines {
+                    wall_lines.push(*line);
+                }
             }
         }
-        let wall_polygons_full = wall_polygons.clone();
         // Subtract doors
         for room in &self.rooms {
             for opening in &room.openings {
@@ -168,7 +174,7 @@ impl Home {
             walls_hash,
             wall_triangles,
             wall_polygons,
-            wall_polygons_full,
+            wall_lines,
             wall_shadows,
         });
     }
@@ -188,28 +194,13 @@ impl Home {
 
         #[cfg(not(target_arch = "wasm32"))]
         let start = std::time::Instant::now();
-
-        let lights = self
-            .rooms
-            .iter()
-            .flat_map(|room| {
-                room.lights.iter().map(|l| Light {
-                    pos: room.pos + l.pos,
-                    ..*l
-                })
-            })
-            .collect::<Vec<_>>();
-        let mut wall_lines = Vec::new();
-        for room in &self.rooms {
-            if let Some(rendered_data) = &room.rendered_data {
-                for line in &rendered_data.wall_lines {
-                    wall_lines.push(line);
-                }
-            }
-        }
+        let all_walls = &self
+            .rendered_data
+            .as_ref()
+            .map_or_else(Vec::new, |data| data.wall_lines.clone());
 
         let (bounds_min, bounds_max) = self.bounds();
-        let light_data = render_room_lighting(bounds_min, bounds_max, &lights, &wall_lines);
+        let light_data = render_room_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
 
         #[cfg(not(target_arch = "wasm32"))]
         log::info!("Lighting render time: {:?}", start.elapsed());
@@ -682,14 +673,10 @@ fn difference_lines(lines: &Vec<Line>, poly: &Polygon) -> Vec<Line> {
     }
 
     // Loop on new lines and remove any that are inside the polygon
-    let mut final_lines = vec![];
-    for (start, end) in new_lines {
-        let geo_line = geo::Line::new(vec2_to_coord(&start), vec2_to_coord(&end));
-        if !poly.intersects(&geo_line) {
-            final_lines.push((start, end));
-        }
-    }
-    final_lines
+    new_lines
+        .into_iter()
+        .filter(|(start, end)| !poly.contains(&vec2_to_coord(&((*start + *end) / 2.0))))
+        .collect()
 }
 
 /// Checks if two lines (p1, p2) and (q1, q2) intersect and returns the point of intersection if there is one.

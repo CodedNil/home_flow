@@ -1,4 +1,7 @@
-use super::{layout::Light, shape::Line};
+use super::{
+    layout::{Light, Room, Walls},
+    shape::Line,
+};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use image::{ImageBuffer, Luma};
 use rayon::prelude::*;
@@ -18,9 +21,38 @@ pub struct LightData {
 pub fn render_room_lighting(
     bounds_min: Vec2,
     bounds_max: Vec2,
-    lights: &[Light],
-    lines: &[&Line],
+    rooms: &[Room],
+    all_walls: &[Line],
 ) -> LightData {
+    let mut lights = Vec::new();
+    let mut lights_enclosed = Vec::new();
+    for room in rooms {
+        let enclosed = room.walls == Walls::WALL;
+        lights.extend(room.lights.iter().map(|light| Light {
+            pos: room.pos + light.pos,
+            ..*light
+        }));
+        lights_enclosed.extend(std::iter::repeat(enclosed).take(room.lights.len()));
+    }
+
+    // Create a vec of walls per light
+    let walls_for_light: Vec<_> = lights
+        .iter()
+        .zip(&lights_enclosed)
+        .map(|(light, &enclosed)| {
+            if enclosed {
+                rooms
+                    .iter()
+                    .find(|r| r.lights.iter().any(|l| l.id == light.id))
+                    .and_then(|room| room.rendered_data.as_ref())
+                    .map_or_else(|| all_walls.to_vec(), |data| data.wall_lines.clone())
+            } else {
+                // Filter out the walls that the light can't see
+                get_visible_walls(light, all_walls)
+            }
+        })
+        .collect();
+
     let new_center = (bounds_min + bounds_max) / 2.0;
     let new_size = bounds_max - bounds_min;
 
@@ -31,28 +63,6 @@ pub fn render_room_lighting(
     // Create an image buffer with the calculated size, filled with transparent pixels
     let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
     let image_width = image_buffer.width() as usize;
-
-    // Precompute walls sorted by distance to each light
-    let mut walls_by_distance = Vec::with_capacity(lights.len());
-    for light in lights {
-        // Sort lines by their distance to the light
-        let mut lines_with_distances = lines
-            .iter()
-            .map(|(start, end)| {
-                let distance = light.pos.distance(*start).min(light.pos.distance(*end));
-                ((start, end), distance)
-            })
-            .collect::<Vec<_>>();
-        lines_with_distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
-        // Remove distance, keeping only the lines
-        walls_by_distance.push(
-            lines_with_distances
-                .into_iter()
-                .map(|(line, _)| line)
-                .collect::<Vec<_>>(),
-        );
-    }
 
     image_buffer
         .par_chunks_mut(CHUNK_SIZE)
@@ -94,8 +104,8 @@ pub fn render_room_lighting(
                         };
 
                         // Check if the sample light position and pixel intersect with any lines
-                        if walls_by_distance[light_index].iter().any(|(p1, p2)| {
-                            lines_intersect(**p1, **p2, sample_light_position, point_in_world)
+                        if walls_for_light[light_index].iter().any(|(p1, p2)| {
+                            lines_intersect(sample_light_position, point_in_world, *p1, *p2)
                         }) {
                             continue;
                         }
@@ -124,6 +134,47 @@ pub fn render_room_lighting(
         image_center: new_center,
         image_size: new_size,
     }
+}
+
+fn get_visible_walls(light: &Light, all_walls: &[Line]) -> Vec<Line> {
+    let mut visible_walls = Vec::new();
+
+    for (i, &wall) in all_walls.iter().enumerate() {
+        // Generate points along the wall for more granular visibility checks
+        let points = generate_points_for_wall_segment(wall.0, wall.1);
+
+        // Check if any point on the wall is not blocked by other walls
+        if points.iter().any(|&point| {
+            !all_walls
+                .iter()
+                .enumerate()
+                .any(|(other_i, &(other_start, other_end))| {
+                    i != other_i && lines_intersect(light.pos, point, other_start, other_end)
+                })
+        }) {
+            visible_walls.push(wall);
+        }
+    }
+
+    visible_walls
+}
+
+const POINTS_DISTANCE: f64 = 0.1; // Distance between points on the wall to check for visibility
+
+fn generate_points_for_wall_segment(start: Vec2, end: Vec2) -> Vec<Vec2> {
+    let mut points = Vec::new();
+    points.push(start);
+    points.push(end);
+
+    let total_distance = start.distance(end);
+    if total_distance > POINTS_DISTANCE {
+        let direction = (end - start).normalize();
+        let num_points = (total_distance / POINTS_DISTANCE).ceil() as usize;
+        for i in 1..num_points {
+            points.push(start + direction * (POINTS_DISTANCE * i as f64));
+        }
+    }
+    points
 }
 
 /// Checks if two lines (p1, p2) and (q1, q2) intersect.

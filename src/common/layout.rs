@@ -139,7 +139,7 @@ pub struct HomeRender {
     pub walls_hash: u64,
     pub wall_triangles: Vec<Triangles>,
     pub wall_polygons: Vec<MultiPolygon>,
-    pub wall_polygons_full: Vec<MultiPolygon>,
+    pub wall_lines: Vec<Line>,
     pub wall_shadows: (u64, ShadowsData),
 }
 
