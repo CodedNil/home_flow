@@ -178,7 +178,7 @@ impl HomeFlow {
             self.rotate_speed = (self.rotate_speed + rotation_delta * 400.0 * self.frame_time)
                 .clamp(-max_speed, max_speed);
         } else if multi_touch_rotation.abs() > 0.0 {
-            self.stored.rotation += multi_touch_rotation.to_degrees();
+            self.stored.rotation -= multi_touch_rotation.to_degrees();
             self.rotate_speed = 0.0;
         } else {
             // Determine the nearest 90 degree snap target based on current rotation

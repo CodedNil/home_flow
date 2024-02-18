@@ -401,7 +401,7 @@ impl Furniture {
         let inset = 0.1;
         if self.size.x > inset * 3.0 && self.size.y > inset * 3.0 {
             polygons.push((
-                material.lighten(0.1),
+                material.lighten(0.1).saturate(-0.1),
                 rect(
                     vec2(0.0, -inset * 0.5),
                     self.size - vec2(inset * 2.0, inset),
@@ -720,6 +720,13 @@ impl FurnitureMaterial {
         Self {
             material: self.material,
             tint: self.tint.lighten(lighten),
+        }
+    }
+
+    fn saturate(self, saturate: f64) -> Self {
+        Self {
+            material: self.material,
+            tint: self.tint.saturate(saturate),
         }
     }
 }

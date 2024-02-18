@@ -1,4 +1,3 @@
-use palette::{Hsla, IntoColor, Srgba};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
@@ -137,40 +136,24 @@ impl Color {
 
     #[inline]
     pub fn saturate(self, factor: f64) -> Self {
-        let mut hsl: Hsla = Srgba::new(
-            self.0[0] as f32 / 255.0,
-            self.0[1] as f32 / 255.0,
-            self.0[2] as f32 / 255.0,
-            self.0[3] as f32 / 255.0,
-        )
-        .into_color();
-        hsl.saturation = (hsl.saturation + factor as f32).clamp(0.0, 1.0);
-        let new_color: Srgba = Hsla::into_color(hsl);
-        Self([
-            (new_color.red * 255.0) as u8,
-            (new_color.green * 255.0) as u8,
-            (new_color.blue * 255.0) as u8,
-            (new_color.alpha * 255.0) as u8,
-        ])
+        let mut new_color = self.0;
+        let avg = (new_color[0] as f64 + new_color[1] as f64 + new_color[2] as f64) / 3.0;
+
+        for c in new_color.iter_mut().take(3) {
+            let difference = (*c as f64 - avg) * (1.0 + factor);
+            *c = (avg + difference).clamp(0.0, 255.0) as u8;
+        }
+
+        Self(new_color)
     }
 
     #[inline]
     pub fn lighten(self, factor: f64) -> Self {
-        let mut hsl: Hsla = Srgba::new(
-            self.0[0] as f32 / 255.0,
-            self.0[1] as f32 / 255.0,
-            self.0[2] as f32 / 255.0,
-            self.0[3] as f32 / 255.0,
-        )
-        .into_color();
-        hsl.lightness = (hsl.lightness + factor as f32).clamp(0.0, 1.0);
-        let new_color: Srgba = Hsla::into_color(hsl);
-        Self([
-            (new_color.red * 255.0) as u8,
-            (new_color.green * 255.0) as u8,
-            (new_color.blue * 255.0) as u8,
-            (new_color.alpha * 255.0) as u8,
-        ])
+        let mut new_color = self.0;
+        for c in new_color.iter_mut().take(3) {
+            *c = (*c as f64 * (1.0 + factor * 2.0)).clamp(0.0, 255.0) as u8;
+        }
+        Self(new_color)
     }
 
     #[cfg(feature = "gui")]
