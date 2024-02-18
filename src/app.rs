@@ -162,7 +162,7 @@ impl HomeFlow {
         if scroll_delta.abs() > 0.0 {
             let zoom_amount = scroll_delta * (self.stored.zoom / 100.0);
             let mouse_world_before_zoom = self.pixels_to_world(self.mouse_pos);
-            self.stored.zoom = (self.stored.zoom + zoom_amount).clamp(60.0, 300.0);
+            self.stored.zoom = (self.stored.zoom + zoom_amount).clamp(40.0, 300.0);
             let mouse_world_after_zoom = self.pixels_to_world(self.mouse_pos);
             let difference = mouse_world_after_zoom - mouse_world_before_zoom;
             self.stored.translation += Vec2::new(difference.x, -difference.y);
@@ -184,8 +184,8 @@ impl HomeFlow {
             self.rotate_speed = 0.0;
         } else {
             // Determine the nearest 90 degree snap target based on current rotation
-            let target_rotation =
-                ((self.stored.rotation + self.rotate_speed * 0.25) / 90.0).round() * 90.0;
+            let inertia = (self.rotate_speed * 0.25).clamp(-max_speed * 0.1, max_speed * 0.1);
+            let target_rotation = ((self.stored.rotation + inertia) / 90.0).round() * 90.0;
             let rotation_diff = target_rotation - self.stored.rotation;
 
             // Adjust rotate speed towards the needed speed for snapping, within the max speed limit
