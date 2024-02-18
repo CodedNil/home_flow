@@ -425,29 +425,34 @@ impl HomeFlow {
                     OpeningType::Door => DOOR_COLOR,
                     OpeningType::Window => WINDOW_COLOR,
                 };
-                let depth = match opening.opening_type {
+                let depth = (match opening.opening_type {
                     OpeningType::Door => WALL_WIDTH * 0.8,
                     OpeningType::Window => WALL_WIDTH,
-                };
+                } * self.stored.zoom) as f32;
                 let rot_dir = vec2(
                     (opening.rotation as f64).to_radians().cos(),
                     (opening.rotation as f64).to_radians().sin(),
                 );
-                let hinge_pos = room.pos + opening.pos + rot_dir * (opening.width) / 2.0;
-                let end_pos = rotate_point(
-                    room.pos + opening.pos - rot_dir * opening.width / 2.0,
-                    hinge_pos,
-                    opening.open_amount * 40.0,
-                );
-
+                let hinge_pos = room.pos + opening.pos + rot_dir * opening.width / 2.0;
+                let end_pos = room.pos + opening.pos - rot_dir * opening.width / 2.0;
                 let points = [
                     self.world_to_pixels_pos(hinge_pos),
                     self.world_to_pixels_pos(end_pos),
                 ];
-                let stroke = Stroke::new((depth * self.stored.zoom) as f32, color);
+
+                let stroke = Stroke::new(depth, color);
                 if opening.opening_type == OpeningType::Window {
                     window_meshes.push(EShape::LineSegment { points, stroke });
                 } else {
+                    //Render a line filing the gap between the door and the wall
+                    painter.add(EShape::LineSegment {
+                        points,
+                        stroke: Stroke::new(depth * 0.75, Color32::from_rgb(80, 80, 80)),
+                    });
+                    // Render the door
+                    let end_pos_door = rotate_point(end_pos, hinge_pos, opening.open_amount * 40.0);
+                    let points = [points[0], self.world_to_pixels_pos(end_pos_door)];
+                    painter.circle_filled(points[0], depth * 0.5, color);
                     painter.add(EShape::LineSegment { points, stroke });
                 }
             }

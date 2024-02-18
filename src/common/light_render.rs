@@ -13,7 +13,7 @@ use std::{
 };
 use uuid::Uuid;
 
-const PIXELS_PER_METER: f64 = 40.0;
+const PIXELS_PER_METER: f64 = 50.0;
 const CHUNK_SIZE: u32 = 4096;
 const LIGHT_SAMPLES: u8 = 16; // Number of samples within the light's radius for anti-aliasing
 const MAX_LIGHTS_PER_FRAME: u32 = 1;
@@ -42,10 +42,18 @@ pub fn combine_lighting(
     let (image_width, image_height) = (image_buffer.width(), image_buffer.height());
 
     // Create vec of lights references
-    let mut lights = Vec::new();
+    let mut light_images = Vec::new();
     for room in rooms {
         for light in &room.lights {
-            lights.push(light);
+            if let Some((_, light_data)) = &light.light_data {
+                let light_image = &light_data.image;
+                // If lights image size doesnt match, skip this one
+                let (w, h) = (light_image.width(), light_image.height());
+                if w != image_width || h != image_height {
+                    continue;
+                }
+                light_images.push(light_image);
+            }
         }
     }
 
@@ -69,22 +77,12 @@ pub fn combine_lighting(
                 }
 
                 let mut light_intensity: f64 = 0.0;
-                for light in &lights {
-                    if let Some((_, light_data)) = &light.light_data {
-                        let light_image = &light_data.image;
-
-                        // If lights image size doesnt match, skip this one
-                        let (w, h) = (light_image.width(), light_image.height());
-                        if w != image_width || h != image_height {
-                            continue;
-                        }
-
-                        let light_pixel = light_image.get_pixel(x, y).0[0];
-                        light_intensity += light_pixel as f64 / 255.0;
-                        if light_intensity >= 255.0 {
-                            light_intensity = 255.0;
-                            break;
-                        }
+                for light_image in &light_images {
+                    let light_pixel = light_image.get_pixel(x, y).0[0];
+                    light_intensity += light_pixel as f64 / 255.0;
+                    if light_intensity >= 255.0 {
+                        light_intensity = 255.0;
+                        break;
                     }
                 }
                 *pixel = ((1.0 - light_intensity) * 200.0) as u8;
