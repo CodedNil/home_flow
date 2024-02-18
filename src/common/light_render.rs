@@ -13,9 +13,9 @@ use std::{
 };
 use uuid::Uuid;
 
-const PIXELS_PER_METER: f64 = 50.0;
-const CHUNK_SIZE: u32 = 4096;
-const LIGHT_SAMPLES: u8 = 16; // Number of samples within the light's radius for anti-aliasing
+const PIXELS_PER_METER: f64 = 40.0;
+const CHUNK_SIZE: u32 = 32768;
+const LIGHT_SAMPLES: u8 = 12; // Number of samples within the light's radius for anti-aliasing
 const MAX_LIGHTS_PER_FRAME: u32 = 1;
 
 pub struct LightData {
