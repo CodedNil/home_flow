@@ -26,6 +26,17 @@ impl RoundFactor for f64 {
     }
 }
 
+// Add lerp to u8
+pub trait Lerp {
+    fn lerp(self, other: Self, t: f64) -> Self;
+}
+
+impl Lerp for u8 {
+    fn lerp(self, other: Self, t: f64) -> Self {
+        (self as f64 + (other as f64 - self as f64) * t) as Self
+    }
+}
+
 pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
     let cos_theta = angle.to_radians().cos();
     let sin_theta = angle.to_radians().sin();

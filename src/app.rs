@@ -151,8 +151,10 @@ impl HomeFlow {
         if scroll_delta.abs() > 0.0 {
             scroll_delta = scroll_delta.signum() * 15.0;
         }
+        let mut is_multi_touch = false;
         let mut multi_touch_rotation = 0.0;
         if let Some(multi_touch) = ui.ctx().multi_touch() {
+            is_multi_touch = true;
             scroll_delta = (multi_touch.zoom_delta as f64 - 1.0) * 80.0;
             translation_delta = egui_to_vec2(multi_touch.translation_delta) * 0.01;
             multi_touch_rotation = multi_touch.rotation_delta as f64;
@@ -177,7 +179,7 @@ impl HomeFlow {
             let rotation_delta = if q_down { 1.0 } else { -1.0 };
             self.rotate_speed = (self.rotate_speed + rotation_delta * 400.0 * self.frame_time)
                 .clamp(-max_speed, max_speed);
-        } else if multi_touch_rotation.abs() > 0.0 {
+        } else if is_multi_touch {
             self.stored.rotation -= multi_touch_rotation.to_degrees();
             self.rotate_speed = 0.0;
         } else {

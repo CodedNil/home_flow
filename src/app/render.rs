@@ -4,7 +4,7 @@ use crate::common::{
     furniture::{AnimatedPieceType, Furniture, FurnitureType},
     layout::{OpeningType, Shape},
     shape::{point_to_vec2, WALL_WIDTH},
-    utils::{rotate_point, rotate_point_i32, Material},
+    utils::{rotate_point, rotate_point_i32, Lerp, Material},
 };
 use egui::{
     epaint::{CircleShape, TessellationOptions, Tessellator, Vertex},
@@ -498,37 +498,51 @@ impl HomeFlow {
                 let mut shape = CircleShape {
                     center: self.world_to_pixels_pos(pos_world),
                     radius,
-                    fill: Color32::from_black_alpha((100.0 * alpha).round() as u8),
+                    fill: Color32::from_black_alpha((150.0 * alpha).round() as u8),
                     stroke: Stroke::NONE,
                 };
 
                 // Add shadow
-                let mut tessellator = simple_tessellator(radius);
+                let mut tessellator = Tessellator::new(
+                    1.0,
+                    TessellationOptions {
+                        feathering: true,
+                        feathering_size_in_pixels: radius,
+                        ..Default::default()
+                    },
+                    [1; 2],
+                    Vec::new(),
+                );
                 let mut out_mesh = Mesh::default();
                 tessellator.tessellate_circle(shape, &mut out_mesh);
                 painter.add(EShape::mesh(out_mesh));
 
+                // Define the colors for the light when off and fully on
+                let color_off = Color32::from_rgb(200, 200, 200);
+                let color_on = Color32::from_rgb(255, 255, 50);
+
+                // Calculate the color based on the light's state
+                let color = if light.state == 0 {
+                    color_off
+                } else {
+                    // Calculate an interpolation factor where state of 1 maps to 0.25, and state of 255 maps to 1
+                    let factor = 0.25 + (0.75 * (light.state - 1) as f64 / (255.0 - 1.0));
+
+                    // Interpolate between off and on colors based on the factor
+                    let r = color_off.r().lerp(color_on.r(), factor);
+                    let g = color_off.g().lerp(color_on.g(), factor);
+                    let b = color_off.b().lerp(color_on.b(), factor);
+                    Color32::from_rgb(r, g, b)
+                };
+
                 // Add light circle
-                shape.fill = Color32::from_rgb(255, 255, 150).gamma_multiply(alpha);
+                shape.fill = color.gamma_multiply(alpha);
                 shape.stroke = Stroke::new(
                     radius * 0.2,
-                    Color32::from_rgb(150, 150, 75).gamma_multiply(alpha),
+                    Color32::from_rgb(0, 0, 0).gamma_multiply(0.5 * alpha),
                 );
                 painter.add(shape);
             }
         }
     }
-}
-
-fn simple_tessellator(extrusion: f32) -> Tessellator {
-    Tessellator::new(
-        1.0,
-        TessellationOptions {
-            feathering: true,
-            feathering_size_in_pixels: extrusion,
-            ..Default::default()
-        },
-        [1; 2],
-        Vec::new(),
-    )
 }
