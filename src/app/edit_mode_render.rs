@@ -16,24 +16,22 @@ impl HomeFlow {
         ctx: &Context,
     ) {
         if let Some(snap_line_x) = edit_response.snap_line_x {
-            let y_level = self.world_to_pixels_xy(0.0, snap_line_x).y;
+            let length = 20.0;
+            let start = self.world_to_pixels(vec2(-length, snap_line_x));
+            let end = self.world_to_pixels(vec2(length, snap_line_x));
             painter.add(EShape::dashed_line(
-                &[
-                    vec2_to_egui_pos(vec2(0.0, y_level)),
-                    vec2_to_egui_pos(vec2(self.canvas_center.x * 2.0, y_level)),
-                ],
+                &[vec2_to_egui_pos(start), vec2_to_egui_pos(end)],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
                 40.0,
                 20.0,
             ));
         }
         if let Some(snap_line_y) = edit_response.snap_line_y {
-            let x_level = self.world_to_pixels_xy(snap_line_y, 0.0).x;
+            let length = 20.0;
+            let start = self.world_to_pixels(vec2(snap_line_y, -length));
+            let end = self.world_to_pixels(vec2(snap_line_y, length));
             painter.add(EShape::dashed_line(
-                &[
-                    vec2_to_egui_pos(vec2(x_level, 0.0)),
-                    vec2_to_egui_pos(vec2(x_level, self.canvas_center.y * 2.0)),
-                ],
+                &[vec2_to_egui_pos(start), vec2_to_egui_pos(end)],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
                 40.0,
                 20.0,

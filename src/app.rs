@@ -1,6 +1,6 @@
 use self::edit_mode::EditDetails;
 use crate::{
-    common::{layout::Home, template::template_home},
+    common::{layout::Home, template::template_home, utils::rotate_point},
     server::common_api::get_layout,
 };
 use anyhow::Result;
@@ -32,6 +32,7 @@ pub struct HomeFlow {
     textures: HashMap<String, TextureHandle>,
     light_data: Option<(u64, TextureHandle)>,
     bounds: (Vec2, Vec2),
+    rotate_speed: f64,
 
     toasts: Arc<Mutex<Toasts>>,
     edit_mode: EditDetails,
@@ -48,6 +49,7 @@ pub struct HomeFlow {
 pub struct StoredData {
     translation: Vec2,
     zoom: f64, // Zoom is meter to pixels
+    rotation: f64,
 }
 
 impl Default for StoredData {
@@ -55,6 +57,7 @@ impl Default for StoredData {
         Self {
             translation: Vec2::ZERO,
             zoom: 100.0,
+            rotation: 0.0,
         }
     }
 }
@@ -73,6 +76,7 @@ impl Default for HomeFlow {
             textures: HashMap::new(),
             light_data: None,
             bounds: (Vec2::ZERO, Vec2::ZERO),
+            rotate_speed: 0.0,
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
@@ -110,32 +114,28 @@ impl HomeFlow {
     }
 
     fn pixels_to_world(&self, v: Vec2) -> Vec2 {
-        vec2(self.pixels_to_world_x(v.x), self.pixels_to_world_y(v.y))
-    }
-    fn pixels_to_world_x(&self, x: f64) -> f64 {
-        (x - self.canvas_center.x) / self.stored.zoom - self.stored.translation.x
-    }
-    fn pixels_to_world_y(&self, y: f64) -> f64 {
-        (self.canvas_center.y - y) / self.stored.zoom + self.stored.translation.y
+        let pivot = vec2(-self.stored.translation.x, self.stored.translation.y);
+        rotate_point(
+            vec2(
+                (v.x - self.canvas_center.x) / self.stored.zoom - self.stored.translation.x,
+                (self.canvas_center.y - v.y) / self.stored.zoom + self.stored.translation.y,
+            ),
+            pivot,
+            -self.stored.rotation,
+        )
     }
 
     fn world_to_pixels(&self, v: Vec2) -> Vec2 {
-        vec2(self.world_to_pixels_x(v.x), self.world_to_pixels_y(v.y))
-    }
-    fn world_to_pixels_xy(&self, x: f64, y: f64) -> Vec2 {
-        vec2(self.world_to_pixels_x(x), self.world_to_pixels_y(y))
-    }
-    fn world_to_pixels_x(&self, x: f64) -> f64 {
-        (x + self.stored.translation.x) * self.stored.zoom + self.canvas_center.x
-    }
-    fn world_to_pixels_y(&self, y: f64) -> f64 {
-        (self.stored.translation.y - y) * self.stored.zoom + self.canvas_center.y
+        let pivot = vec2(-self.stored.translation.x, self.stored.translation.y);
+        let v = rotate_point(v, pivot, self.stored.rotation);
+        vec2(
+            (v.x + self.stored.translation.x) * self.stored.zoom + self.canvas_center.x,
+            (self.stored.translation.y - v.y) * self.stored.zoom + self.canvas_center.y,
+        )
     }
     fn world_to_pixels_pos(&self, v: Vec2) -> egui::Pos2 {
-        egui::pos2(
-            self.world_to_pixels_x(v.x) as f32,
-            self.world_to_pixels_y(v.y) as f32,
-        )
+        let v = self.world_to_pixels(v);
+        egui::pos2(v.x as f32, v.y as f32)
     }
 
     fn handle_pan_zoom(&mut self, response: &egui::Response, ui: &egui::Ui) {
@@ -151,9 +151,11 @@ impl HomeFlow {
         if scroll_delta.abs() > 0.0 {
             scroll_delta = scroll_delta.signum() * 15.0;
         }
+        let mut multi_touch_rotation = 0.0;
         if let Some(multi_touch) = ui.ctx().multi_touch() {
             scroll_delta = (multi_touch.zoom_delta as f64 - 1.0) * 80.0;
             translation_delta = egui_to_vec2(multi_touch.translation_delta) * 0.01;
+            multi_touch_rotation = multi_touch.rotation_delta as f64;
         }
         if scroll_delta.abs() > 0.0 {
             let zoom_amount = scroll_delta * (self.stored.zoom / 100.0);
@@ -165,7 +167,39 @@ impl HomeFlow {
         }
 
         if translation_delta.length() > 0.0 {
-            self.stored.translation += translation_delta / (self.stored.zoom / 100.0);
+            let rotated = rotate_point(translation_delta, Vec2::ZERO, self.stored.rotation);
+            self.stored.translation += rotated / (self.stored.zoom / 100.0);
+        }
+
+        let (q_down, e_down) = ui.input(|i| (i.key_down(egui::Key::Q), i.key_down(egui::Key::E)));
+        let max_speed = 800.0;
+        if q_down || e_down {
+            let rotation_delta = if q_down { 1.0 } else { -1.0 };
+            self.rotate_speed = (self.rotate_speed + rotation_delta * 400.0 * self.frame_time)
+                .clamp(-max_speed, max_speed);
+        } else if multi_touch_rotation.abs() > 0.0 {
+            self.stored.rotation += multi_touch_rotation.to_degrees();
+            self.rotate_speed = 0.0;
+        } else {
+            // Determine the nearest 90 degree snap target based on current rotation
+            let target_rotation =
+                ((self.stored.rotation + self.rotate_speed * 0.25) / 90.0).round() * 90.0;
+            let rotation_diff = target_rotation - self.stored.rotation;
+
+            // Adjust rotate speed towards the needed speed for snapping, within the max speed limit
+            let needed_speed = rotation_diff * self.frame_time * 500.0;
+            self.rotate_speed = if rotation_diff.abs() > 0.1 {
+                needed_speed.clamp(-max_speed, max_speed)
+            } else {
+                self.stored.rotation = target_rotation;
+                0.0
+            };
+        }
+
+        // Apply rotation if there's any rotate speed
+        if self.rotate_speed.abs() > 0.0 {
+            self.stored.rotation += self.rotate_speed * self.frame_time;
+            self.stored.rotation = self.stored.rotation.rem_euclid(360.0);
         }
 
         // Clamp translation to bounds
@@ -325,10 +359,6 @@ impl eframe::App for HomeFlow {
 
 pub const fn vec2_to_egui_pos(vec: Vec2) -> egui::Pos2 {
     egui::pos2(vec.x as f32, vec.y as f32)
-}
-
-pub const fn vec2_to_egui_vec(vec: Vec2) -> egui::Vec2 {
-    egui::vec2(vec.x as f32, vec.y as f32)
 }
 
 pub const fn egui_to_vec2(vec: egui::Vec2) -> Vec2 {

@@ -1,14 +1,14 @@
-use super::{vec2_to_egui_pos, vec2_to_egui_vec, HomeFlow};
+use super::{vec2_to_egui_pos, HomeFlow};
 use crate::common::{
     color::Color,
     furniture::{AnimatedPieceType, Furniture, FurnitureType},
     layout::{OpeningType, Shape},
-    shape::WALL_WIDTH,
+    shape::{point_to_vec2, WALL_WIDTH},
     utils::{rotate_point, rotate_point_i32, Material},
 };
 use egui::{
     epaint::{CircleShape, TessellationOptions, Tessellator, Vertex},
-    Color32, ColorImage, Mesh, Painter, Rect, Shape as EShape, Stroke, TextureId, TextureOptions,
+    Color32, ColorImage, Mesh, Painter, Shape as EShape, Stroke, TextureId, TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::collections::HashMap;
@@ -106,7 +106,7 @@ impl HomeFlow {
                     let vertices = polygon
                         .exterior()
                         .points()
-                        .map(|v| vec2_to_egui_pos(self.world_to_pixels_xy(v.x(), v.y())))
+                        .map(|v| vec2_to_egui_pos(self.world_to_pixels(point_to_vec2(v))))
                         .collect();
                     painter.add(EShape::closed_line(
                         vertices,
@@ -376,15 +376,27 @@ impl HomeFlow {
 
             // Render the texture.
             if let Some((_, texture_handle)) = &self.light_data {
-                painter.image(
-                    texture_handle.id(),
-                    Rect::from_center_size(
-                        self.world_to_pixels_pos(light_data.image_center),
-                        vec2_to_egui_vec(light_data.image_size * self.stored.zoom),
-                    ),
-                    Rect::from_min_max(egui::Pos2::new(0.0, 0.0), egui::Pos2::new(1.0, 1.0)),
-                    Color32::WHITE,
-                );
+                let vertices = [
+                    vec2(-0.5, -0.5),
+                    vec2(0.5, -0.5),
+                    vec2(0.5, 0.5),
+                    vec2(-0.5, 0.5),
+                ];
+                let vertices = vertices
+                    .iter()
+                    .map(|&v| Vertex {
+                        pos: self.world_to_pixels_pos(
+                            light_data.image_center + v * light_data.image_size,
+                        ),
+                        uv: egui::pos2(v.x as f32 + 0.5, 1.0 - (v.y as f32 + 0.5)),
+                        color: Color::WHITE.to_egui(),
+                    })
+                    .collect();
+                painter.add(EShape::mesh(Mesh {
+                    indices: vec![0, 1, 2, 0, 2, 3],
+                    vertices,
+                    texture_id: texture_handle.id(),
+                }));
             }
         }
 
