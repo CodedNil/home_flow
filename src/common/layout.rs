@@ -154,7 +154,6 @@ pub struct RoomRender {
     pub material_polygons: IndexMap<String, MultiPolygon>,
     pub material_triangles: IndexMap<String, Vec<Triangles>>,
     pub wall_polygons: MultiPolygon,
-    pub wall_lines: Vec<Line>,
 }
 
 pub struct Triangles {

@@ -1,5 +1,3 @@
-use crate::common::{light_render::combine_lighting, utils::hash_vec2};
-
 use super::{
     color::Color,
     layout::{
@@ -9,9 +7,9 @@ use super::{
     light_render::render_lighting,
     utils::{rotate_point_i32, rotate_point_pivot_i32, Material},
 };
+use crate::common::{light_render::combine_lighting, utils::hash_vec2};
 use geo::{
-    triangulate_spade::SpadeTriangulationConfig, BoundingRect, Contains, Intersects,
-    TriangulateEarcut, TriangulateSpade,
+    triangulate_spade::SpadeTriangulationConfig, BoundingRect, TriangulateEarcut, TriangulateSpade,
 };
 use geo_types::{Coord, MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -42,8 +40,8 @@ impl Home {
             if room.rendered_data.is_none() || room.rendered_data.as_ref().unwrap().hash != hash {
                 let polygons = room.polygons();
                 let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
-                let (wall_polys, wall_lines) = if room.walls == Walls::NONE && !any_add {
-                    (EMPTY_MULTI_POLYGON, vec![])
+                let wall_polys = if room.walls == Walls::NONE && !any_add {
+                    EMPTY_MULTI_POLYGON
                 } else {
                     room.wall_polygons(&polygons)
                 };
@@ -54,7 +52,6 @@ impl Home {
                     material_polygons: mat_polys,
                     material_triangles: mat_tris,
                     wall_polygons: wall_polys,
-                    wall_lines,
                 });
             }
         }
@@ -78,7 +75,6 @@ impl Home {
 
         // Collect all the rooms together to build up the walls
         let mut wall_polygons = vec![];
-        let mut wall_lines: Vec<Line> = vec![];
         for room in &self.rooms {
             if let Some(rendered_data) = &room.rendered_data {
                 for poly in &mut wall_polygons {
@@ -87,29 +83,21 @@ impl Home {
                 for poly in &rendered_data.wall_polygons {
                     wall_polygons.push(poly.clone().into());
                 }
-                for poly in &rendered_data.polygons {
-                    wall_lines = difference_lines(&wall_lines, poly);
-                }
-                for line in &rendered_data.wall_lines {
-                    // Check if wall lines doesnt already contain the line or the reverse of the line
-                    let merge_dist = 0.01;
-                    let contains_line = wall_lines.iter().any(|(start, end)| {
-                        (start.distance(line.0) < merge_dist && end.distance(line.1) < merge_dist)
-                            || (start.distance(line.1) < merge_dist
-                                && end.distance(line.0) < merge_dist)
-                    });
-                    if !contains_line {
-                        wall_lines.push(*line);
+            }
+        }
+
+        // Gather wall lines from the polygons
+        let mut wall_lines = Vec::new();
+        for multipoly in &wall_polygons {
+            for poly in &multipoly.0 {
+                let walls_offset = offset_polygon(poly, -0.01, JoinType::Miter);
+                for poly2 in &walls_offset {
+                    for line in poly2.exterior().lines() {
+                        wall_lines.push((coord_to_vec2(line.start), coord_to_vec2(line.end)));
                     }
                 }
             }
         }
-        // Remove walls that have size close to zero
-        let wall_lines = wall_lines
-            .iter()
-            .filter(|(start, end)| start.distance(*end) > f64::EPSILON)
-            .copied()
-            .collect::<Vec<_>>();
 
         // Subtract doors
         for room in &self.rooms {
@@ -404,22 +392,18 @@ impl Room {
         (polygons, triangles)
     }
 
-    pub fn wall_polygons(&self, polygons: &MultiPolygon) -> (MultiPolygon, Vec<Line>) {
+    pub fn wall_polygons(&self, polygons: &MultiPolygon) -> MultiPolygon {
         let bounds = self.bounds_with_walls();
         let center = (bounds.0 + bounds.1) / 2.0;
         let size = bounds.1 - bounds.0;
 
         // Filter out inner polygons
-        let mut lines = vec![];
         let mut new_polygons = MultiPolygon(vec![]);
         for polygon in polygons {
             new_polygons = union_polygons(
                 &new_polygons,
                 &MultiPolygon::new(vec![Polygon::new(polygon.exterior().clone(), vec![])]),
             );
-            for line in polygon.exterior().lines() {
-                lines.push((coord_to_vec2(line.start), coord_to_vec2(line.end)));
-            }
         }
 
         let width_half = WALL_WIDTH / 2.0;
@@ -443,7 +427,6 @@ impl Room {
         for operation in &self.operations {
             if operation.action == Action::SubtractWall {
                 let operation_polygon = operation.polygon(self.pos);
-                lines = difference_lines(&lines, &operation_polygon);
                 new_polys = difference_polygons(&new_polys, &operation_polygon.into());
             }
         }
@@ -454,7 +437,7 @@ impl Room {
             .iter()
             .any(|operation| operation.action == Action::AddWall);
         if self.walls == Walls::WALL && !any_add {
-            return (new_polys, lines);
+            return new_polys;
         }
 
         let up = size.y * 0.5 - width_half * 3.0;
@@ -512,10 +495,7 @@ impl Room {
             }
         }
 
-        for poly in &subtract_shape {
-            lines = difference_lines(&lines, poly);
-        }
-        (difference_polygons(&new_polys, &subtract_shape), lines)
+        difference_polygons(&new_polys, &subtract_shape)
     }
 }
 
@@ -624,76 +604,6 @@ fn intersection_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiP
 }
 
 pub type Line = (Vec2, Vec2);
-
-fn difference_lines(lines: &Vec<Line>, poly: &Polygon) -> Vec<Line> {
-    let mut intersects = false;
-    for (start, end) in lines {
-        let geo_line = geo::Line::new(vec2_to_coord(start), vec2_to_coord(end));
-        if poly.intersects(&geo_line) {
-            intersects = true;
-            break;
-        }
-    }
-    if !intersects {
-        return lines.clone();
-    }
-
-    // First go through line and on any intersections add a point
-    let mut new_lines = vec![];
-    for (start, end) in lines {
-        // Get all intersections
-        let mut intersections = vec![];
-        for pline in poly.exterior().lines() {
-            let (pstart, pend) = (coord_to_vec2(pline.start), coord_to_vec2(pline.end));
-            if let Some(intersect) = line_intersect_point(*start, *end, pstart, pend) {
-                intersections.push(intersect);
-            }
-        }
-        // Sort intersections by distance to start of line
-        intersections.sort_by(|a, b| start.distance(*a).partial_cmp(&start.distance(*b)).unwrap());
-
-        // Subdivide line at intersections
-        if intersections.is_empty() {
-            new_lines.push((*start, *end));
-        } else {
-            let mut current = *start;
-            for intersect in intersections {
-                new_lines.push((current, intersect));
-                current = intersect;
-            }
-            new_lines.push((current, *end));
-        }
-    }
-
-    // Loop on new lines and remove any that are inside the polygon
-    new_lines
-        .into_iter()
-        .filter(|(start, end)| !poly.contains(&vec2_to_coord(&((*start + *end) / 2.0))))
-        .collect()
-}
-
-/// Checks if two lines (p1, p2) and (q1, q2) intersect and returns the point of intersection if there is one.
-fn line_intersect_point(p1: Vec2, p2: Vec2, q1: Vec2, q2: Vec2) -> Option<Vec2> {
-    let r = p2 - p1;
-    let s = q2 - q1;
-    let rxs = r.perp_dot(s);
-    let delta_pq = q1 - p1;
-    let qpxr = delta_pq.perp_dot(r);
-
-    if rxs.abs() < f64::EPSILON {
-        // Lines are parallel, could be collinear but no single point of intersection
-        return None;
-    }
-
-    let t = delta_pq.perp_dot(s) / rxs;
-    let u = qpxr / rxs;
-
-    if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u) {
-        Some(p1 + r * t)
-    } else {
-        None
-    }
-}
 
 pub type ShadowsData = (Color, Vec<ShadowTriangles>);
 
