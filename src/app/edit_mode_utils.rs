@@ -5,7 +5,7 @@ use super::{
 use crate::common::{
     layout::GlobalMaterial,
     shape::point_to_vec2,
-    utils::{rotate_point_i32, RoundFactor},
+    utils::{rotate_point_i32, rotate_point_pivot_i32, RoundFactor},
 };
 use egui::{ComboBox, DragValue, Key, Ui};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -155,13 +155,14 @@ impl HomeFlow {
             {
                 // Local mouse pos is -1 to 1 in x and y
                 let local_mouse_pos =
-                    (rotate_point_i32(self.mouse_pos_world, data.pos, data.rotation) - data.pos)
+                    (rotate_point_pivot_i32(self.mouse_pos_world, data.pos, data.rotation)
+                        - data.pos)
                         / data.size
                         * 2.0;
 
                 // Calculate the rotated direction vectors for the four directions
-                let right_dir = rotate_point_i32(vec2(1.0, 0.0), Vec2::ZERO, -data.rotation);
-                let up_dir = rotate_point_i32(vec2(0.0, 1.0), Vec2::ZERO, -data.rotation);
+                let right_dir = rotate_point_i32(vec2(1.0, 0.0), -data.rotation);
+                let up_dir = rotate_point_i32(vec2(0.0, 1.0), -data.rotation);
                 let screen_size = data.size / 2.0 * self.stored.zoom;
 
                 let threshold = 20.0;
@@ -367,7 +368,7 @@ pub fn apply_standard_transform(
 ) {
     let sign = drag_data.manipulation_type.sign();
 
-    let rotated_delta = rotate_point_i32(delta, Vec2::ZERO, drag_data.start_rotation);
+    let rotated_delta = rotate_point_i32(delta, drag_data.start_rotation);
     match drag_data.manipulation_type {
         ManipulationType::Move => {
             *pos = new_pos - offset;
@@ -375,7 +376,7 @@ pub fn apply_standard_transform(
         ManipulationType::ResizeLeft | ManipulationType::ResizeRight => {
             let new_size = drag_data.start_size.x + rotated_delta.x * sign;
             size.x = new_size.abs();
-            let left_dir = rotate_point_i32(vec2(-1.0, 0.0), Vec2::ZERO, -drag_data.start_rotation);
+            let left_dir = rotate_point_i32(vec2(-1.0, 0.0), -drag_data.start_rotation);
             *pos = drag_data.start_pos + left_dir * new_size * 0.5 * sign
                 - left_dir * rotated_delta.x
                 - offset;
@@ -383,7 +384,7 @@ pub fn apply_standard_transform(
         ManipulationType::ResizeTop | ManipulationType::ResizeBottom => {
             let new_size = drag_data.start_size.y + rotated_delta.y * sign;
             size.y = new_size.abs();
-            let up_dir = rotate_point_i32(vec2(0.0, -1.0), Vec2::ZERO, -drag_data.start_rotation);
+            let up_dir = rotate_point_i32(vec2(0.0, -1.0), -drag_data.start_rotation);
             *pos = drag_data.start_pos + up_dir * new_size * 0.5 * sign
                 - up_dir * rotated_delta.y
                 - offset;

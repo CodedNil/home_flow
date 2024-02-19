@@ -8,7 +8,7 @@ use super::{
         Triangles, Walls,
     },
     light_render::render_lighting,
-    utils::{rotate_point_i32, Material},
+    utils::{rotate_point_i32, rotate_point_pivot_i32, Material},
 };
 use geo::{
     triangulate_spade::SpadeTriangulationConfig, BoundingRect, Contains, Intersects,
@@ -784,7 +784,7 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>, height: f64) -> Shadows
 
 impl Shape {
     pub fn contains(self, point: Vec2, center: Vec2, size: Vec2, rotation: i32) -> bool {
-        let point = rotate_point_i32(point, center, rotation);
+        let point = rotate_point_pivot_i32(point, center, rotation);
         match self {
             Self::Rectangle => (point - center).abs().cmple(size * 0.5).all(),
             Self::Circle => ((point - center) / (size * 0.5)).length_squared() <= 1.0,
@@ -815,11 +815,7 @@ impl Shape {
         }
         .iter()
         .map(|(x_offset, y_offset)| {
-            rotate_point_i32(
-                vec2(x_offset * size.x, y_offset * size.y),
-                Vec2::ZERO,
-                -rotation,
-            ) + pos
+            rotate_point_i32(vec2(x_offset * size.x, y_offset * size.y), -rotation) + pos
         })
         .collect()
     }

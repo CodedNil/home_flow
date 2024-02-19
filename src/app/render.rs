@@ -4,7 +4,7 @@ use crate::common::{
     furniture::{AnimatedPieceType, Furniture, FurnitureType},
     layout::{OpeningType, Shape},
     shape::{point_to_vec2, WALL_WIDTH},
-    utils::{rotate_point, rotate_point_i32, Lerp, Material},
+    utils::{rotate_point, rotate_point_i32, rotate_point_pivot, Lerp, Material},
 };
 use egui::{
     epaint::{CircleShape, TessellationOptions, Tessellator, Vertex},
@@ -106,7 +106,7 @@ impl HomeFlow {
                     let vertices = polygon
                         .exterior()
                         .points()
-                        .map(|v| vec2_to_egui_pos(self.world_to_pixels(point_to_vec2(v))))
+                        .map(|v| self.world_to_pixels_pos(point_to_vec2(v)))
                         .collect();
                     painter.add(EShape::closed_line(
                         vertices,
@@ -137,8 +137,7 @@ impl HomeFlow {
                 if child.can_hover()
                     && Shape::Rectangle.contains(
                         self.mouse_pos_world,
-                        furniture.pos
-                            + rotate_point_i32(child.pos, Vec2::ZERO, -furniture.rotation),
+                        furniture.pos + rotate_point_i32(child.pos, -furniture.rotation),
                         child.size * 1.2,
                         furniture.rotation + child.rotation,
                     )
@@ -190,7 +189,7 @@ impl HomeFlow {
                     | AnimatedPieceType::DoorHigh(side) => {
                         if side {
                             let rotate = -hover * 60.0;
-                            let offset = rotate_point(
+                            let offset = rotate_point_pivot(
                                 Vec2::ZERO,
                                 vec2(-child.size.x / 2.0, -child.size.y / 2.0),
                                 rotate,
@@ -198,7 +197,7 @@ impl HomeFlow {
                             (offset, -rotate)
                         } else {
                             let rotate = hover * 60.0;
-                            let offset = rotate_point(
+                            let offset = rotate_point_pivot(
                                 Vec2::ZERO,
                                 vec2(child.size.x / 2.0, -child.size.y / 2.0),
                                 rotate,
@@ -210,11 +209,11 @@ impl HomeFlow {
                 _ => (Vec2::ZERO, 0.0), // Handles other FurnitureTypes
             };
 
-            let offset = rotate_point_i32(offset, Vec2::ZERO, -(obj.rotation + child.rotation));
+            let offset = rotate_point_i32(offset, -(obj.rotation + child.rotation));
             furniture_adjustments.insert(
                 child.id,
                 (
-                    obj.pos + rotate_point_i32(child.pos, Vec2::ZERO, -obj.rotation) + offset,
+                    obj.pos + rotate_point_i32(child.pos, -obj.rotation) + offset,
                     obj.rotation as f64 + child.rotation as f64 + offset_rot,
                 ),
             );
@@ -257,8 +256,7 @@ impl HomeFlow {
                             .enumerate()
                             .map(|(i, &v)| {
                                 let is_interior = *triangles.inners.get(i).unwrap_or(&false);
-                                let adjusted_v =
-                                    rotate_point(v, Vec2::ZERO, -rot) + pos + shadow_offset;
+                                let adjusted_v = rotate_point(v, -rot) + pos + shadow_offset;
                                 Vertex {
                                     pos: self.world_to_pixels_pos(adjusted_v),
                                     uv: egui::Pos2::ZERO,
@@ -291,7 +289,7 @@ impl HomeFlow {
                                 .vertices
                                 .iter()
                                 .map(|&v| {
-                                    let adjusted_v = rotate_point(v, Vec2::ZERO, -rot) + pos;
+                                    let adjusted_v = rotate_point(v, -rot) + pos;
                                     Vertex {
                                         pos: self.world_to_pixels_pos(adjusted_v),
                                         uv: vec2_to_egui_pos(v * 0.2),
@@ -450,7 +448,8 @@ impl HomeFlow {
                         stroke: Stroke::new(depth * 0.75, Color32::from_rgb(80, 80, 80)),
                     });
                     // Render the door
-                    let end_pos_door = rotate_point(end_pos, hinge_pos, opening.open_amount * 40.0);
+                    let end_pos_door =
+                        rotate_point_pivot(end_pos, hinge_pos, opening.open_amount * 40.0);
                     let points = [points[0], self.world_to_pixels_pos(end_pos_door)];
                     painter.circle_filled(points[0], depth * 0.5, color);
                     painter.add(EShape::LineSegment { points, stroke });
@@ -465,7 +464,7 @@ impl HomeFlow {
                 .iter()
                 .map(|v| Vertex {
                     pos: self.world_to_pixels_pos(*v),
-                    uv: egui::Pos2::default(),
+                    uv: egui::Pos2::ZERO,
                     color: WALL_COLOR,
                 })
                 .collect();

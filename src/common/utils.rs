@@ -26,7 +26,6 @@ impl RoundFactor for f64 {
     }
 }
 
-// Add lerp to u8
 pub trait Lerp {
     fn lerp(self, other: Self, t: f64) -> Self;
 }
@@ -37,7 +36,21 @@ impl Lerp for u8 {
     }
 }
 
-pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
+pub fn rotate_point(point: Vec2, angle: f64) -> Vec2 {
+    let cos_theta = angle.to_radians().cos();
+    let sin_theta = angle.to_radians().sin();
+
+    vec2(
+        cos_theta * point.x - sin_theta * point.y,
+        sin_theta * point.x + cos_theta * point.y,
+    )
+}
+
+pub fn rotate_point_i32(point: Vec2, angle: i32) -> Vec2 {
+    rotate_point(point, angle as f64)
+}
+
+pub fn rotate_point_pivot(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
     let cos_theta = angle.to_radians().cos();
     let sin_theta = angle.to_radians().sin();
 
@@ -47,8 +60,8 @@ pub fn rotate_point(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
     )
 }
 
-pub fn rotate_point_i32(point: Vec2, pivot: Vec2, angle: i32) -> Vec2 {
-    rotate_point(point, pivot, angle as f64)
+pub fn rotate_point_pivot_i32(point: Vec2, pivot: Vec2, angle: i32) -> Vec2 {
+    rotate_point_pivot(point, pivot, angle as f64)
 }
 
 pub const fn clone_as_none<T>(_x: &Option<T>) -> Option<T> {
@@ -93,25 +106,25 @@ impl Room {
 
     pub fn no_wall_left(&self) -> Self {
         let mut clone = self.clone();
-        clone.walls = self.walls.left(false);
+        clone.walls.left = false;
         clone
     }
 
     pub fn no_wall_top(&self) -> Self {
         let mut clone = self.clone();
-        clone.walls = self.walls.top(false);
+        clone.walls.top = false;
         clone
     }
 
-    pub fn no_wall_right(&self) -> Self {
+    pub fn no_wall_right(&mut self) -> Self {
         let mut clone = self.clone();
-        clone.walls = self.walls.right(false);
+        clone.walls.right = false;
         clone
     }
 
     pub fn no_wall_bottom(&self) -> Self {
         let mut clone = self.clone();
-        clone.walls = self.walls.bottom(false);
+        clone.walls.bottom = false;
         clone
     }
 
@@ -369,34 +382,6 @@ impl Walls {
         right: true,
         bottom: true,
     };
-
-    pub const fn left(self, is_wall: bool) -> Self {
-        Self {
-            left: is_wall,
-            ..self
-        }
-    }
-
-    pub const fn top(self, is_wall: bool) -> Self {
-        Self {
-            top: is_wall,
-            ..self
-        }
-    }
-
-    pub const fn right(self, is_wall: bool) -> Self {
-        Self {
-            right: is_wall,
-            ..self
-        }
-    }
-
-    pub const fn bottom(self, is_wall: bool) -> Self {
-        Self {
-            bottom: is_wall,
-            ..self
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]

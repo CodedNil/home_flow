@@ -1,6 +1,10 @@
 use self::edit_mode::EditDetails;
 use crate::{
-    common::{layout::Home, template::template_home, utils::rotate_point},
+    common::{
+        layout::Home,
+        template::template_home,
+        utils::{rotate_point, rotate_point_pivot},
+    },
     server::common_api::get_layout,
 };
 use anyhow::Result;
@@ -115,7 +119,7 @@ impl HomeFlow {
 
     fn pixels_to_world(&self, v: Vec2) -> Vec2 {
         let pivot = vec2(-self.stored.translation.x, self.stored.translation.y);
-        rotate_point(
+        rotate_point_pivot(
             vec2(
                 (v.x - self.canvas_center.x) / self.stored.zoom - self.stored.translation.x,
                 (self.canvas_center.y - v.y) / self.stored.zoom + self.stored.translation.y,
@@ -127,7 +131,7 @@ impl HomeFlow {
 
     fn world_to_pixels(&self, v: Vec2) -> Vec2 {
         let pivot = vec2(-self.stored.translation.x, self.stored.translation.y);
-        let v = rotate_point(v, pivot, self.stored.rotation);
+        let v = rotate_point_pivot(v, pivot, self.stored.rotation);
         vec2(
             (v.x + self.stored.translation.x) * self.stored.zoom + self.canvas_center.x,
             (self.stored.translation.y - v.y) * self.stored.zoom + self.canvas_center.y,
@@ -169,7 +173,7 @@ impl HomeFlow {
         }
 
         if translation_delta.length() > 0.0 {
-            let rotated = rotate_point(translation_delta, Vec2::ZERO, self.stored.rotation);
+            let rotated = rotate_point(translation_delta, self.stored.rotation);
             self.stored.translation += rotated / (self.stored.zoom / 100.0);
         }
 
