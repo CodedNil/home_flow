@@ -5,7 +5,6 @@ use super::{
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use image::{ImageBuffer, Luma};
-use rayon::prelude::*;
 use std::{
     collections::HashMap,
     f64::consts::PI,
@@ -14,9 +13,7 @@ use std::{
 use uuid::Uuid;
 
 const PIXELS_PER_METER: f64 = 40.0;
-const CHUNK_SIZE: u32 = 32768;
 const LIGHT_SAMPLES: u8 = 12; // Number of samples within the light's radius for anti-aliasing
-const MAX_LIGHTS_PER_FRAME: u32 = 1;
 
 pub struct LightData {
     pub hash: u64,
@@ -38,56 +35,52 @@ pub fn combine_lighting(
     let height = new_size.y * PIXELS_PER_METER;
 
     // Create an image buffer with the calculated size, filled with transparent pixels
-    let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
-    let (image_width, image_height) = (image_buffer.width(), image_buffer.height());
+    let image_width = width as u32;
+    let image_height = height as u32;
+    let image_pixel_count = (image_width * image_height) as usize;
+    let mut image_buffer = ImageBuffer::new(image_width, image_height);
 
     // Create vec of lights references
-    let mut light_images = Vec::new();
+    let mut lights_data = Vec::new();
     for room in rooms {
         for light in &room.lights {
+            if light.state == 0 {
+                continue;
+            }
             if let Some((_, light_data)) = &light.light_data {
-                let light_image = &light_data.image;
-                // If lights image size doesnt match, skip this one
-                let (w, h) = (light_image.width(), light_image.height());
-                if w != image_width || h != image_height {
-                    continue;
+                if light_data.len() == image_pixel_count {
+                    lights_data.push((
+                        light.intensity * (light.state as f64 / 255.0),
+                        room.pos + light.pos,
+                        light_data,
+                    ));
                 }
-                light_images.push(light_image);
             }
         }
     }
 
     // For each light, add its image to the buffer
-    image_buffer
-        .par_chunks_mut(CHUNK_SIZE as usize)
-        .enumerate()
-        .for_each(|(chunk_index, chunk)| {
-            let start_x = (chunk_index as u32 * CHUNK_SIZE) % image_width;
-            let start_y = (chunk_index as u32 * CHUNK_SIZE) / image_width;
+    image_buffer.iter_mut().enumerate().for_each(|(i, pixel)| {
+        let x = i as u32 % image_width;
+        let y = i as u32 / image_width;
+        let world = bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
 
-            for (i, pixel) in chunk.iter_mut().enumerate() {
-                let x = (start_x + i as u32 % CHUNK_SIZE) % image_width;
-                let y = start_y + (start_x + i as u32 % CHUNK_SIZE) / image_width;
-                let world =
-                    bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
+        if !rooms.iter().any(|r| r.contains(world)) {
+            return;
+        }
 
-                if !rooms.iter().any(|r| r.contains(world)) {
-                    *pixel = 0;
-                    continue;
-                }
-
-                let mut light_intensity: f64 = 0.0;
-                for light_image in &light_images {
-                    let light_pixel = light_image.get_pixel(x, y).0[0];
-                    light_intensity += light_pixel as f64 / 255.0;
-                    if light_intensity >= 255.0 {
-                        light_intensity = 255.0;
-                        break;
-                    }
-                }
-                *pixel = ((1.0 - light_intensity) * 200.0) as u8;
+        let mut total_light_intensity: f64 = 0.0;
+        for (light_intensity, light_pos, light_image) in &lights_data {
+            let distance = world.distance(*light_pos) * 2.0 / light_intensity;
+            let light_pixel = light_image[i] as f64 / 255.0;
+            total_light_intensity += light_pixel / (1.0 + distance * distance);
+            if total_light_intensity >= 1.0 {
+                total_light_intensity = 1.0;
+                break;
             }
-        });
+        }
+        *pixel = ((1.0 - total_light_intensity) * 200.0) as u8;
+    });
 
     LightData {
         hash,
@@ -102,13 +95,14 @@ pub fn render_lighting(
     bounds_max: Vec2,
     rooms: &Vec<Room>,
     all_walls: &[Line],
-) -> (bool, HashMap<Uuid, (u64, LightData)>) {
-    let mut cur_changed = 0;
+) -> HashMap<Uuid, (u64, Vec<u8>)> {
     let mut new_light_data = HashMap::new();
     for room in rooms {
         for light in &room.lights {
             let mut hasher = DefaultHasher::new();
-            light.hash(&mut hasher);
+            hash_vec2(light.pos, &mut hasher);
+            light.intensity.to_bits().hash(&mut hasher);
+            light.radius.to_bits().hash(&mut hasher);
             for room in rooms {
                 hash_vec2(room.pos, &mut hasher);
                 hash_vec2(room.size, &mut hasher);
@@ -127,14 +121,10 @@ pub fn render_lighting(
                     room.pos + light.pos,
                 );
                 new_light_data.insert(light.id, (hash, light_data));
-                cur_changed += 1;
-            }
-            if cur_changed >= MAX_LIGHTS_PER_FRAME {
-                return (false, new_light_data);
             }
         }
     }
-    (true, new_light_data)
+    new_light_data
 }
 
 fn render_light(
@@ -144,15 +134,9 @@ fn render_light(
     all_walls: &[Line],
     light: &Light,
     light_pos: Vec2,
-) -> LightData {
+) -> Vec<u8> {
     // Create a vec of walls that this light can see
     let walls_for_light = get_visible_walls(light_pos, all_walls);
-
-    // Calculate the size of the image based on the home size and resolution factor
-    let new_center = (bounds_min + bounds_max) / 2.0;
-    let new_size = bounds_max - bounds_min;
-    let width = new_size.x * PIXELS_PER_METER;
-    let height = new_size.y * PIXELS_PER_METER;
 
     // Calculate the rooms to check against, if lights room is enclosed then only that, if its not then only rooms that arent enclosed
     let mut rooms_to_check = Vec::new();
@@ -167,84 +151,68 @@ fn render_light(
         }
     }
 
-    // Create an image buffer with the calculated size, filled with transparent pixels
-    let mut image_buffer = ImageBuffer::new(width as u32, height as u32);
-    let image_width = image_buffer.width();
+    // Calculate the size of the image based on the home size and resolution factor
+    let new_size = bounds_max - bounds_min;
+    let width = new_size.x * PIXELS_PER_METER;
+    let height = new_size.y * PIXELS_PER_METER;
 
-    image_buffer
-        .par_chunks_mut(CHUNK_SIZE as usize)
-        .enumerate()
-        .for_each(|(chunk_index, chunk)| {
-            let start_x = (chunk_index as u32 * CHUNK_SIZE) % image_width;
-            let start_y = (chunk_index as u32 * CHUNK_SIZE) / image_width;
+    // Create an image buffer with the calculated size, filled with black pixels
+    let image_width = width as u32;
+    let image_height = height as u32;
+    let mut data_buffer = vec![0; (image_width * image_height) as usize];
 
-            for (i, pixel) in chunk.iter_mut().enumerate() {
-                let x = (start_x + i as u32 % CHUNK_SIZE) % image_width;
-                let y = start_y + (start_x + i as u32 % CHUNK_SIZE) / image_width;
-                let world =
-                    bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
+    data_buffer.iter_mut().enumerate().for_each(|(i, pixel)| {
+        let x = i as u32 % image_width;
+        let y = i as u32 / image_width;
+        let world = bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
 
-                if !rooms_to_check.iter().any(|r| r.contains(world)) {
-                    *pixel = 0;
-                    continue;
-                }
+        if !rooms_to_check.iter().any(|r| r.contains(world)) {
+            return;
+        }
 
-                let mut total_light_intensity = 0.0;
+        let mut total_light_intensity = 0.0;
 
-                let light_state_intensity = light.intensity * (light.state as f64 / 255.0);
-                let distance_to_light = (world - light_pos).length();
-                if distance_to_light > light_state_intensity * 8.0 {
-                    continue;
-                }
-                let mut sampled_light_intensity = 0.0;
+        let distance_to_light = (world - light_pos).length();
+        if distance_to_light > light.intensity * 8.0 {
+            return;
+        }
+        let mut sampled_light_intensity = 0.0;
 
-                // Do more samples the closer we are to the light
-                let dynamic_samples = ((LIGHT_SAMPLES as f64
-                    * (1.0 - distance_to_light / (light_state_intensity * 4.0)))
-                    .round() as u8)
-                    .max(1);
+        // Do more samples the closer we are to the light
+        let dynamic_samples = ((LIGHT_SAMPLES as f64
+            * (1.0 - distance_to_light / (light.intensity * 4.0)))
+            .round() as u8)
+            .max(1);
 
-                for i in 0..dynamic_samples {
-                    // Calculate offset for current sample
-                    let sample_light_position = if dynamic_samples == 1 {
-                        light_pos
-                    } else {
-                        let angle = 2.0 * PI * (i as f64 / dynamic_samples as f64);
-                        light_pos + vec2(light.radius * angle.cos(), light.radius * angle.sin())
-                    };
+        for i in 0..dynamic_samples {
+            // Calculate offset for current sample
+            let sample_light_position = if dynamic_samples == 1 {
+                light_pos
+            } else {
+                let angle = 2.0 * PI * (i as f64 / dynamic_samples as f64);
+                light_pos + vec2(light.radius * angle.cos(), light.radius * angle.sin())
+            };
 
-                    // Check if the sample light position and pixel intersect with any lines
-                    if walls_for_light
-                        .iter()
-                        .any(|(p1, p2)| lines_intersect(sample_light_position, world, *p1, *p2))
-                    {
-                        continue;
-                    }
-
-                    // Calculate distance and intensity for the sample
-                    let distance =
-                        (world - sample_light_position).length() * 2.0 / light_state_intensity;
-                    sampled_light_intensity += (1.0 / (1.0 + distance * distance)) * 0.75;
-                    // Add a little fake light not adhering to inverse square law, for a more natural look
-                    sampled_light_intensity += (1.0 / (1.0 + distance)) * 0.25;
-                }
-
-                // Average the light intensity from all samples
-                total_light_intensity += sampled_light_intensity / dynamic_samples as f64;
-                if total_light_intensity > 1.0 {
-                    total_light_intensity = 1.0;
-                }
-
-                *pixel = (total_light_intensity * 255.0) as u8;
+            // Check if the sample light position and pixel intersect with any lines
+            if walls_for_light
+                .iter()
+                .any(|(p1, p2)| lines_intersect(sample_light_position, world, *p1, *p2))
+            {
+                continue;
             }
-        });
+            sampled_light_intensity += 1.0;
+        }
 
-    LightData {
-        hash: 0,
-        image: image_buffer,
-        image_center: new_center,
-        image_size: new_size,
-    }
+        // Average the light intensity from all samples
+        total_light_intensity += sampled_light_intensity / dynamic_samples as f64;
+        if total_light_intensity > 1.0 {
+            total_light_intensity = 1.0;
+        }
+
+        *pixel = (total_light_intensity * 255.0) as u8;
+    });
+
+    data_buffer
 }
 
 fn get_visible_walls(light_pos: Vec2, all_walls: &[Line]) -> Vec<Line> {

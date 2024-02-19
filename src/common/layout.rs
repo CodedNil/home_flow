@@ -80,7 +80,7 @@ pub struct Light {
     pub state: u8,
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
-    pub light_data: Option<(u64, LightData)>,
+    pub light_data: Option<(u64, Vec<u8>)>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

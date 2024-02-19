@@ -750,6 +750,9 @@ fn room_edit_widgets(
         let mut alterations = vec![AlterObject::None; num_objects];
         for (index, light) in room.lights.iter_mut().enumerate() {
             ui.horizontal(|ui| {
+                TextEdit::singleline(&mut light.name)
+                    .min_size(egui::vec2(100.0, 0.0))
+                    .show(ui);
                 edit_vec2(ui, "Pos", &mut light.pos, 0.1);
                 ui.add(
                     DragValue::new(&mut light.intensity)

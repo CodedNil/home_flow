@@ -176,7 +176,7 @@ impl Home {
             room.walls.hash(&mut hasher);
             room.lights.hash(&mut hasher);
         }
-        let mut hash = hasher.finish();
+        let hash = hasher.finish();
         if let Some(light_data) = &self.light_data {
             if light_data.hash == hash {
                 return;
@@ -186,8 +186,7 @@ impl Home {
         let all_walls = &self.rendered_data.as_ref().unwrap().wall_lines;
 
         let (bounds_min, bounds_max) = self.bounds();
-        let (update_complete, mut light_data) =
-            render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
+        let mut light_data = render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
 
         // Override light data for each light
         for room in &mut self.rooms {
@@ -199,10 +198,9 @@ impl Home {
         }
 
         // Combine each lights contribution into a single image
-        if !update_complete {
-            hash -= 1;
-        }
+        let start = std::time::Instant::now();
         self.light_data = Some(combine_lighting(bounds_min, bounds_max, &self.rooms, hash));
+        log::info!("Lighting combine took: {:?}", start.elapsed());
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
@@ -754,7 +752,11 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>, height: f64) -> Shadows
 
 impl Shape {
     pub fn contains(self, point: Vec2, center: Vec2, size: Vec2, rotation: i32) -> bool {
-        let point = rotate_point_pivot_i32(point, center, rotation);
+        let point = if rotation != 0 {
+            rotate_point_pivot_i32(point, center, rotation)
+        } else {
+            point
+        };
         match self {
             Self::Rectangle => (point - center).abs().cmple(size * 0.5).all(),
             Self::Circle => ((point - center) / (size * 0.5)).length_squared() <= 1.0,
