@@ -2,7 +2,6 @@ use crate::common::{light_render::combine_lighting, utils::hash_vec2};
 
 use super::{
     color::Color,
-    furniture::FurnitureRender,
     layout::{
         Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
         Triangles, Walls,
@@ -17,7 +16,6 @@ use geo::{
 use geo_types::{Coord, MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use indexmap::IndexMap;
-use rayon::prelude::*;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub const WALL_WIDTH: f64 = 0.1;
@@ -35,35 +33,20 @@ impl Home {
             }
         }
 
-        // Process all rooms in parallel
-        for (index, hash, polygons, mat_polys, mat_tris, wall_polys, wall_lines) in self
-            .rooms
-            .par_iter()
-            .enumerate()
-            .filter_map(|(index, room)| {
-                let mut hasher = DefaultHasher::new();
-                room.hash(&mut hasher);
-                let hash = hasher.finish();
-                if room.rendered_data.is_none() || room.rendered_data.as_ref().unwrap().hash != hash
-                {
-                    let polygons = room.polygons();
-                    let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
-                    let (wall_polys, wall_lines) = if room.walls == Walls::NONE && !any_add {
-                        (EMPTY_MULTI_POLYGON, vec![])
-                    } else {
-                        room.wall_polygons(&polygons)
-                    };
-                    let (mat_polys, mat_tris) = room.material_polygons(&self.materials);
-                    Some((
-                        index, hash, polygons, mat_polys, mat_tris, wall_polys, wall_lines,
-                    ))
+        // Process all rooms
+        for room in &mut self.rooms {
+            let mut hasher = DefaultHasher::new();
+            room.hash(&mut hasher);
+            let hash = hasher.finish();
+            if room.rendered_data.is_none() || room.rendered_data.as_ref().unwrap().hash != hash {
+                let polygons = room.polygons();
+                let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
+                let (wall_polys, wall_lines) = if room.walls == Walls::NONE && !any_add {
+                    (EMPTY_MULTI_POLYGON, vec![])
                 } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-        {
-            if let Some(room) = self.rooms.get_mut(index) {
+                    room.wall_polygons(&polygons)
+                };
+                let (mat_polys, mat_tris) = room.material_polygons(&self.materials);
                 room.rendered_data = Some(RoomRender {
                     hash,
                     polygons,
@@ -75,33 +58,20 @@ impl Home {
             }
         }
 
-        // Process all furniture in parallel
-        for (index, hash, (polygons, triangles, shadow_triangles, children)) in self
-            .furniture
-            .par_iter()
-            .enumerate()
-            .filter_map(|(index, furniture)| {
-                let mut hasher = DefaultHasher::new();
-                furniture.hash(&mut hasher);
-                let hash = hasher.finish();
-                if furniture.rendered_data.is_none()
-                    || furniture.rendered_data.as_ref().unwrap().hash != hash
-                {
-                    Some((index, hash, furniture.render(&self.materials)))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-        {
-            if let Some(furniture) = self.furniture.get_mut(index) {
-                furniture.rendered_data = Some(FurnitureRender {
-                    hash,
-                    polygons,
-                    triangles,
-                    shadow_triangles,
-                    children,
-                });
+        // Process all furniture
+        let materials = &self.materials;
+        for furniture in &mut self.furniture {
+            let mut hasher = DefaultHasher::new();
+            furniture.hash(&mut hasher);
+            let hash = hasher.finish();
+            if furniture.rendered_data.is_none()
+                || furniture.rendered_data.as_ref().unwrap().hash != hash
+            {
+                let material = get_global_material(materials, &furniture.material);
+                let material_child = get_global_material(materials, &furniture.material_children);
+                let mut render = furniture.render(&material, &material_child);
+                render.hash = hash;
+                furniture.rendered_data = Some(render);
             }
         }
 

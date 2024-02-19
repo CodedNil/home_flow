@@ -1,7 +1,7 @@
 use super::{
     color::Color,
     layout::{GlobalMaterial, Shape, Triangles},
-    shape::{get_global_material, polygons_to_shadows, triangulate_polygon, ShadowsData},
+    shape::{polygons_to_shadows, triangulate_polygon, ShadowsData},
     utils::{clone_as_none, hash_vec2, Material},
 };
 use derivative::Derivative;
@@ -219,15 +219,10 @@ impl Furniture {
 
     pub fn render(
         &self,
-        materials: &[GlobalMaterial],
-    ) -> (
-        FurniturePolygons,
-        FurnitureTriangles,
-        ShadowsData,
-        Vec<Self>,
-    ) {
-        let global_material = get_global_material(materials, &self.material);
-        let material = FurnitureMaterial::new(global_material.material, global_material.tint);
+        primary_material: &GlobalMaterial,
+        child_material: &GlobalMaterial,
+    ) -> FurnitureRender {
+        let material = FurnitureMaterial::new(primary_material.material, primary_material.tint);
 
         let polygons = self.polygons(material);
 
@@ -243,72 +238,66 @@ impl Furniture {
         }
 
         let has_shadow = !matches!(self.furniture_type, FurnitureType::AnimatedPiece(_));
-        let shadows_data = if has_shadow {
+        let shadow_triangles = if has_shadow {
             // Use simple shape for shadow unless complex is needed
-            let full_shape = self.full_shape();
-            let shadow_polys = polygons.iter().map(|(_, p)| p).collect::<Vec<_>>();
-            let shadow_polys = match self.furniture_type {
-                FurnitureType::Bed(_) => shadow_polys,
-                FurnitureType::Bathroom(sub_type) => match sub_type {
-                    BathroomType::Toilet | BathroomType::Sink => shadow_polys,
-                    _ => vec![&full_shape],
-                },
-                _ => vec![&full_shape],
+            let use_simple = match self.furniture_type {
+                FurnitureType::Bed(_) => false,
+                FurnitureType::Bathroom(sub_type) => {
+                    !matches!(sub_type, BathroomType::Toilet | BathroomType::Sink)
+                }
+                _ => true,
             };
-            polygons_to_shadows(shadow_polys, self.furniture_type.height())
+            if use_simple {
+                polygons_to_shadows(vec![&self.full_shape()], self.furniture_type.height())
+            } else {
+                let shadow_polys = polygons.iter().map(|(_, p)| p).collect::<Vec<_>>();
+                polygons_to_shadows(shadow_polys, self.furniture_type.height())
+            }
         } else {
             (Color::TRANSPARENT, Vec::new())
         };
 
-        let children = self.render_children(materials);
+        let children = self.render_children(child_material);
 
-        (polygons, triangles, shadows_data, children)
+        FurnitureRender {
+            hash: 0,
+            triangles,
+            shadow_triangles,
+            children,
+        }
     }
 
     fn polygons(&self, material: FurnitureMaterial) -> FurniturePolygons {
-        let mut polygons = Vec::new();
         match self.furniture_type {
-            FurnitureType::Chair(sub_type) => self.chair_render(&mut polygons, material, sub_type),
-            FurnitureType::Table(_) => self.table_render(&mut polygons, material),
-            FurnitureType::Bed(color) => self.bed_render(&mut polygons, color),
-            FurnitureType::Storage(_) => self.storage_render(&mut polygons, material),
-            FurnitureType::Rug(color) => self.rug_render(&mut polygons, color),
-            FurnitureType::Kitchen(sub_type) => self.kitchen_render(&mut polygons, sub_type),
-            FurnitureType::Bathroom(sub_type) => self.bathroom_render(&mut polygons, sub_type),
-            FurnitureType::Boiler => polygons.push((METAL_DARK, self.full_shape())),
-            FurnitureType::Radiator => self.radiator_render(&mut polygons),
-            FurnitureType::Display => self.display_render(&mut polygons),
-            FurnitureType::AnimatedPiece(sub_type) => {
-                self.animated_render(&mut polygons, material, sub_type);
-            }
-            FurnitureType::Misc(_) => polygons.push((material, self.full_shape())),
+            FurnitureType::Chair(sub_type) => self.chair_render(material, sub_type),
+            FurnitureType::Table(_) => self.table_render(material),
+            FurnitureType::Bed(color) => self.bed_render(color),
+            FurnitureType::Storage(_) => self.storage_render(material),
+            FurnitureType::Rug(color) => self.rug_render(color),
+            FurnitureType::Kitchen(sub_type) => self.kitchen_render(sub_type),
+            FurnitureType::Bathroom(sub_type) => self.bathroom_render(sub_type),
+            FurnitureType::Boiler => vec![(METAL_DARK, self.full_shape())],
+            FurnitureType::Radiator => self.radiator_render(),
+            FurnitureType::Display => self.display_render(),
+            FurnitureType::AnimatedPiece(sub_type) => self.animated_render(material, sub_type),
+            FurnitureType::Misc(_) => vec![(material, self.full_shape())],
         }
-        polygons
     }
 
-    fn render_children(&self, materials: &[GlobalMaterial]) -> Vec<Self> {
-        let mut children = Vec::new();
-        match self.furniture_type {
-            FurnitureType::Table(sub_type) => self.table_children(&mut children, sub_type),
-            FurnitureType::Storage(sub_type) => {
-                self.storage_children(&mut children, sub_type);
-            }
-            _ => {}
-        }
+    fn render_children(&self, material: &GlobalMaterial) -> Vec<Self> {
+        let mut children = match self.furniture_type {
+            FurnitureType::Table(sub_type) => self.table_children(sub_type),
+            FurnitureType::Storage(sub_type) => self.storage_children(sub_type),
+            _ => Vec::new(),
+        };
         for child in &mut children {
-            let (polygons, triangles, shadow_triangles, children) = child.render(materials);
-            child.rendered_data = Some(FurnitureRender {
-                hash: 0,
-                polygons,
-                triangles,
-                shadow_triangles,
-                children,
-            });
+            child.rendered_data = Some(child.render(material, material));
         }
         children
     }
 
-    fn table_children(&self, children: &mut Vec<Self>, sub_type: TableType) {
+    fn table_children(&self, sub_type: TableType) -> Vec<Self> {
+        let mut children = Vec::new();
         let chair_size = vec2(0.5, 0.5);
         let chair_push = 0.1;
 
@@ -352,9 +341,11 @@ impl Furniture {
             }
             TableType::Empty => {}
         }
+        children
     }
 
-    fn storage_children(&self, children: &mut Vec<Self>, sub_type: StorageType) {
+    fn storage_children(&self, sub_type: StorageType) -> Vec<Self> {
+        let mut children = Vec::new();
         let num_drawers = ((self.size.x - 0.05) / 0.5).floor().max(1.0) as usize;
         let drawer_width = self.size.x / num_drawers as f64;
         for i in 0..num_drawers {
@@ -377,18 +368,15 @@ impl Furniture {
                 .material(&self.material_children),
             );
         }
+        children
     }
 
     fn full_shape(&self) -> MultiPolygon {
         rect(Vec2::ZERO, self.size)
     }
 
-    fn chair_render(
-        &self,
-        polygons: &mut FurniturePolygons,
-        material: FurnitureMaterial,
-        sub_type: ChairType,
-    ) {
+    fn chair_render(&self, material: FurnitureMaterial, sub_type: ChairType) -> FurniturePolygons {
+        let mut polygons = Vec::new();
         let material = match sub_type {
             ChairType::Dining => material,
             ChairType::Office => {
@@ -408,15 +396,17 @@ impl Furniture {
                 ),
             ));
         }
+        polygons
     }
 
-    fn table_render(&self, polygons: &mut FurniturePolygons, material: FurnitureMaterial) {
-        fancy_rectangle(polygons, Vec2::ZERO, self.size, 0, material, 0.04, 0.1);
+    fn table_render(&self, material: FurnitureMaterial) -> FurniturePolygons {
+        fancy_rectangle(Vec2::ZERO, self.size, material, 0.04, 0.1)
     }
 
-    fn kitchen_render(&self, polygons: &mut FurniturePolygons, sub_type: KitchenType) {
+    fn kitchen_render(&self, sub_type: KitchenType) -> FurniturePolygons {
         match sub_type {
             KitchenType::Hob => {
+                let mut polygons = Vec::with_capacity(5);
                 polygons.push((
                     FurnitureMaterial::new(Material::Empty, Color::from_rgb(80, 80, 80)),
                     self.full_shape(),
@@ -434,14 +424,14 @@ impl Furniture {
                         ));
                     }
                 }
+                polygons
             }
-            KitchenType::Sink => {
-                fancy_rectangle(polygons, Vec2::ZERO, self.size, 0, METAL_DARK, 0.1, 0.05);
-            }
+            KitchenType::Sink => fancy_rectangle(Vec2::ZERO, self.size, METAL_DARK, 0.1, 0.05),
         }
     }
 
-    fn bathroom_render(&self, polygons: &mut FurniturePolygons, sub_type: BathroomType) {
+    fn bathroom_render(&self, sub_type: BathroomType) -> FurniturePolygons {
+        let mut polygons = Vec::new();
         let ceramic_light = 0.06;
         match sub_type {
             BathroomType::Bath => {
@@ -461,22 +451,22 @@ impl Furniture {
                         rect(vec2(0.0, self.size.y * 0.5 - 0.15), vec2(0.2, 0.1)),
                     ));
                 }
+                polygons
             }
             BathroomType::Shower => {
-                fancy_rectangle(
-                    polygons,
+                polygons.extend(fancy_rectangle(
                     Vec2::ZERO,
                     self.size,
-                    0,
                     CERAMIC,
                     ceramic_light,
                     0.1,
-                );
+                ));
                 // Tap
                 polygons.push((
                     METAL_DARK,
                     rect(vec2(0.0, self.size.y * 0.5 - 0.05), vec2(0.2, 0.1)),
                 ));
+                polygons
             }
             BathroomType::Toilet => {
                 let rounding_factor = 0.3;
@@ -506,6 +496,7 @@ impl Furniture {
                     METAL_DARK,
                     rect(vec2(0.0, self.size.y * 0.5 - 0.05), vec2(0.1, 0.1)),
                 ));
+                polygons
             }
             BathroomType::Sink => {
                 let inset = 0.1;
@@ -535,11 +526,13 @@ impl Furniture {
                     METAL_DARK,
                     rect(vec2(0.0, self.size.y * 0.5 - 0.05), vec2(0.1, 0.1)),
                 ));
+                polygons
             }
         }
     }
 
-    fn bed_render(&self, polygons: &mut FurniturePolygons, color: Color) {
+    fn bed_render(&self, color: Color) -> FurniturePolygons {
+        let mut polygons = Vec::new();
         let sheet_color = Color::from_rgb(250, 230, 210);
         let pillow_color = Color::from_rgb(255, 255, 255);
 
@@ -560,28 +553,24 @@ impl Furniture {
                 pillow_full_width * i as f64 - ((num_pillows - 1) as f64 * pillow_full_width) * 0.5,
                 (self.size.y - pillow_height) * 0.5 - pillow_spacing,
             );
-            fancy_rectangle(
-                polygons,
+            polygons.extend(fancy_rectangle(
                 pillow_pos,
                 vec2(pillow_width, pillow_height),
-                0,
                 FurnitureMaterial::new(Material::Empty, pillow_color),
                 -0.015,
                 0.03,
-            );
+            ));
         }
 
         // Add covers
         let covers_size = (self.size.y - pillow_height - pillow_spacing * 2.0) / self.size.y;
-        fancy_rectangle(
-            polygons,
+        polygons.extend(fancy_rectangle(
             -vec2(0.0, self.size.y * (1.0 - covers_size) / 2.0),
             vec2(self.size.x, self.size.y * covers_size),
-            0,
             FurnitureMaterial::new(Material::Fabric, color),
             -0.025,
             0.05,
-        );
+        ));
 
         // Add backboard
         let backboard_polygon = rect(
@@ -589,13 +578,15 @@ impl Furniture {
             vec2(self.size.x + 0.05, 0.05),
         );
         polygons.push((WOOD, backboard_polygon));
+        polygons
     }
 
-    fn storage_render(&self, polygons: &mut FurniturePolygons, material: FurnitureMaterial) {
-        polygons.push((material, self.full_shape()));
+    fn storage_render(&self, material: FurnitureMaterial) -> FurniturePolygons {
+        vec![(material, self.full_shape())]
     }
 
-    fn radiator_render(&self, polygons: &mut FurniturePolygons) {
+    fn radiator_render(&self) -> FurniturePolygons {
+        let mut polygons = Vec::new();
         polygons.push((
             FurnitureMaterial::new(Material::Empty, Color::from_rgb(255, 255, 255)),
             self.full_shape(),
@@ -614,61 +605,60 @@ impl Furniture {
                 ));
             }
         }
+        polygons
     }
 
-    fn display_render(&self, polygons: &mut FurniturePolygons) {
-        polygons.push((
-            METAL_DARK,
-            rect(
-                vec2(0.0, -self.size.y * 0.25),
-                vec2(self.size.x, self.size.y * 0.5),
+    fn display_render(&self) -> FurniturePolygons {
+        vec![
+            (
+                METAL_DARK,
+                rect(
+                    vec2(0.0, -self.size.y * 0.25),
+                    vec2(self.size.x, self.size.y * 0.5),
+                ),
             ),
-        ));
-        polygons.push((
-            FurnitureMaterial::new(Material::Empty, Color::from_rgb(50, 150, 255)),
-            rect(
-                vec2(0.0, self.size.y * 0.25),
-                vec2(self.size.x, self.size.y * 0.5),
+            (
+                FurnitureMaterial::new(Material::Empty, Color::from_rgb(50, 150, 255)),
+                rect(
+                    vec2(0.0, self.size.y * 0.25),
+                    vec2(self.size.x, self.size.y * 0.5),
+                ),
             ),
-        ));
+        ]
     }
 
-    fn rug_render(&self, polygons: &mut FurniturePolygons, color: Color) {
+    fn rug_render(&self, color: Color) -> FurniturePolygons {
         fancy_rectangle(
-            polygons,
             Vec2::ZERO,
             self.size,
-            0,
             FurnitureMaterial::new(Material::Carpet, color),
             -0.05,
             0.1,
-        );
+        )
     }
 
     fn animated_render(
         &self,
-        polygons: &mut FurniturePolygons,
         material: FurnitureMaterial,
         sub_type: AnimatedPieceType,
-    ) {
+    ) -> FurniturePolygons {
         match sub_type {
             AnimatedPieceType::Drawer
             | AnimatedPieceType::DrawerMid
             | AnimatedPieceType::DrawerHigh => {
-                fancy_rectangle(polygons, Vec2::ZERO, self.size, 0, material, 0.1, 0.05);
+                fancy_rectangle(Vec2::ZERO, self.size, material, 0.1, 0.05)
             }
             AnimatedPieceType::Door(_)
             | AnimatedPieceType::DoorMid(_)
             | AnimatedPieceType::DoorHigh(_) => {
                 let depth = 0.05;
-                polygons.push((
+                vec![(
                     material.lighten(0.1),
-                    Shape::Rectangle.polygons(
+                    rect(
                         vec2(0.0, -self.size.y * 0.5 + depth * 0.5),
                         vec2(self.size.x, depth),
-                        0,
                     ),
-                ));
+                )]
             }
         }
     }
@@ -679,20 +669,22 @@ fn rect(pos: Vec2, size: Vec2) -> MultiPolygon {
 }
 
 fn fancy_rectangle(
-    polygons: &mut FurniturePolygons,
     pos: Vec2,
     size: Vec2,
-    rotation: i32,
     material: FurnitureMaterial,
     lighten: f64,
     inset: f64,
-) {
-    polygons.push((material, Shape::Rectangle.polygons(pos, size, rotation)));
+) -> FurniturePolygons {
     if size.x > inset * 3.0 && size.y > inset * 3.0 {
-        polygons.push((
-            material.lighten(lighten),
-            Shape::Rectangle.polygons(pos, size - vec2(inset * 2.0, inset * 2.0), rotation),
-        ));
+        vec![
+            (material, rect(pos, size)),
+            (
+                material.lighten(lighten),
+                rect(pos, size - vec2(inset * 2.0, inset * 2.0)),
+            ),
+        ]
+    } else {
+        vec![(material, rect(pos, size))]
     }
 }
 
@@ -736,7 +728,6 @@ type FurnitureTriangles = Vec<(FurnitureMaterial, Vec<Triangles>)>;
 
 pub struct FurnitureRender {
     pub hash: u64,
-    pub polygons: FurniturePolygons,
     pub triangles: FurnitureTriangles,
     pub shadow_triangles: ShadowsData,
     pub children: Vec<Furniture>,
