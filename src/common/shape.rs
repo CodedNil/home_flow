@@ -198,9 +198,7 @@ impl Home {
         }
 
         // Combine each lights contribution into a single image
-        let start = std::time::Instant::now();
         self.light_data = Some(combine_lighting(bounds_min, bounds_max, &self.rooms, hash));
-        log::info!("Lighting combine took: {:?}", start.elapsed());
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {
