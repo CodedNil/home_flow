@@ -40,6 +40,9 @@ impl HomeFlow {
 
     pub fn render_layout(&mut self, painter: &Painter, ctx: &egui::Context) {
         self.layout.render(self.edit_mode.enabled);
+        if self.layout.rendered_data.is_none() {
+            return;
+        }
         if !self.edit_mode.enabled {
             self.layout.render_lighting();
         }

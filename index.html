@@ -8,6 +8,9 @@
     <head>
         <title>HomeFlow</title>
 
+        <script type="module" src="clipper2z.js"></script>
+        <script type="module" src="clipper2_bridge.js"></script>
+
         <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
         <link data-trunk rel="rust" data-wasm-opt="2" />
         <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
@@ -27,8 +30,6 @@
         <link data-trunk rel="copy-file" href="assets/clipper2z.js" />
         <link data-trunk rel="copy-file" href="assets/clipper2z.wasm" />
         <link data-trunk rel="copy-file" href="assets/clipper2_bridge.js" />
-        <script type="module" src="clipper2z.js"></script>
-        <script type="module" src="clipper2_bridge.js"></script>
 
         <style>
             /* Allow canvas to fill entire web page: */

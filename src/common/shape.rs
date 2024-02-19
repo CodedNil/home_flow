@@ -32,6 +32,11 @@ impl Home {
             }
         }
 
+        #[cfg(target_arch = "wasm32")]
+        if !crate::common::clipper_wasm::is_clipper_loaded() {
+            return;
+        }
+
         // Process all rooms
         for room in &mut self.rooms {
             let mut hasher = DefaultHasher::new();

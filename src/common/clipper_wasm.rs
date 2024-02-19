@@ -9,6 +9,9 @@ use super::shape::{CLIPPER_PRECISION, EMPTY_MULTI_POLYGON};
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = window)]
+    pub fn is_clipper_loaded() -> bool;
+
+    #[wasm_bindgen(js_namespace = window)]
     fn offset_polygon(polygon: &Array, offset_size: i32, round_join: bool) -> JsValue;
 }
 
