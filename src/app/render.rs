@@ -39,8 +39,10 @@ impl HomeFlow {
     }
 
     pub fn render_layout(&mut self, painter: &Painter, ctx: &egui::Context) {
-        self.layout.render();
-        self.layout.render_lighting();
+        self.layout.render(self.edit_mode.enabled);
+        if !self.edit_mode.enabled {
+            self.layout.render_lighting();
+        }
 
         // Get bounds
         let mut min = Vec2::splat(f64::INFINITY);
@@ -342,59 +344,61 @@ impl HomeFlow {
         }
 
         // Render lighting
-        if let Some(light_data) = &self.layout.light_data {
-            // Check if the light data has changed and needs to be reloaded.
-            let needs_reload = self
-                .light_data
-                .as_ref()
-                .map_or(true, |(hash, _)| *hash != light_data.hash);
+        if !self.edit_mode.enabled {
+            if let Some(light_data) = &self.layout.light_data {
+                // Check if the light data has changed and needs to be reloaded.
+                let needs_reload = self
+                    .light_data
+                    .as_ref()
+                    .map_or(true, |(hash, _)| *hash != light_data.hash);
 
-            if needs_reload {
-                let rgba_image_data = light_data
-                    .image
-                    .pixels()
-                    .flat_map(|pixel| {
-                        std::iter::once(0)
-                            .chain(std::iter::once(0))
-                            .chain(std::iter::once(0))
-                            .chain(std::iter::once(pixel.0[0]))
-                    })
-                    .collect::<Vec<_>>();
-                let (width, height) = light_data.image.dimensions();
-                let texture = ctx.load_texture(
-                    "lighting".to_string(),
-                    ColorImage::from_rgba_unmultiplied(
-                        [width as usize, height as usize],
-                        &rgba_image_data,
-                    ),
-                    TextureOptions::LINEAR,
-                );
-                self.light_data = Some((light_data.hash, texture));
-            }
-
-            // Render the texture.
-            if let Some((_, texture_handle)) = &self.light_data {
-                let vertices = [
-                    vec2(-0.5, -0.5),
-                    vec2(0.5, -0.5),
-                    vec2(0.5, 0.5),
-                    vec2(-0.5, 0.5),
-                ];
-                let vertices = vertices
-                    .iter()
-                    .map(|&v| Vertex {
-                        pos: self.world_to_pixels_pos(
-                            light_data.image_center + v * light_data.image_size,
+                if needs_reload {
+                    let rgba_image_data = light_data
+                        .image
+                        .pixels()
+                        .flat_map(|pixel| {
+                            std::iter::once(0)
+                                .chain(std::iter::once(0))
+                                .chain(std::iter::once(0))
+                                .chain(std::iter::once(pixel.0[0]))
+                        })
+                        .collect::<Vec<_>>();
+                    let (width, height) = light_data.image.dimensions();
+                    let texture = ctx.load_texture(
+                        "lighting".to_string(),
+                        ColorImage::from_rgba_unmultiplied(
+                            [width as usize, height as usize],
+                            &rgba_image_data,
                         ),
-                        uv: egui::pos2(v.x as f32 + 0.5, 1.0 - (v.y as f32 + 0.5)),
-                        color: Color::WHITE.to_egui(),
-                    })
-                    .collect();
-                painter.add(EShape::mesh(Mesh {
-                    indices: vec![0, 1, 2, 0, 2, 3],
-                    vertices,
-                    texture_id: texture_handle.id(),
-                }));
+                        TextureOptions::LINEAR,
+                    );
+                    self.light_data = Some((light_data.hash, texture));
+                }
+
+                // Render the texture.
+                if let Some((_, texture_handle)) = &self.light_data {
+                    let vertices = [
+                        vec2(-0.5, -0.5),
+                        vec2(0.5, -0.5),
+                        vec2(0.5, 0.5),
+                        vec2(-0.5, 0.5),
+                    ];
+                    let vertices = vertices
+                        .iter()
+                        .map(|&v| Vertex {
+                            pos: self.world_to_pixels_pos(
+                                light_data.image_center + v * light_data.image_size,
+                            ),
+                            uv: egui::pos2(v.x as f32 + 0.5, 1.0 - (v.y as f32 + 0.5)),
+                            color: Color::WHITE.to_egui(),
+                        })
+                        .collect();
+                    painter.add(EShape::mesh(Mesh {
+                        indices: vec![0, 1, 2, 0, 2, 3],
+                        vertices,
+                        texture_id: texture_handle.id(),
+                    }));
+                }
             }
         }
 

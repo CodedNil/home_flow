@@ -23,9 +23,10 @@ pub const WALL_WIDTH: f64 = 0.1;
 pub const CLIPPER_PRECISION: f64 = 1e4; // How many decimal places to use for clipper
 
 impl Home {
-    pub fn render(&mut self) {
+    pub fn render(&mut self, edit_mode: bool) {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
+        edit_mode.hash(&mut hasher);
         let home_hash = hasher.finish();
         if let Some(rendered_data) = &self.rendered_data {
             if rendered_data.hash == home_hash {
@@ -146,16 +147,20 @@ impl Home {
         };
 
         let compute_shadows = || polygons_to_shadows(wall_polygons.iter().collect(), 1.0);
-        let wall_shadows = self.rendered_data.take().map_or_else(
-            || (walls_hash, compute_shadows()),
-            |rendered_data| {
-                if rendered_data.wall_shadows.0 == walls_hash {
-                    rendered_data.wall_shadows
-                } else {
-                    (walls_hash, compute_shadows())
-                }
-            },
-        );
+        let wall_shadows = if edit_mode {
+            (walls_hash, (Color::TRANSPARENT, vec![]))
+        } else {
+            self.rendered_data.take().map_or_else(
+                || (walls_hash, compute_shadows()),
+                |rendered_data| {
+                    if rendered_data.wall_shadows.0 == walls_hash {
+                        rendered_data.wall_shadows
+                    } else {
+                        (walls_hash, compute_shadows())
+                    }
+                },
+            )
+        };
 
         self.rendered_data = Some(HomeRender {
             hash: home_hash,
