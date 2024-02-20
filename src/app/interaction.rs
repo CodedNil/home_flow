@@ -65,13 +65,6 @@ impl HomeFlow {
                         animated_state_target: target_state as f64 / 255.0,
                     });
                 }
-                for room in &mut self.layout.rooms {
-                    for light in &mut room.lights {
-                        if light.name == light_hovered.name {
-                            light.state = target_state;
-                        }
-                    }
-                }
             }
         }
         // Drag light with a right click
@@ -99,23 +92,14 @@ impl HomeFlow {
             let widget_height = 150.0;
             let start_percent = light_drag.start_state as f32 / 255.0;
 
-            let vertical_distance = light_drag.start_pos.y - self.mouse_pos.y as f32;
-            let new_percent = (start_percent + vertical_distance / widget_height).clamp(0.0, 1.0);
-
             if response.dragged_by(interaction_button) {
+                let vertical_distance = light_drag.start_pos.y - self.mouse_pos.y as f32;
+                let new_percent =
+                    (start_percent + vertical_distance / widget_height).clamp(0.0, 1.0);
+
                 light_drag.animated_state = new_percent as f64;
                 light_drag.animated_state_target = new_percent as f64;
                 light_drag.last_time = self.time;
-
-                // Set lights to the new state
-                let new_state = (new_percent * 255.0) as u8;
-                for room in &mut self.layout.rooms {
-                    for light in &mut room.lights {
-                        if light.name == light_drag.group_name {
-                            light.state = new_state;
-                        }
-                    }
-                }
             } else if (light_drag.animated_state - light_drag.animated_state_target).abs()
                 > f64::EPSILON
             {
@@ -134,6 +118,16 @@ impl HomeFlow {
             let reverse_fade =
                 1.0 - ((self.time - light_drag.last_time) / POPUP_FADE_TIME).clamp(0.0, 1.0);
             let fade = start_fade.min(reverse_fade);
+
+            // Set lights to the new state
+            let new_state = (light_drag.animated_state * 255.0) as u8;
+            for room in &mut self.layout.rooms {
+                for light in &mut room.lights {
+                    if light.name == light_drag.group_name {
+                        light.state = new_state;
+                    }
+                }
+            }
 
             let pos_bottom = pos2(
                 light_drag.start_pos.x,
