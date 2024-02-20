@@ -4,7 +4,6 @@ use super::{
     utils::hash_vec2,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
-use image::{ImageBuffer, Luma};
 use std::{
     collections::HashMap,
     f64::consts::PI,
@@ -17,9 +16,25 @@ const LIGHT_SAMPLES: u8 = 12; // Number of samples within the light's radius for
 
 pub struct LightData {
     pub hash: u64,
-    pub image: ImageBuffer<Luma<u8>, Vec<u8>>,
+    pub image: Vec<u8>,
     pub image_center: Vec2,
     pub image_size: Vec2,
+    pub image_width: u32,
+    pub image_height: u32,
+}
+
+pub struct Bounds {
+    pub min: Vec2,
+    pub max: Vec2,
+}
+
+impl Bounds {
+    pub fn contains(&self, point: Vec2) -> bool {
+        point.x >= self.min.x
+            && point.x <= self.max.x
+            && point.y >= self.min.y
+            && point.y <= self.max.y
+    }
 }
 
 pub fn combine_lighting(
@@ -38,7 +53,7 @@ pub fn combine_lighting(
     let image_width = width as u32;
     let image_height = height as u32;
     let image_pixel_count = (image_width * image_height) as usize;
-    let mut image_buffer = ImageBuffer::new(image_width, image_height);
+    let mut data_buffer = vec![0; image_pixel_count * 4];
 
     // Create vec of lights references
     let mut lights_data = Vec::new();
@@ -47,12 +62,13 @@ pub fn combine_lighting(
             if light.state == 0 {
                 continue;
             }
-            if let Some((_, light_data)) = &light.light_data {
+            if let Some((_, (light_data, light_bounds))) = &light.light_data {
                 if light_data.len() == image_pixel_count {
                     lights_data.push((
                         light.intensity * (light.state as f64 / 255.0),
                         room.pos + light.pos,
                         light_data,
+                        light_bounds,
                     ));
                 }
             }
@@ -60,33 +76,43 @@ pub fn combine_lighting(
     }
 
     // For each light, add its image to the buffer
-    image_buffer.iter_mut().enumerate().for_each(|(i, pixel)| {
-        let x = i as u32 % image_width;
-        let y = i as u32 / image_width;
-        let world = bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
+    data_buffer
+        .chunks_mut(4)
+        .enumerate()
+        .for_each(|(i, chunk)| {
+            let x = i as u32 % image_width;
+            let y = i as u32 / image_width;
+            let world = bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
 
-        if !rooms.iter().any(|r| r.contains(world)) {
-            return;
-        }
-
-        let mut total_light_intensity: f64 = 0.0;
-        for (light_intensity, light_pos, light_image) in &lights_data {
-            let distance = world.distance(*light_pos) * 2.0 / light_intensity;
-            let light_pixel = light_image[i] as f64 / 255.0;
-            total_light_intensity += light_pixel / (1.0 + distance * distance);
-            if total_light_intensity >= 1.0 {
-                total_light_intensity = 1.0;
-                break;
+            if !rooms.iter().any(|r| r.contains(world)) {
+                return;
             }
-        }
-        *pixel = ((1.0 - total_light_intensity) * 200.0) as u8;
-    });
+
+            let mut total_light_intensity: f64 = 0.0;
+            for (light_intensity, light_pos, light_image, light_bounds) in &lights_data {
+                // Quick early exit if outside bounds
+                if !light_bounds.contains(world) {
+                    continue;
+                }
+                let distance = world.distance(*light_pos) * 2.0 / light_intensity;
+                let light_pixel = light_image[i] as f64;
+                // Use greater than inverse square law, since no bouncing light
+                total_light_intensity += light_pixel / distance.powf(4.0);
+                if total_light_intensity >= 255.0 {
+                    total_light_intensity = 255.0;
+                    break;
+                }
+            }
+            chunk[3] = ((255.0 - total_light_intensity) * 0.8) as u8;
+        });
 
     LightData {
         hash,
-        image: image_buffer,
+        image: data_buffer,
         image_center: new_center,
         image_size: new_size,
+        image_width,
+        image_height,
     }
 }
 
@@ -95,7 +121,7 @@ pub fn render_lighting(
     bounds_max: Vec2,
     rooms: &Vec<Room>,
     all_walls: &[Line],
-) -> HashMap<Uuid, (u64, Vec<u8>)> {
+) -> HashMap<Uuid, (u64, (Vec<u8>, Bounds))> {
     let mut new_light_data = HashMap::new();
     for room in rooms {
         for light in &room.lights {
@@ -134,19 +160,24 @@ fn render_light(
     all_walls: &[Line],
     light: &Light,
     light_pos: Vec2,
-) -> Vec<u8> {
+) -> (Vec<u8>, Bounds) {
     // Create a vec of walls that this light can see
     let walls_for_light = get_visible_walls(light_pos, all_walls);
 
     // Calculate the rooms to check against, if lights room is enclosed then only that, if its not then only rooms that arent enclosed
     let mut rooms_to_check = Vec::new();
     let light_room = rooms.iter().find(|room| room.contains(light_pos)).unwrap();
+    let (min, max) = light_room.bounds();
+    let mut light_bounds = Bounds { min, max };
     if light_room.walls == Walls::WALL {
         rooms_to_check.push(light_room);
     } else {
         for room in rooms {
             if room.walls != Walls::WALL {
                 rooms_to_check.push(room);
+                let bounds = room.bounds();
+                light_bounds.min = light_bounds.min.min(bounds.0);
+                light_bounds.max = light_bounds.max.max(bounds.1);
             }
         }
     }
@@ -212,7 +243,7 @@ fn render_light(
         *pixel = (total_light_intensity * 255.0) as u8;
     });
 
-    data_buffer
+    (data_buffer, light_bounds)
 }
 
 fn get_visible_walls(light_pos: Vec2, all_walls: &[Line]) -> Vec<Line> {

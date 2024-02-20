@@ -1,7 +1,7 @@
 use super::{
     color::Color,
     furniture::Furniture,
-    light_render::LightData,
+    light_render::{Bounds, LightData},
     shape::{Line, ShadowsData},
     utils::{clone_as_none, Material},
 };
@@ -80,7 +80,7 @@ pub struct Light {
     pub state: u8,
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
-    pub light_data: Option<(u64, Vec<u8>)>,
+    pub light_data: Option<(u64, (Vec<u8>, Bounds))>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

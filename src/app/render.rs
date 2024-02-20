@@ -356,22 +356,14 @@ impl HomeFlow {
                     .map_or(true, |(hash, _)| *hash != light_data.hash);
 
                 if needs_reload {
-                    let rgba_image_data = light_data
-                        .image
-                        .pixels()
-                        .flat_map(|pixel| {
-                            std::iter::once(0)
-                                .chain(std::iter::once(0))
-                                .chain(std::iter::once(0))
-                                .chain(std::iter::once(pixel.0[0]))
-                        })
-                        .collect::<Vec<_>>();
-                    let (width, height) = light_data.image.dimensions();
                     let texture = ctx.load_texture(
                         "lighting".to_string(),
-                        ColorImage::from_rgba_unmultiplied(
-                            [width as usize, height as usize],
-                            &rgba_image_data,
+                        ColorImage::from_rgba_premultiplied(
+                            [
+                                light_data.image_width as usize,
+                                light_data.image_height as usize,
+                            ],
+                            &light_data.image,
                         ),
                         TextureOptions::LINEAR,
                     );
