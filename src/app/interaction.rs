@@ -89,12 +89,12 @@ impl HomeFlow {
                 paint_line_circle_caps(painter, pos_bottom, pos_top, 12.0, Color32::WHITE);
 
                 // Calculate the color based on the light's state
-                let color_off = Color32::from_rgb(200, 200, 200);
-                let color_on = Color32::from_rgb(255, 255, 50);
                 let color = if new_state == 0 {
-                    color_off
+                    Color32::from_rgb(100, 100, 100)
                 } else {
-                    let factor = 0.25 + (0.75 * (new_state - 1) as f64 / (255.0 - 1.0));
+                    let color_off = Color32::from_rgb(200, 200, 200);
+                    let color_on = Color32::from_rgb(255, 255, 50);
+                    let factor = new_state as f64 / 255.0;
                     Color32::from_rgb(
                         color_off.r().lerp(color_on.r(), factor),
                         color_off.g().lerp(color_on.g(), factor),
