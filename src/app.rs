@@ -40,7 +40,9 @@ pub struct HomeFlow {
     textures: HashMap<String, TextureHandle>,
     light_data: Option<(u64, TextureHandle)>,
     bounds: (Vec2, Vec2),
+    rotate_key_down: bool,
     rotate_speed: f64,
+    rotate_target: f64,
     interaction_state: InteractionState,
 
     toasts: Arc<Mutex<Toasts>>,
@@ -86,7 +88,9 @@ impl Default for HomeFlow {
             textures: HashMap::new(),
             light_data: None,
             bounds: (Vec2::ZERO, Vec2::ZERO),
+            rotate_key_down: false,
             rotate_speed: 0.0,
+            rotate_target: 0.0,
             interaction_state: InteractionState::default(),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
@@ -118,8 +122,10 @@ impl HomeFlow {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         });
 
+        let rotation = ((stored.rotation / 90.0).round() * 90.0).rem_euclid(360.0);
         Self {
-            stored,
+            rotate_target: rotation,
+            stored: StoredData { rotation, ..stored },
             ..Default::default()
         }
     }
@@ -168,9 +174,11 @@ impl HomeFlow {
             scroll_delta = scroll_delta.signum() * 15.0;
         }
         let mut is_multi_touch = false;
+        let mut interaction_rotated = false;
         let mut multi_touch_rotation = 0.0;
         if let Some(multi_touch) = ui.ctx().multi_touch() {
             is_multi_touch = true;
+            interaction_rotated = true;
             scroll_delta = (multi_touch.zoom_delta as f64 - 1.0) * 80.0;
             translation_delta = egui_to_vec2(multi_touch.translation_delta) * 0.01;
             multi_touch_rotation = multi_touch.rotation_delta as f64;
@@ -195,21 +203,30 @@ impl HomeFlow {
             let rotation_delta = if q_down { 1.0 } else { -1.0 };
             self.rotate_speed = (self.rotate_speed + rotation_delta * 400.0 * self.frame_time)
                 .clamp(-max_speed, max_speed);
+            interaction_rotated = true;
         } else if is_multi_touch {
             self.stored.rotation -= multi_touch_rotation.to_degrees();
             self.rotate_speed = 0.0;
-        } else {
+        }
+        if interaction_rotated && !self.rotate_key_down {
+            self.rotate_key_down = true;
+            self.rotate_target = 0.0;
+        } else if !interaction_rotated && self.rotate_key_down {
+            self.rotate_key_down = false;
             // Determine the nearest 90 degree snap target based on current rotation
             let inertia = (self.rotate_speed * 0.25).clamp(-max_speed * 0.1, max_speed * 0.1);
-            let target_rotation = ((self.stored.rotation + inertia) / 90.0).round() * 90.0;
-            let rotation_diff = target_rotation - self.stored.rotation;
+            self.rotate_target = ((self.stored.rotation + inertia) / 90.0).round() * 90.0;
+        }
+        if !(q_down || e_down || is_multi_touch) {
+            let rotation_diff = self.rotate_target - self.stored.rotation;
 
             // Adjust rotate speed towards the needed speed for snapping, within the max speed limit
             let needed_speed = rotation_diff * self.frame_time * 500.0;
             self.rotate_speed = if rotation_diff.abs() > 0.1 {
                 needed_speed.clamp(-max_speed, max_speed)
             } else {
-                self.stored.rotation = target_rotation;
+                self.stored.rotation = self.rotate_target.rem_euclid(360.0);
+                self.rotate_target = self.stored.rotation;
                 0.0
             };
         }
@@ -217,7 +234,6 @@ impl HomeFlow {
         // Apply rotation if there's any rotate speed
         if self.rotate_speed.abs() > 0.0 {
             self.stored.rotation += self.rotate_speed * self.frame_time;
-            self.stored.rotation = self.stored.rotation.rem_euclid(360.0);
         }
 
         // Clamp translation to bounds
