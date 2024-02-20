@@ -1,4 +1,4 @@
-use self::edit_mode::EditDetails;
+use self::{edit_mode::EditDetails, interaction::InteractionState};
 use crate::{
     common::{
         layout::Home,
@@ -37,6 +37,7 @@ pub struct HomeFlow {
     light_data: Option<(u64, TextureHandle)>,
     bounds: (Vec2, Vec2),
     rotate_speed: f64,
+    interaction_state: InteractionState,
 
     toasts: Arc<Mutex<Toasts>>,
     edit_mode: EditDetails,
@@ -81,6 +82,7 @@ impl Default for HomeFlow {
             light_data: None,
             bounds: (Vec2::ZERO, Vec2::ZERO),
             rotate_speed: 0.0,
+            interaction_state: InteractionState::default(),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
@@ -117,7 +119,7 @@ impl HomeFlow {
         }
     }
 
-    fn pixels_to_world(&self, v: Vec2) -> Vec2 {
+    fn screen_to_world(&self, v: Vec2) -> Vec2 {
         let pivot = vec2(-self.stored.translation.x, self.stored.translation.y);
         rotate_point_pivot(
             vec2(
@@ -129,7 +131,7 @@ impl HomeFlow {
         )
     }
 
-    fn world_to_pixels(&self, v: Vec2) -> Vec2 {
+    fn world_to_screen(&self, v: Vec2) -> Vec2 {
         let pivot = vec2(-self.stored.translation.x, self.stored.translation.y);
         let v = rotate_point_pivot(v, pivot, self.stored.rotation);
         vec2(
@@ -137,14 +139,19 @@ impl HomeFlow {
             (self.stored.translation.y - v.y) * self.stored.zoom + self.canvas_center.y,
         )
     }
-    fn world_to_pixels_pos(&self, v: Vec2) -> egui::Pos2 {
-        let v = self.world_to_pixels(v);
+    fn world_to_screen_pos(&self, v: Vec2) -> egui::Pos2 {
+        let v = self.world_to_screen(v);
         egui::pos2(v.x as f32, v.y as f32)
     }
 
     fn handle_pan_zoom(&mut self, response: &egui::Response, ui: &egui::Ui) {
         // Drag
-        let mut translation_delta = if response.dragged() {
+        let pointer_button = if self.edit_mode.enabled {
+            egui::PointerButton::Secondary
+        } else {
+            egui::PointerButton::Primary
+        };
+        let mut translation_delta = if response.dragged_by(pointer_button) {
             egui_to_vec2(response.drag_delta()) * 0.01
         } else {
             Vec2::ZERO
@@ -165,9 +172,9 @@ impl HomeFlow {
         }
         if scroll_delta.abs() > 0.0 {
             let zoom_amount = scroll_delta * (self.stored.zoom / 100.0);
-            let mouse_world_before_zoom = self.pixels_to_world(self.mouse_pos);
+            let mouse_world_before_zoom = self.screen_to_world(self.mouse_pos);
             self.stored.zoom = (self.stored.zoom + zoom_amount).clamp(40.0, 300.0);
-            let mouse_world_after_zoom = self.pixels_to_world(self.mouse_pos);
+            let mouse_world_after_zoom = self.screen_to_world(self.mouse_pos);
             let difference = mouse_world_after_zoom - mouse_world_before_zoom;
             self.stored.translation += Vec2::new(difference.x, -difference.y);
         }
@@ -320,7 +327,7 @@ impl eframe::App for HomeFlow {
                     .input(|i| i.pointer.interact_pos())
                     .map_or(self.mouse_pos, egui_pos_to_vec2);
                 self.mouse_pos = mouse_pos;
-                self.mouse_pos_world = self.pixels_to_world(mouse_pos);
+                self.mouse_pos_world = self.screen_to_world(mouse_pos);
 
                 let edit_mode_response = self.run_edit_mode(&response, ctx, ui);
                 if !edit_mode_response.used_dragged {
@@ -332,7 +339,7 @@ impl eframe::App for HomeFlow {
                 if self.edit_mode.enabled {
                     self.paint_edit_mode(&painter, &edit_mode_response, ctx);
                 } else {
-                    self.interact_with_layout(ctx);
+                    self.interact_with_layout(&response, &painter);
                 }
 
                 Window::new("Bottom Right")

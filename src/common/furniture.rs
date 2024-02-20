@@ -133,7 +133,11 @@ impl FurnitureType {
     }
 
     pub fn height(self) -> f64 {
-        (self.render_order() as f64 / 4.0 + 0.5) / 1.5
+        self.render_order() as f64 / 6.0
+    }
+
+    pub fn height_shadow(self) -> f64 {
+        (self.height() + 0.5) / 1.5
     }
 
     pub const fn can_hover(self) -> bool {
@@ -248,10 +252,13 @@ impl Furniture {
                 _ => true,
             };
             if use_simple {
-                polygons_to_shadows(vec![&self.full_shape()], self.furniture_type.height())
+                polygons_to_shadows(
+                    vec![&self.full_shape()],
+                    self.furniture_type.height_shadow(),
+                )
             } else {
                 let shadow_polys = polygons.iter().map(|(_, p)| p).collect::<Vec<_>>();
-                polygons_to_shadows(shadow_polys, self.furniture_type.height())
+                polygons_to_shadows(shadow_polys, self.furniture_type.height_shadow())
             }
         } else {
             (Color::TRANSPARENT, Vec::new())

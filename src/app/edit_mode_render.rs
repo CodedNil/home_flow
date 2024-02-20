@@ -17,8 +17,8 @@ impl HomeFlow {
     ) {
         if let Some(snap_line_x) = edit_response.snap_line_x {
             let length = 20.0;
-            let start = self.world_to_pixels(vec2(-length, snap_line_x));
-            let end = self.world_to_pixels(vec2(length, snap_line_x));
+            let start = self.world_to_screen(vec2(-length, snap_line_x));
+            let end = self.world_to_screen(vec2(length, snap_line_x));
             painter.add(EShape::dashed_line(
                 &[vec2_to_egui_pos(start), vec2_to_egui_pos(end)],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
@@ -28,8 +28,8 @@ impl HomeFlow {
         }
         if let Some(snap_line_y) = edit_response.snap_line_y {
             let length = 20.0;
-            let start = self.world_to_pixels(vec2(snap_line_y, -length));
-            let end = self.world_to_pixels(vec2(snap_line_y, length));
+            let start = self.world_to_screen(vec2(snap_line_y, -length));
+            let end = self.world_to_screen(vec2(snap_line_y, length));
             painter.add(EShape::dashed_line(
                 &[vec2_to_egui_pos(start), vec2_to_egui_pos(end)],
                 Stroke::new(10.0, Color32::from_rgba_premultiplied(50, 150, 50, 150)),
@@ -55,14 +55,14 @@ impl HomeFlow {
                     ui.horizontal(|ui| {
                         ui.add_space(ui.available_width() / 4.0);
                         if ui.button("Add Room").clicked() {
-                            let pos = self.pixels_to_world(self.canvas_center);
+                            let pos = self.screen_to_world(self.canvas_center);
                             self.layout.rooms.push(Room {
                                 pos: vec2(pos.x.round_factor(10.0), pos.y.round_factor(10.0)),
                                 ..Room::default()
                             });
                         }
                         if ui.button("Add Furniture").clicked() {
-                            let pos = self.pixels_to_world(self.canvas_center);
+                            let pos = self.screen_to_world(self.canvas_center);
                             self.layout.furniture.push(Furniture {
                                 pos: vec2(pos.x.round_factor(10.0), pos.y.round_factor(10.0)),
                                 ..Furniture::default()
@@ -133,7 +133,7 @@ impl HomeFlow {
             // Render openings
             for opening in &room.openings {
                 let selected = edit_response.hovered_id == Some(opening.id);
-                let pos = self.world_to_pixels(room.pos + opening.pos);
+                let pos = self.world_to_screen(room.pos + opening.pos);
                 let color = match opening.opening_type {
                     OpeningType::Door => Color32::from_rgb(255, 100, 0),
                     OpeningType::Window => Color32::from_rgb(0, 70, 230),
@@ -162,7 +162,7 @@ impl HomeFlow {
             // Render lights
             for light in &room.lights {
                 let selected = edit_response.hovered_id == Some(light.id);
-                let pos = self.world_to_pixels(room.pos + light.pos);
+                let pos = self.world_to_screen(room.pos + light.pos);
                 let color = Color32::from_rgb(255, 255, 0).gamma_multiply(0.8);
                 painter.add(EShape::circle_filled(
                     vec2_to_egui_pos(pos),
@@ -203,7 +203,7 @@ impl HomeFlow {
     ) {
         let mut points = points
             .iter()
-            .map(|v| self.world_to_pixels(*v))
+            .map(|v| self.world_to_screen(*v))
             .collect::<Vec<_>>();
         points.push(points[0]);
 

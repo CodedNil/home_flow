@@ -9,7 +9,8 @@ use super::{
 };
 use crate::common::{light_render::combine_lighting, utils::hash_vec2};
 use geo::{
-    triangulate_spade::SpadeTriangulationConfig, BoundingRect, TriangulateEarcut, TriangulateSpade,
+    triangulate_spade::SpadeTriangulationConfig, BoundingRect, LinesIter, TriangulateEarcut,
+    TriangulateSpade,
 };
 use geo_types::{Coord, MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -94,12 +95,10 @@ impl Home {
         // Gather wall lines from the polygons
         let mut wall_lines = Vec::new();
         for multipoly in &wall_polygons {
-            for poly in &multipoly.0 {
+            for poly in multipoly {
                 let walls_offset = offset_polygon(poly, -0.01, JoinType::Miter);
-                for poly2 in &walls_offset {
-                    for line in poly2.exterior().lines() {
-                        wall_lines.push((coord_to_vec2(line.start), coord_to_vec2(line.end)));
-                    }
+                for line in walls_offset.lines_iter() {
+                    wall_lines.push((coord_to_vec2(line.start), coord_to_vec2(line.end)));
                 }
             }
         }

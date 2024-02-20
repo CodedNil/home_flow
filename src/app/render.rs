@@ -92,7 +92,7 @@ impl HomeFlow {
                         .vertices
                         .iter()
                         .map(|&v| Vertex {
-                            pos: self.world_to_pixels_pos(v),
+                            pos: self.world_to_screen_pos(v),
                             uv: vec2_to_egui_pos(v * 0.2),
                             color: global_material.tint.to_egui(),
                         })
@@ -111,7 +111,7 @@ impl HomeFlow {
                     let vertices = polygon
                         .exterior()
                         .points()
-                        .map(|v| self.world_to_pixels_pos(point_to_vec2(v)))
+                        .map(|v| self.world_to_screen_pos(point_to_vec2(v)))
                         .collect();
                     painter.add(EShape::closed_line(
                         vertices,
@@ -263,7 +263,7 @@ impl HomeFlow {
                                 let is_interior = *triangles.inners.get(i).unwrap_or(&false);
                                 let adjusted_v = rotate_point(v, -rot) + pos + shadow_offset;
                                 Vertex {
-                                    pos: self.world_to_pixels_pos(adjusted_v),
+                                    pos: self.world_to_screen_pos(adjusted_v),
                                     uv: egui::Pos2::ZERO,
                                     color: if is_interior {
                                         *shadow_color
@@ -296,7 +296,7 @@ impl HomeFlow {
                                 .map(|&v| {
                                     let adjusted_v = rotate_point(v, -rot) + pos;
                                     Vertex {
-                                        pos: self.world_to_pixels_pos(adjusted_v),
+                                        pos: self.world_to_screen_pos(adjusted_v),
                                         uv: vec2_to_egui_pos(v * 0.2),
                                         color: material.tint.to_egui(),
                                     }
@@ -328,7 +328,7 @@ impl HomeFlow {
                 .map(|(i, &v)| {
                     let is_interior = *triangles.inners.get(i).unwrap_or(&false);
                     Vertex {
-                        pos: self.world_to_pixels_pos(v + shadow_offset),
+                        pos: self.world_to_screen_pos(v + shadow_offset),
                         uv: egui::Pos2::ZERO,
                         color: if is_interior {
                             *shadow_color
@@ -389,7 +389,7 @@ impl HomeFlow {
                     let vertices = vertices
                         .iter()
                         .map(|&v| Vertex {
-                            pos: self.world_to_pixels_pos(
+                            pos: self.world_to_screen_pos(
                                 light_data.image_center + v * light_data.image_size,
                             ),
                             uv: egui::pos2(v.x as f32 + 0.5, 1.0 - (v.y as f32 + 0.5)),
@@ -441,8 +441,8 @@ impl HomeFlow {
                 let hinge_pos = room.pos + opening.pos + rot_dir * opening.width / 2.0;
                 let end_pos = room.pos + opening.pos - rot_dir * opening.width / 2.0;
                 let points = [
-                    self.world_to_pixels_pos(hinge_pos),
-                    self.world_to_pixels_pos(end_pos),
+                    self.world_to_screen_pos(hinge_pos),
+                    self.world_to_screen_pos(end_pos),
                 ];
 
                 let stroke = Stroke::new(depth, color);
@@ -457,7 +457,7 @@ impl HomeFlow {
                     // Render the door
                     let end_pos_door =
                         rotate_point_pivot(end_pos, hinge_pos, opening.open_amount * 40.0);
-                    let points = [points[0], self.world_to_pixels_pos(end_pos_door)];
+                    let points = [points[0], self.world_to_screen_pos(end_pos_door)];
                     painter.circle_filled(points[0], depth * 0.5, color);
                     painter.add(EShape::LineSegment { points, stroke });
                 }
@@ -470,7 +470,7 @@ impl HomeFlow {
                 .vertices
                 .iter()
                 .map(|v| Vertex {
-                    pos: self.world_to_pixels_pos(*v),
+                    pos: self.world_to_screen_pos(*v),
                     uv: egui::Pos2::ZERO,
                     color: WALL_COLOR,
                 })
@@ -507,7 +507,7 @@ impl HomeFlow {
                 let radius = ((0.05 + 0.05 * norm_dist_big) * self.stored.zoom as f32).max(5.0);
 
                 let mut shape = CircleShape {
-                    center: self.world_to_pixels_pos(pos_world),
+                    center: self.world_to_screen_pos(pos_world),
                     radius,
                     fill: Color32::from_black_alpha((150.0 * alpha).round() as u8),
                     stroke: Stroke::NONE,
@@ -528,22 +528,18 @@ impl HomeFlow {
                 tessellator.tessellate_circle(shape, &mut out_mesh);
                 painter.add(EShape::mesh(out_mesh));
 
-                // Define the colors for the light when off and fully on
+                // Calculate the color based on the light's state
                 let color_off = Color32::from_rgb(200, 200, 200);
                 let color_on = Color32::from_rgb(255, 255, 50);
-
-                // Calculate the color based on the light's state
                 let color = if light.state == 0 {
                     color_off
                 } else {
-                    // Calculate an interpolation factor where state of 1 maps to 0.25, and state of 255 maps to 1
                     let factor = 0.25 + (0.75 * (light.state - 1) as f64 / (255.0 - 1.0));
-
-                    // Interpolate between off and on colors based on the factor
-                    let r = color_off.r().lerp(color_on.r(), factor);
-                    let g = color_off.g().lerp(color_on.g(), factor);
-                    let b = color_off.b().lerp(color_on.b(), factor);
-                    Color32::from_rgb(r, g, b)
+                    Color32::from_rgb(
+                        color_off.r().lerp(color_on.r(), factor),
+                        color_off.g().lerp(color_on.g(), factor),
+                        color_off.b().lerp(color_on.b(), factor),
+                    )
                 };
 
                 // Add light circle

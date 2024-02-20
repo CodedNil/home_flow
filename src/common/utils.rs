@@ -161,17 +161,16 @@ impl Room {
         name: &str,
         cols: i32,
         rows: i32,
-        padding: f64,
-        off_x: f64,
-        off_y: f64,
+        padding: Vec2,
+        off: Vec2,
     ) -> Self {
         let mut clone = self.clone();
-        let size = clone.size - Vec2::splat(padding);
+        let size = clone.size - padding;
         let spacing = size / vec2(cols as f64, rows as f64);
         for col in 0..cols {
-            let x_pos = (col as f64 - (cols - 1) as f64 * 0.5) * spacing.x + off_x;
+            let x_pos = (col as f64 - (cols - 1) as f64 * 0.5) * spacing.x + off.x;
             for row in 0..rows {
-                let y_pos = (row as f64 - (rows - 1) as f64 * 0.5) * spacing.y + off_y;
+                let y_pos = (row as f64 - (rows - 1) as f64 * 0.5) * spacing.y + off.y;
                 clone.lights.push(Light::new(name, vec2(x_pos, y_pos)));
             }
         }
@@ -179,7 +178,7 @@ impl Room {
     }
 
     pub fn lights_grid(&self, name: &str, cols: i32, rows: i32, padding: f64) -> Self {
-        self.lights_grid_offset(name, cols, rows, padding, 0.0, 0.0)
+        self.lights_grid_offset(name, cols, rows, vec2(padding, padding), vec2(0.0, 0.0))
     }
 
     pub fn light_center(&self, name: &str) -> Self {

@@ -246,7 +246,7 @@ impl HomeFlow {
                     self.handle_drag(drag_data, snap_enabled);
                 Window::new("Dragging Info")
                     .fixed_pos(vec2_to_egui_pos(
-                        self.world_to_pixels(self.mouse_pos_world) + vec2(0.0, -60.0),
+                        self.world_to_screen(self.mouse_pos_world) + vec2(0.0, -60.0),
                     ))
                     .fixed_size([200.0, 0.0])
                     .pivot(Align2::CENTER_CENTER)
