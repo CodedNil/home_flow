@@ -362,7 +362,10 @@ impl eframe::App for HomeFlow {
                 } else {
                     self.run_edit_mode(&response, ctx, ui)
                 };
-                if !edit_mode_response.used_dragged && self.interaction_state.light_drag.is_none() {
+                if !edit_mode_response.used_dragged
+                    && (self.interaction_state.light_drag.is_none()
+                        || !self.interaction_state.light_drag.as_ref().unwrap().active)
+                {
                     self.handle_pan_zoom(&response, ui);
                 }
 
