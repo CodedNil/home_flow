@@ -14,7 +14,13 @@ pub struct LightDrag {
 }
 
 impl HomeFlow {
-    pub fn interact_with_layout(&mut self, response: &Response, painter: &Painter) {
+    pub fn interact_with_layout(&mut self, response: &Response, painter: &Painter) -> bool {
+        let interaction_button = if self.is_mobile {
+            egui::PointerButton::Primary
+        } else {
+            egui::PointerButton::Secondary
+        };
+
         let mut light_hovered = None;
         for room in &self.layout.rooms {
             for light in &room.lights {
@@ -28,7 +34,7 @@ impl HomeFlow {
             }
         }
         // Toggle light with a right click
-        if response.clicked_by(egui::PointerButton::Secondary) {
+        if response.clicked_by(interaction_button) {
             if let Some(light_hovered) = &light_hovered {
                 for room in &mut self.layout.rooms {
                     for light in &mut room.lights {
@@ -40,7 +46,7 @@ impl HomeFlow {
             }
         }
         // Drag light with a right click
-        if response.drag_started_by(egui::PointerButton::Secondary) {
+        if response.drag_started_by(interaction_button) {
             if let Some(light_hovered) = &light_hovered {
                 self.interaction_state.light_drag = Some(LightDrag {
                     group_name: light_hovered.name.clone(),
@@ -49,7 +55,10 @@ impl HomeFlow {
                 });
             }
         }
-        if response.dragged_by(egui::PointerButton::Secondary) {
+        if response.drag_released_by(interaction_button) {
+            self.interaction_state.light_drag = None;
+        }
+        if response.dragged_by(interaction_button) {
             if let Some(light_drag) = &self.interaction_state.light_drag {
                 let widget_height = 150.0;
                 let start_percent = light_drag.start_state as f32 / 255.0;
@@ -106,6 +115,8 @@ impl HomeFlow {
                 }
             }
         }
+
+        light_hovered.is_some()
     }
 }
 

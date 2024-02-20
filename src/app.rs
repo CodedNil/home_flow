@@ -1,4 +1,7 @@
-use self::{edit_mode::EditDetails, interaction::InteractionState};
+use self::{
+    edit_mode::{EditDetails, EditResponse},
+    interaction::InteractionState,
+};
 use crate::{
     common::{
         layout::Home,
@@ -30,6 +33,7 @@ pub struct HomeFlow {
     canvas_center: Vec2,
     mouse_pos: Vec2,
     mouse_pos_world: Vec2,
+    is_mobile: bool,
 
     layout_server: Home,
     layout: Home,
@@ -75,6 +79,7 @@ impl Default for HomeFlow {
             canvas_center: Vec2::ZERO,
             mouse_pos: Vec2::ZERO,
             mouse_pos_world: Vec2::ZERO,
+            is_mobile: false,
 
             layout_server: Home::default(),
             layout: Home::default(),
@@ -329,41 +334,54 @@ impl eframe::App for HomeFlow {
                 self.mouse_pos = mouse_pos;
                 self.mouse_pos_world = self.screen_to_world(mouse_pos);
 
-                let edit_mode_response = self.run_edit_mode(&response, ctx, ui);
-                if !edit_mode_response.used_dragged {
+                self.is_mobile = ctx.screen_rect().size().x < 550.0;
+
+                let edit_mode_response = if self.is_mobile {
+                    EditResponse {
+                        used_dragged: false,
+                        hovered_id: None,
+                        snap_line_x: None,
+                        snap_line_y: None,
+                    }
+                } else {
+                    self.run_edit_mode(&response, ctx, ui)
+                };
+                if !edit_mode_response.used_dragged && self.interaction_state.light_drag.is_none() {
                     self.handle_pan_zoom(&response, ui);
                 }
 
                 self.render_layout(&painter, ctx);
 
-                if self.edit_mode.enabled {
+                if !self.is_mobile && self.edit_mode.enabled {
                     self.paint_edit_mode(&painter, &edit_mode_response, ctx);
                 } else {
                     self.interact_with_layout(&response, &painter);
                 }
 
-                Window::new("Bottom Right")
-                    .fixed_pos(egui::pos2(
-                        response.rect.right() - 10.0,
-                        response.rect.bottom() - 10.0,
-                    ))
-                    .fixed_size(egui::vec2(100.0, 0.0))
-                    .pivot(Align2::RIGHT_BOTTOM)
-                    .title_bar(false)
-                    .resizable(false)
-                    .constrain(false)
-                    .show(ctx, |ui| {
-                        ui.with_layout(
-                            egui::Layout::from_main_dir_and_cross_align(
-                                egui::Direction::TopDown,
-                                egui::Align::Center,
-                            )
-                            .with_cross_justify(true),
-                            |ui| {
-                                self.edit_mode_settings(ctx, ui);
-                            },
-                        );
-                    });
+                if !self.is_mobile {
+                    Window::new("Bottom Right")
+                        .fixed_pos(egui::pos2(
+                            response.rect.right() - 10.0,
+                            response.rect.bottom() - 10.0,
+                        ))
+                        .fixed_size(egui::vec2(100.0, 0.0))
+                        .pivot(Align2::RIGHT_BOTTOM)
+                        .title_bar(false)
+                        .resizable(false)
+                        .constrain(false)
+                        .show(ctx, |ui| {
+                            ui.with_layout(
+                                egui::Layout::from_main_dir_and_cross_align(
+                                    egui::Direction::TopDown,
+                                    egui::Align::Center,
+                                )
+                                .with_cross_justify(true),
+                                |ui| {
+                                    self.edit_mode_settings(ctx, ui);
+                                },
+                            );
+                        });
+                }
 
                 self.toasts.lock().show(ctx);
             });
