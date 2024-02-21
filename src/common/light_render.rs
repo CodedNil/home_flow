@@ -11,8 +11,8 @@ use std::{
 };
 use uuid::Uuid;
 
-const PIXELS_PER_METER: f64 = 40.0;
-const LIGHT_SAMPLES: u8 = 12; // Number of samples within the light's radius for anti-aliasing
+const PIXELS_PER_METER: f64 = 20.0;
+const LIGHT_SAMPLES: u8 = 8; // Number of samples within the light's radius for anti-aliasing
 
 pub struct LightData {
     pub hash: u64,
@@ -96,8 +96,7 @@ pub fn combine_lighting(
                 }
                 let distance = world.distance(*light_pos) * 2.0 / light_intensity;
                 let light_pixel = light_image[i] as f64;
-                // Use greater than inverse square law, since no bouncing light
-                total_light_intensity += light_pixel / distance.powf(4.0);
+                total_light_intensity += light_pixel / distance.powf(2.0);
                 if total_light_intensity >= 255.0 {
                     total_light_intensity = 255.0;
                     break;
@@ -203,41 +202,48 @@ fn render_light(
 
         let mut total_light_intensity = 0.0;
 
-        let distance_to_light = (world - light_pos).length();
-        if distance_to_light > light.intensity * 8.0 {
-            return;
-        }
-        let mut sampled_light_intensity = 0.0;
-
+        let distance_to_light = world.distance(light_pos);
         // Do more samples the closer we are to the light
         let dynamic_samples = ((LIGHT_SAMPLES as f64
             * (1.0 - distance_to_light / (light.intensity * 4.0)))
             .round() as u8)
             .max(1);
 
-        for i in 0..dynamic_samples {
-            // Calculate offset for current sample
-            let sample_light_position = if dynamic_samples == 1 {
-                light_pos
-            } else {
-                let angle = 2.0 * PI * (i as f64 / dynamic_samples as f64);
-                light_pos + vec2(light.radius * angle.cos(), light.radius * angle.sin())
-            };
+        // Get 4 positions at the corners of the pixel
+        for point in [
+            vec2(x as f64, y as f64),
+            vec2(x as f64 + 1.0, y as f64),
+            vec2(x as f64, y as f64 + 1.0),
+            vec2(x as f64 + 1.0, y as f64 + 1.0),
+        ] {
+            let world = bounds_min + vec2(point.x / width, 1.0 - (point.y / height)) * new_size;
+            let mut sampled_light_intensity = 0.0;
 
-            // Check if the sample light position and pixel intersect with any lines
-            if walls_for_light
-                .iter()
-                .any(|(p1, p2)| lines_intersect(sample_light_position, world, *p1, *p2))
-            {
-                continue;
+            for i in 0..dynamic_samples {
+                // Calculate offset for current sample
+                let sample_light_position = if dynamic_samples == 1 {
+                    light_pos
+                } else {
+                    let angle = 2.0 * PI * (i as f64 / dynamic_samples as f64);
+                    light_pos + vec2(light.radius * angle.cos(), light.radius * angle.sin())
+                };
+
+                // Check if the sample light position and pixel intersect with any lines
+                if walls_for_light
+                    .iter()
+                    .any(|(p1, p2)| lines_intersect(sample_light_position, world, *p1, *p2))
+                {
+                    continue;
+                }
+                sampled_light_intensity += 1.0;
             }
-            sampled_light_intensity += 1.0;
-        }
 
-        // Average the light intensity from all samples
-        total_light_intensity += sampled_light_intensity / dynamic_samples as f64;
-        if total_light_intensity > 1.0 {
-            total_light_intensity = 1.0;
+            // Average the light intensity from all samples
+            total_light_intensity += sampled_light_intensity / dynamic_samples as f64 / 4.0;
+            if total_light_intensity > 1.0 {
+                total_light_intensity = 1.0;
+                break;
+            }
         }
 
         *pixel = (total_light_intensity * 255.0) as u8;

@@ -106,7 +106,7 @@ impl HomeFlow {
                 // Move state towards target
                 let diff = (light_drag.animated_state_target - light_drag.animated_state).signum();
                 light_drag.animated_state =
-                    (light_drag.animated_state + diff * self.frame_time * 2.0).clamp(0.0, 1.0);
+                    (light_drag.animated_state + diff * self.frame_time * 3.0).clamp(0.0, 1.0);
                 light_drag.last_time = self.time;
             }
             if self.time - light_drag.last_time > POPUP_FADE_TIME {

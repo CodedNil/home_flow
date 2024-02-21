@@ -96,7 +96,7 @@ impl Home {
         let mut wall_lines = Vec::new();
         for multipoly in &wall_polygons {
             for poly in multipoly {
-                let walls_offset = offset_polygon(poly, -0.01, JoinType::Miter);
+                let walls_offset = offset_polygon(poly, -0.025, JoinType::Miter);
                 for line in walls_offset.lines_iter() {
                     wall_lines.push((coord_to_vec2(line.start), coord_to_vec2(line.end)));
                 }
