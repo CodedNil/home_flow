@@ -480,68 +480,73 @@ impl HomeFlow {
         }
 
         // Render lights
+        let mut lights_data = Vec::new();
         for room in &self.layout.rooms {
             for light in &room.lights {
-                let pos_world = room.pos + light.pos;
-
-                let (min_opacity, max_opacity) = (0.25, 0.75);
-                let (min_distance, max_distance) = (0.5, 2.0);
-                let big_distance = 0.5;
-
-                // Normalize the distance within the range of min_distance to max_distance
-                let mouse_dist = self.mouse_pos_world.distance(pos_world) as f32;
-                let norm_dist =
-                    ((mouse_dist - min_distance) / (max_distance - min_distance)).clamp(0.0, 1.0);
-                let norm_dist_big = 1.0 - (mouse_dist / big_distance).clamp(0.0, 1.0);
-
-                // Calculate the opacity based on the normalized distance
-                let alpha = min_opacity + (max_opacity - min_opacity) * (1.0 - norm_dist);
-                let radius = ((0.05 + 0.05 * norm_dist_big) * self.stored.zoom as f32).max(5.0);
-
-                let mut shape = CircleShape {
-                    center: self.world_to_screen_pos(pos_world),
-                    radius,
-                    fill: Color32::from_black_alpha((150.0 * alpha).round() as u8),
-                    stroke: Stroke::NONE,
-                };
-
-                // Add shadow
-                let mut tessellator = Tessellator::new(
-                    1.0,
-                    TessellationOptions {
-                        feathering: true,
-                        feathering_size_in_pixels: radius,
-                        ..Default::default()
-                    },
-                    [1; 2],
-                    Vec::new(),
-                );
-                let mut out_mesh = Mesh::default();
-                tessellator.tessellate_circle(shape, &mut out_mesh);
-                painter.add(EShape::mesh(out_mesh));
-
-                // Calculate the color based on the light's state
-                let color = if light.state == 0 {
-                    Color32::from_rgb(100, 100, 100)
-                } else {
-                    let color_off = Color32::from_rgb(200, 200, 200);
-                    let color_on = Color32::from_rgb(255, 255, 50);
-                    let factor = light.state as f64 / 255.0;
-                    Color32::from_rgb(
-                        color_off.r().lerp(color_on.r(), factor),
-                        color_off.g().lerp(color_on.g(), factor),
-                        color_off.b().lerp(color_on.b(), factor),
-                    )
-                };
-
-                // Add light circle
-                shape.fill = color.gamma_multiply(alpha);
-                shape.stroke = Stroke::new(
-                    radius * 0.2,
-                    Color32::from_rgb(0, 0, 0).gamma_multiply(0.5 * alpha),
-                );
-                painter.add(shape);
+                let points = light.get_points(room);
+                for point in points {
+                    lights_data.push((point, light.state));
+                }
             }
+        }
+        for (light_pos, light_state) in lights_data {
+            let (min_opacity, max_opacity) = (0.25, 0.75);
+            let (min_distance, max_distance) = (0.5, 2.0);
+            let big_distance = 0.5;
+
+            // Normalize the distance within the range of min_distance to max_distance
+            let mouse_dist = self.mouse_pos_world.distance(light_pos) as f32;
+            let norm_dist =
+                ((mouse_dist - min_distance) / (max_distance - min_distance)).clamp(0.0, 1.0);
+            let norm_dist_big = 1.0 - (mouse_dist / big_distance).clamp(0.0, 1.0);
+
+            // Calculate the opacity based on the normalized distance
+            let alpha = min_opacity + (max_opacity - min_opacity) * (1.0 - norm_dist);
+            let radius = ((0.05 + 0.05 * norm_dist_big) * self.stored.zoom as f32).max(5.0);
+
+            let mut shape = CircleShape {
+                center: self.world_to_screen_pos(light_pos),
+                radius,
+                fill: Color32::from_black_alpha((150.0 * alpha).round() as u8),
+                stroke: Stroke::NONE,
+            };
+
+            // Add shadow
+            let mut tessellator = Tessellator::new(
+                1.0,
+                TessellationOptions {
+                    feathering: true,
+                    feathering_size_in_pixels: radius,
+                    ..Default::default()
+                },
+                [1; 2],
+                Vec::new(),
+            );
+            let mut out_mesh = Mesh::default();
+            tessellator.tessellate_circle(shape, &mut out_mesh);
+            painter.add(EShape::mesh(out_mesh));
+
+            // Calculate the color based on the light's state
+            let color = if light_state == 0 {
+                Color32::from_rgb(100, 100, 100)
+            } else {
+                let color_off = Color32::from_rgb(200, 200, 200);
+                let color_on = Color32::from_rgb(255, 255, 50);
+                let factor = light_state as f64 / 255.0;
+                Color32::from_rgb(
+                    color_off.r().lerp(color_on.r(), factor),
+                    color_off.g().lerp(color_on.g(), factor),
+                    color_off.b().lerp(color_on.b(), factor),
+                )
+            };
+
+            // Add light circle
+            shape.fill = color.gamma_multiply(alpha);
+            shape.stroke = Stroke::new(
+                radius * 0.2,
+                Color32::from_rgb(0, 0, 0).gamma_multiply(0.5 * alpha),
+            );
+            painter.add(shape);
         }
     }
 }

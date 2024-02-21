@@ -32,12 +32,14 @@ impl HomeFlow {
         let mut light_hovered = None;
         for room in &self.layout.rooms {
             for light in &room.lights {
-                let pos_world = room.pos + light.pos;
-                let mouse_dist = self.mouse_pos_world.distance(pos_world) as f32;
-                if mouse_dist < 0.2 {
-                    let mut clone = light.clone();
-                    clone.pos = room.pos + light.pos;
-                    light_hovered = Some(clone);
+                let points = light.get_points(room);
+                for point in points {
+                    let mouse_dist = self.mouse_pos_world.distance(point) as f32;
+                    if mouse_dist < 0.2 {
+                        let mut clone = light.clone();
+                        clone.pos = point;
+                        light_hovered = Some(clone);
+                    }
                 }
             }
         }

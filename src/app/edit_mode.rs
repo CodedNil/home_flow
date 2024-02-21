@@ -9,7 +9,8 @@ use crate::{
     common::{
         furniture::{ChairType, Furniture, FurnitureType},
         layout::{
-            Action, GlobalMaterial, Home, Light, Opening, Operation, Outline, Room, TileOptions,
+            Action, GlobalMaterial, Home, Light, MultiLight, Opening, Operation, Outline, Room,
+            TileOptions,
         },
     },
     server::common_api::save_layout,
@@ -754,18 +755,6 @@ fn room_edit_widgets(
                     .min_size(egui::vec2(100.0, 0.0))
                     .show(ui);
                 edit_vec2(ui, "Pos", &mut light.pos, 0.1);
-                ui.add(
-                    DragValue::new(&mut light.intensity)
-                        .speed(0.1)
-                        .clamp_range(0.1..=10.0)
-                        .suffix("cd"),
-                );
-                ui.add(
-                    DragValue::new(&mut light.radius)
-                        .speed(0.01)
-                        .clamp_range(0.01..=0.5)
-                        .suffix("m"),
-                );
                 if ui.button("Delete").clicked() {
                     alterations[index] = AlterObject::Delete;
                 }
@@ -775,6 +764,39 @@ fn room_edit_widgets(
                 if num_objects > 0 && index < num_objects - 1 && ui.button("v").clicked() {
                     alterations[index] = AlterObject::MoveDown;
                 }
+            });
+            ui.horizontal(|ui| {
+                labelled_widget(ui, "Intensity", |ui| {
+                    ui.add(
+                        DragValue::new(&mut light.intensity)
+                            .speed(0.1)
+                            .clamp_range(0.1..=10.0)
+                            .suffix("cd"),
+                    );
+                });
+                labelled_widget(ui, "Radius", |ui| {
+                    ui.add(
+                        DragValue::new(&mut light.radius)
+                            .speed(0.01)
+                            .clamp_range(0.01..=0.5)
+                            .suffix("m"),
+                    );
+                });
+                edit_option(
+                    ui,
+                    "Multi",
+                    &mut light.multi,
+                    MultiLight::default,
+                    |ui, content| {
+                        edit_vec2(ui, "Room Padding", &mut content.room_padding, 0.1);
+                        labelled_widget(ui, "Rows", |ui| {
+                            ui.add(DragValue::new(&mut content.rows).clamp_range(1..=20));
+                        });
+                        labelled_widget(ui, "Cols", |ui| {
+                            ui.add(DragValue::new(&mut content.cols).clamp_range(1..=20));
+                        });
+                    },
+                );
             });
         }
         for (index, alteration) in alterations.into_iter().enumerate().rev() {

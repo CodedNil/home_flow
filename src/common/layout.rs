@@ -74,6 +74,7 @@ pub struct Light {
     pub id: Uuid,
     pub name: String,
     pub pos: Vec2,
+    pub multi: Option<MultiLight>,
     pub intensity: f64,
     pub radius: f64,
     #[serde(skip)]
@@ -81,6 +82,13 @@ pub struct Light {
     #[serde(skip)]
     #[derivative(Clone(clone_with = "clone_as_none"))]
     pub light_data: Option<(u64, (Vec<u8>, Bounds))>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MultiLight {
+    pub room_padding: Vec2,
+    pub rows: u8,
+    pub cols: u8,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

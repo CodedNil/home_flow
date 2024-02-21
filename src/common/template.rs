@@ -40,19 +40,19 @@ pub fn template_home() -> Home {
                 .no_wall_bottom()
                 .add_material(vec2(-0.85, 1.55), vec2(1.1, 2.0), "Wood")
                 .door(vec2(-0.85, 2.55), 0)
-                .lights_grid("Hall Downlights", 3, 1, 0.5)
+                .lights_grid("Hall Downlights", 3, 1, 1.75)
                 .light("Hall Downlights", -0.85, 1.55),
             Room::new("Lounge", vec2(-2.75, -1.4), vec2(6.1, 2.7), "Carpet")
                 .no_wall_top()
                 .window_width(vec2(-1.0, -1.35), 0, 1.6)
                 .window(vec2(2.1, -1.35), 0)
-                .lights_grid("Lounge Downlights", 4, 2, 0.5),
+                .lights_grid("Lounge Downlights", 4, 2, 1.75),
             Room::new("Kitchen", vec2(-4.2, 1.5), vec2(3.2, 3.1), "MarbleTiles")
                 .no_wall_right()
                 .no_wall_bottom()
                 .add(vec2(1.65, 0.55), vec2(0.3, 2.0))
                 .window(vec2(0.2, 1.55), 0)
-                .lights_grid_offset("Kitchen Downlights", 2, 1, vec2(0.9, 0.9), vec2(0.1, 0.0))
+                .lights_grid_offset("Kitchen Downlights", 2, 1, vec2(2.0, 2.0), vec2(0.1, 0.0))
                 .outline(Outline::new(0.05, Color::from_rgb(200, 170, 150))),
             Room::new("Storage1", vec2(-1.65, 2.5), vec2(1.5, 1.1), "Carpet")
                 .door(vec2(0.75, 0.0), -90)
@@ -64,7 +64,7 @@ pub fn template_home() -> Home {
                 .subtract(vec2(-1.1, 1.4), vec2(1.7, 1.0))
                 .door(vec2(-0.25, 1.35), 90)
                 .window(vec2(0.0, -1.8), 0)
-                .lights_grid_offset("Bedroom Downlights", 2, 2, vec2(0.5, 1.2), vec2(0.0, -0.4)),
+                .lights_grid_offset("Bedroom Downlights", 2, 2, vec2(1.75, 2.5), vec2(0.0, -0.4)),
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
                 .door(vec2(0.8, -0.85), -90)
                 .window(vec2(0.0, -1.35), 0)
@@ -76,7 +76,7 @@ pub fn template_home() -> Home {
                 .subtract(vec2(-1.1, -1.4), vec2(1.0, 1.0))
                 .door(vec2(-1.1, -0.9), 180)
                 .window(vec2(1.6, 0.0), -90)
-                .lights_grid_offset("Office Downlights", 2, 1, vec2(0.5, 0.5), vec2(0.0, -0.1)),
+                .lights_grid_offset("Office Downlights", 2, 1, vec2(1.75, 1.75), vec2(0.0, -0.1)),
             Room::new("Bathroom", vec2(1.4, 2.05), vec2(2.4, 2.0), "GraniteTiles")
                 .door(vec2(0.7, -1.0), 180)
                 .light_center("Bathroom Downlight"),

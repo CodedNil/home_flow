@@ -1,8 +1,8 @@
 use super::{
     color::Color,
     layout::{
-        Action, GlobalMaterial, Home, Light, Opening, OpeningType, Operation, Outline, Room, Shape,
-        TileOptions, Walls,
+        Action, GlobalMaterial, Home, Light, MultiLight, Opening, OpeningType, Operation, Outline,
+        Room, Shape, TileOptions, Walls,
     },
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -159,25 +159,19 @@ impl Room {
     pub fn lights_grid_offset(
         &self,
         name: &str,
-        cols: i32,
-        rows: i32,
+        cols: u8,
+        rows: u8,
         padding: Vec2,
         off: Vec2,
     ) -> Self {
         let mut clone = self.clone();
-        let size = clone.size - padding;
-        let spacing = size / vec2(cols as f64, rows as f64);
-        for col in 0..cols {
-            let x_pos = (col as f64 - (cols - 1) as f64 * 0.5) * spacing.x + off.x;
-            for row in 0..rows {
-                let y_pos = (row as f64 - (rows - 1) as f64 * 0.5) * spacing.y + off.y;
-                clone.lights.push(Light::new(name, vec2(x_pos, y_pos)));
-            }
-        }
+        clone
+            .lights
+            .push(Light::multi(name, off, padding, rows, cols));
         clone
     }
 
-    pub fn lights_grid(&self, name: &str, cols: i32, rows: i32, padding: f64) -> Self {
+    pub fn lights_grid(&self, name: &str, cols: u8, rows: u8, padding: f64) -> Self {
         self.lights_grid_offset(name, cols, rows, vec2(padding, padding), vec2(0.0, 0.0))
     }
 
@@ -257,11 +251,58 @@ impl Light {
             id: Uuid::new_v4(),
             name: name.to_owned(),
             pos,
+            multi: None,
             intensity: 2.0,
             radius: 0.025,
             state: 255,
             light_data: None,
         }
+    }
+
+    pub fn multi(name: &str, pos: Vec2, room_padding: Vec2, rows: u8, cols: u8) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: name.to_owned(),
+            pos,
+            multi: Some(MultiLight {
+                room_padding,
+                rows,
+                cols,
+            }),
+            intensity: 2.0,
+            radius: 0.025,
+            state: 255,
+            light_data: None,
+        }
+    }
+
+    pub fn get_points(&self, room: &Room) -> Vec<Vec2> {
+        self.multi.as_ref().map_or_else(
+            || vec![room.pos + self.pos],
+            |multi| {
+                let mut lights_data = Vec::new();
+                let size = room.size - multi.room_padding;
+                let spacing = if multi.cols > 1 && multi.rows > 1 {
+                    size / vec2(multi.cols as f64 - 1.0, multi.rows as f64 - 1.0)
+                } else if multi.cols > 1 {
+                    vec2(size.x / (multi.cols as f64 - 1.0), 0.0)
+                } else if multi.rows > 1 {
+                    vec2(0.0, size.y / (multi.rows as f64 - 1.0))
+                } else {
+                    Vec2::ZERO
+                };
+                for col in 0..multi.cols {
+                    let x_pos =
+                        self.pos.x + (col as f64 - (multi.cols - 1) as f64 * 0.5) * spacing.x;
+                    for row in 0..multi.rows {
+                        let y_pos =
+                            self.pos.y + (row as f64 - (multi.rows - 1) as f64 * 0.5) * spacing.y;
+                        lights_data.push(room.pos + vec2(x_pos, y_pos));
+                    }
+                }
+                lights_data
+            },
+        )
     }
 
     pub fn default() -> Self {
@@ -271,9 +312,26 @@ impl Light {
 impl Hash for Light {
     fn hash<H: Hasher>(&self, state: &mut H) {
         hash_vec2(self.pos, state);
+        self.multi.hash(state);
         self.intensity.to_bits().hash(state);
         self.radius.to_bits().hash(state);
         self.state.hash(state);
+    }
+}
+impl MultiLight {
+    pub const fn default() -> Self {
+        Self {
+            room_padding: vec2(0.5, 0.5),
+            rows: 1,
+            cols: 1,
+        }
+    }
+}
+impl Hash for MultiLight {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        hash_vec2(self.room_padding, state);
+        self.rows.hash(state);
+        self.cols.hash(state);
     }
 }
 
