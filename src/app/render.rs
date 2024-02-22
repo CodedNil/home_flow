@@ -156,21 +156,21 @@ impl HomeFlow {
         let top_hover = furniture_sorted.last().map(|f| f.id);
 
         for furniture in &mut self.layout.furniture {
-            let target = (Some(furniture.id) == top_hover) as u8 as f64;
+            let target = (Some(furniture.id) == top_hover) as u8 as f64 * 2.0 - 1.0;
             let difference = target - furniture.hover_amount;
             if difference.abs() > f64::EPSILON {
                 furniture.hover_amount = (furniture.hover_amount
                     + difference.signum() * self.frame_time * 10.0)
-                    .clamp(0.0, 1.0);
+                    .clamp(-1.0, 1.0);
             }
             let rendered_data = furniture.rendered_data.as_mut().unwrap();
             for child in &mut rendered_data.children {
-                let target = (Some(child.id) == top_hover) as u8 as f64;
+                let target = (Some(child.id) == top_hover) as u8 as f64 * 2.0 - 1.0;
                 let difference = target - child.hover_amount;
                 if difference.abs() > f64::EPSILON {
                     child.hover_amount = (child.hover_amount
                         + difference.signum() * self.frame_time * 10.0)
-                        .clamp(0.0, 1.0);
+                        .clamp(-1.0, 1.0);
                 }
             }
         }
@@ -180,7 +180,7 @@ impl HomeFlow {
         let mut furniture_adjustments = HashMap::new();
 
         let mut handle_furniture_child = |obj: &Furniture, child: &Furniture| {
-            let hover = child.hover_amount;
+            let hover = child.hover_amount.max(0.0);
             let (offset, offset_rot) = match child.furniture_type {
                 FurnitureType::Chair(_) => (vec2(hover * 0.15, hover * 0.3), hover * 20.0),
                 FurnitureType::AnimatedPiece(animated_piece_type) => match animated_piece_type {
@@ -377,17 +377,16 @@ impl HomeFlow {
                         vec2(0.5, -0.5),
                         vec2(0.5, 0.5),
                         vec2(-0.5, 0.5),
-                    ];
-                    let vertices = vertices
-                        .iter()
-                        .map(|&v| Vertex {
-                            pos: self.world_to_screen_pos(
-                                light_data.image_center + v * light_data.image_size,
-                            ),
-                            uv: egui::pos2(v.x as f32 + 0.5, 1.0 - (v.y as f32 + 0.5)),
-                            color: Color::WHITE.to_egui(),
-                        })
-                        .collect();
+                    ]
+                    .iter()
+                    .map(|&v| Vertex {
+                        pos: self.world_to_screen_pos(
+                            light_data.image_center + v * light_data.image_size,
+                        ),
+                        uv: egui::pos2(v.x as f32 + 0.5, 1.0 - (v.y as f32 + 0.5)),
+                        color: Color::WHITE.to_egui(),
+                    })
+                    .collect();
                     painter.add(EShape::mesh(Mesh {
                         indices: vec![0, 1, 2, 0, 2, 3],
                         vertices,
@@ -404,13 +403,13 @@ impl HomeFlow {
                     continue;
                 }
                 let mouse_distance = self.mouse_pos_world.distance(room.pos + opening.pos);
-                let target = (mouse_distance < opening.width / 2.0) as u8 as f64;
+                let target = (mouse_distance < opening.width / 2.0) as u8 as f64 * 2.0 - 1.0;
                 let difference = target - opening.open_amount;
                 if difference.abs() > f64::EPSILON {
                     // Linearly interpolate open_amount towards the target value.
                     opening.open_amount = (opening.open_amount
                         + (target - opening.open_amount) * self.frame_time * 8.0)
-                        .clamp(0.0, 1.0);
+                        .clamp(-1.0, 1.0);
                 }
             }
         }
@@ -448,7 +447,7 @@ impl HomeFlow {
                     });
                     // Render the door
                     let end_pos_door =
-                        rotate_point_pivot(end_pos, hinge_pos, opening.open_amount * 40.0);
+                        rotate_point_pivot(end_pos, hinge_pos, opening.open_amount.max(0.0) * 40.0);
                     let points = [points[0], self.world_to_screen_pos(end_pos_door)];
                     painter.circle_filled(points[0], depth * 0.5, color);
                     painter.add(EShape::LineSegment { points, stroke });

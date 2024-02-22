@@ -7,7 +7,7 @@ use super::{
     layout::{GlobalMaterial, Home, Outline, Room, LAYOUT_VERSION},
     utils::Material,
 };
-use glam::dvec2 as vec2;
+use glam::{dvec2 as vec2, DVec2 as Vec2};
 
 pub fn template_home() -> Home {
     Home {
@@ -46,7 +46,7 @@ pub fn template_home() -> Home {
                 .no_wall_top()
                 .window_width(vec2(-1.0, -1.35), 0, 1.6)
                 .window(vec2(2.1, -1.35), 0)
-                .lights_grid("Lounge Downlights", 4, 2, 1.75),
+                .lights_grid_offset("Lounge Downlights", 4, 2, vec2(2.0, 1.25), Vec2::ZERO),
             Room::new("Kitchen", vec2(-4.2, 1.5), vec2(3.2, 3.1), "MarbleTiles")
                 .no_wall_right()
                 .no_wall_bottom()
@@ -64,7 +64,7 @@ pub fn template_home() -> Home {
                 .subtract(vec2(-1.1, 1.4), vec2(1.7, 1.0))
                 .door(vec2(-0.25, 1.35), 90)
                 .window(vec2(0.0, -1.8), 0)
-                .lights_grid_offset("Bedroom Downlights", 2, 2, vec2(1.75, 2.5), vec2(0.0, -0.4)),
+                .lights_grid_offset("Bedroom Downlights", 2, 2, vec2(2.0, 2.5), vec2(0.0, -0.4)),
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
                 .door(vec2(0.8, -0.85), -90)
                 .window(vec2(0.0, -1.35), 0)
@@ -361,7 +361,6 @@ pub fn template_home() -> Home {
                 0,
             ),
             Furniture::new(FurnitureType::Radiator, vec2(0.95, 0.95), vec2(1.4, 0.1), 0),
-            // Misc
             Furniture::new(FurnitureType::Boiler, vec2(1.5, -0.65), vec2(0.6, 0.6), 0),
         ],
         rendered_data: None,
