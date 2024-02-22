@@ -13,7 +13,7 @@ pub fn template_home() -> Home {
     Home {
         version: LAYOUT_VERSION.to_string(),
         materials: vec![
-            GlobalMaterial::new("Carpet", Material::Carpet, Color::from_rgb(240, 225, 192)),
+            GlobalMaterial::new("Carpet", Material::Carpet, Color::from_rgb(240, 230, 210)),
             GlobalMaterial::new("Wood", Material::Wood, Color::from_rgb(190, 120, 80)),
             GlobalMaterial::new("WoodDark", Material::Wood, Color::from_rgb(60, 60, 60)),
             GlobalMaterial::new("Marble", Material::Marble, Color::from_rgb(255, 255, 255)),

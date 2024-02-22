@@ -85,6 +85,7 @@ enum AlterObject {
     Delete,
     MoveUp,
     MoveDown,
+    Duplicate,
 }
 
 impl HomeFlow {
@@ -419,7 +420,7 @@ impl HomeFlow {
                             AlterObject::MoveDown => {
                                 self.layout.materials.swap(index, index + 1);
                             }
-                            AlterObject::None => {}
+                            _ => {}
                         }
                     }
 
@@ -466,7 +467,7 @@ impl HomeFlow {
                                 self.layout.rooms.swap(index, index - 1);
                             }
                         }
-                        AlterObject::None => {}
+                        _ => {}
                     }
                 }
             }
@@ -501,6 +502,12 @@ impl HomeFlow {
                                 self.layout.furniture.swap(index, index - 1);
                             }
                         }
+                        AlterObject::Duplicate => {
+                            let mut new_furniture = furniture.clone();
+                            new_furniture.id = Uuid::new_v4();
+                            new_furniture.pos += vec2(0.1, -0.1);
+                            self.layout.furniture.push(new_furniture);
+                        }
                         AlterObject::None => {}
                     }
                 }
@@ -517,7 +524,7 @@ fn room_edit_widgets(
 ) -> AlterObject {
     let mut alter_type = AlterObject::None;
     ui.horizontal(|ui| {
-        ui.label("Room ");
+        ui.label("Room");
         TextEdit::singleline(&mut room.name)
             .min_size(egui::vec2(200.0, 0.0))
             .show(ui);
@@ -664,7 +671,7 @@ fn room_edit_widgets(
                     AlterObject::MoveDown => {
                         room.operations.swap(index, index + 1);
                     }
-                    AlterObject::None => {}
+                    _ => {}
                 }
             }
         });
@@ -727,7 +734,7 @@ fn room_edit_widgets(
                 AlterObject::MoveDown => {
                     room.openings.swap(index, index + 1);
                 }
-                AlterObject::None => {}
+                _ => {}
             }
         }
     });
@@ -810,7 +817,7 @@ fn room_edit_widgets(
                 AlterObject::MoveDown => {
                     room.lights.swap(index, index + 1);
                 }
-                AlterObject::None => {}
+                _ => {}
             }
         }
     });
@@ -825,7 +832,22 @@ fn furniture_edit_widgets(
 ) -> AlterObject {
     let mut alter_type = AlterObject::None;
     ui.horizontal(|ui| {
-        ui.label("Furniture ");
+        ui.label("Furniture");
+        if ui.add(Button::new("Duplicate")).clicked() {
+            alter_type = AlterObject::Duplicate;
+        }
+        if ui.add(Button::new("Delete")).clicked() {
+            alter_type = AlterObject::Delete;
+        }
+        if ui.add(Button::new("^")).clicked() {
+            alter_type = AlterObject::MoveUp;
+        }
+        if ui.add(Button::new("v")).clicked() {
+            alter_type = AlterObject::MoveDown;
+        }
+    });
+
+    ui.horizontal(|ui| {
         egui::ComboBox::from_id_source(format!("Furniture {}", furniture.id))
             .selected_text(furniture.furniture_type.to_string())
             .show_ui(ui, |ui| {
@@ -883,30 +905,14 @@ fn furniture_edit_widgets(
                 &mut furniture.material_children,
             );
         }
-        if ui.add(Button::new("Delete")).clicked() {
-            alter_type = AlterObject::Delete;
-        }
-        if ui.add(Button::new("^")).clicked() {
-            alter_type = AlterObject::MoveUp;
-        }
-        if ui.add(Button::new("v")).clicked() {
-            alter_type = AlterObject::MoveDown;
-        }
     });
-    ui.separator();
 
-    egui::Grid::new("Furniture Edit Grid")
-        .num_columns(4)
-        .spacing([20.0, 4.0])
-        .striped(true)
-        .show(ui, |ui| {
-            edit_vec2(ui, "Pos", &mut furniture.pos, 0.1);
-            edit_vec2(ui, "Size", &mut furniture.size, 0.1);
-            edit_rotation(ui, &mut furniture.rotation);
-            ui.end_row();
-        });
-
-    ui.separator();
+    ui.horizontal(|ui| {
+        edit_vec2(ui, "Pos", &mut furniture.pos, 0.1);
+        edit_vec2(ui, "Size", &mut furniture.size, 0.1);
+        edit_rotation(ui, &mut furniture.rotation);
+        ui.end_row();
+    });
 
     alter_type
 }
