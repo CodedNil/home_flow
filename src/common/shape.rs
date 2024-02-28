@@ -9,8 +9,8 @@ use super::{
 };
 use crate::common::{light_render::combine_lighting, utils::hash_vec2};
 use geo::{
-    triangulate_spade::SpadeTriangulationConfig, BoundingRect, LinesIter, TriangulateEarcut,
-    TriangulateSpade,
+    triangulate_spade::SpadeTriangulationConfig, BoundingRect, CoordsIter, LinesIter,
+    TriangulateEarcut, TriangulateSpade,
 };
 use geo_types::{Coord, MultiPolygon, Polygon};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -219,25 +219,30 @@ impl Home {
 }
 
 pub fn get_global_material(materials: &[GlobalMaterial], string: &str) -> GlobalMaterial {
-    if string.ends_with("-grout") {
-        let string = string.trim_end_matches("-grout");
-        for material in materials {
-            if material.name == string {
-                let tiles_colour = material
-                    .tiles
-                    .as_ref()
-                    .map(|t| t.grout_color)
-                    .unwrap_or_default();
-                return GlobalMaterial::new(string, material.material, tiles_colour);
-            }
-        }
-    }
-    for material in materials {
-        if material.name == string {
-            return material.clone();
-        }
-    }
-    GlobalMaterial::new(string, Material::Carpet, Color::WHITE)
+    let is_grout = string.ends_with("-grout");
+    let search_string = if is_grout {
+        string.trim_end_matches("-grout")
+    } else {
+        string
+    };
+
+    materials
+        .iter()
+        .find(|&material| material.name == search_string)
+        .map_or_else(
+            || GlobalMaterial::new(string, Material::Carpet, Color::WHITE),
+            |material| {
+                if is_grout {
+                    let tiles_colour = material
+                        .tiles
+                        .as_ref()
+                        .map_or(Color::WHITE, |t| t.grout_color);
+                    GlobalMaterial::new(search_string, material.material, tiles_colour)
+                } else {
+                    material.clone()
+                }
+            },
+        )
 }
 
 impl Room {
@@ -628,9 +633,7 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>, height: f64) -> Shadows
             shadow_exteriors = union_polygons(&shadow_exteriors, &exterior);
             shadow_interiors = union_polygons(&shadow_interiors, &interior);
 
-            for p in interior.0.iter().flat_map(|p| p.exterior().points()) {
-                interior_points.push(vec2(p.x(), p.y()));
-            }
+            interior_points.extend(interior.exterior_coords_iter().map(coord_to_vec2));
         }
     }
     let shadow_polygons = difference_polygons(&shadow_exteriors, &shadow_interiors);
@@ -652,11 +655,12 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>, height: f64) -> Shadows
             }
             (indices, vertices)
         };
-        let mut inners = Vec::new();
-        for vertex in &vertices {
-            let is_interior = interior_points.iter().any(|p| p.distance(*vertex) < 0.001);
-            inners.push(is_interior);
-        }
+
+        let inners = vertices
+            .iter()
+            .map(|vertex| interior_points.iter().any(|p| p.distance(*vertex) < 0.001))
+            .collect();
+
         shadow_triangles.push(ShadowTriangles {
             indices,
             vertices,
