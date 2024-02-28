@@ -351,14 +351,15 @@ impl Room {
                 if let Some(tile) = &global_material.tiles {
                     let mut new_polygons = Vec::new();
                     let bounds = poly.bounding_rect().unwrap();
+                    let poly_center = coord_to_vec2((bounds.min() + bounds.max()) / 2.0);
 
                     let (startx, endx) = (bounds.min().x, bounds.max().x);
                     let num_grout_x = ((endx - startx) / tile.spacing).floor() as usize;
                     for i in 0..num_grout_x {
                         let x_pos = (i as f64 - (num_grout_x - 1) as f64 / 2.0) * tile.spacing;
                         let line = Shape::Rectangle.polygons(
-                            self.pos + vec2(x_pos, 0.0),
-                            vec2(tile.grout_width, self.size.y),
+                            poly_center + vec2(x_pos, 0.0),
+                            vec2(tile.grout_width, bounds.height()),
                             0,
                         );
                         new_polygons.push(intersection_polygons(&line, poly));
@@ -369,8 +370,8 @@ impl Room {
                     for i in 0..num_grout_y {
                         let y_pos = (i as f64 - (num_grout_y - 1) as f64 / 2.0) * tile.spacing;
                         let line = Shape::Rectangle.polygons(
-                            self.pos + vec2(0.0, y_pos),
-                            vec2(self.size.x, tile.grout_width),
+                            poly_center + vec2(0.0, y_pos),
+                            vec2(bounds.width(), tile.grout_width),
                             0,
                         );
                         new_polygons.push(intersection_polygons(&line, poly));

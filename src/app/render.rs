@@ -426,8 +426,8 @@ impl HomeFlow {
                     OpeningType::Window => WALL_WIDTH,
                 } * self.stored.zoom) as f32;
                 let rot_dir = vec2(
-                    (opening.rotation as f64).to_radians().cos(),
-                    (opening.rotation as f64).to_radians().sin(),
+                    (-opening.rotation as f64).to_radians().cos(),
+                    (-opening.rotation as f64).to_radians().sin(),
                 );
                 let hinge_pos = room.pos + opening.pos + rot_dir * opening.width / 2.0;
                 let end_pos = room.pos + opening.pos - rot_dir * opening.width / 2.0;
