@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 const PIXELS_PER_METER: f64 = 30.0;
 const LIGHT_SAMPLES: u8 = 8; // Number of samples within the light's radius for anti-aliasing
+const MAX_LIGHTS_PER_FRAME: u32 = 2;
 
 pub struct LightData {
     pub hash: u64,
@@ -120,12 +121,15 @@ pub fn combine_lighting(
     }
 }
 
+pub type LightsData = (u64, (Vec<u8>, Bounds));
+
 pub fn render_lighting(
     bounds_min: Vec2,
     bounds_max: Vec2,
     rooms: &Vec<Room>,
     all_walls: &[Line],
-) -> HashMap<Uuid, (u64, (Vec<u8>, Bounds))> {
+) -> (bool, HashMap<Uuid, LightsData>) {
+    let mut cur_changed = 0;
     let mut new_light_data = HashMap::new();
     for room in rooms {
         for light in &room.lights {
@@ -152,10 +156,14 @@ pub fn render_lighting(
                     &light.get_points(room),
                 );
                 new_light_data.insert(light.id, (hash, light_data));
+                cur_changed += 1;
+            }
+            if cur_changed >= MAX_LIGHTS_PER_FRAME {
+                return (false, new_light_data);
             }
         }
     }
-    new_light_data
+    (true, new_light_data)
 }
 
 fn render_light(

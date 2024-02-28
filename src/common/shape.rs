@@ -173,7 +173,7 @@ impl Home {
             room.walls.hash(&mut hasher);
             room.lights.hash(&mut hasher);
         }
-        let hash = hasher.finish();
+        let mut hash = hasher.finish();
         if let Some(light_data) = &self.light_data {
             if light_data.hash == hash {
                 return;
@@ -183,7 +183,8 @@ impl Home {
         let all_walls = &self.rendered_data.as_ref().unwrap().wall_lines;
 
         let (bounds_min, bounds_max) = self.bounds();
-        let mut light_data = render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
+        let (update_complete, mut light_data) =
+            render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
 
         // Override light data for each light
         for room in &mut self.rooms {
@@ -195,6 +196,9 @@ impl Home {
         }
 
         // Combine each lights contribution into a single image
+        if !update_complete {
+            hash -= 1;
+        }
         self.light_data = Some(combine_lighting(bounds_min, bounds_max, &self.rooms, hash));
     }
 
