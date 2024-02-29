@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 const PIXELS_PER_METER: f64 = 30.0;
 const LIGHT_SAMPLES: u8 = 8; // Number of samples within the light's radius for anti-aliasing
-const MAX_LIGHTS_PER_FRAME: u32 = 2;
+const MAX_LIGHTS_PER_FRAME: u32 = 1;
 
 pub struct LightData {
     pub hash: u64,
@@ -22,20 +22,6 @@ pub struct LightData {
     pub image_size: Vec2,
     pub image_width: u32,
     pub image_height: u32,
-}
-
-pub struct Bounds {
-    pub min: Vec2,
-    pub max: Vec2,
-}
-
-impl Bounds {
-    pub fn contains(&self, point: Vec2) -> bool {
-        point.x >= self.min.x
-            && point.x <= self.max.x
-            && point.y >= self.min.y
-            && point.y <= self.max.y
-    }
 }
 
 pub fn combine_lighting(
@@ -63,13 +49,12 @@ pub fn combine_lighting(
             if light.state == 0 {
                 continue;
             }
-            if let Some((_, (light_data, light_bounds))) = &light.light_data {
+            if let Some((_, light_data)) = &light.light_data {
                 if light_data.len() == image_pixel_count {
                     lights_data.push((
                         light.intensity * (light.state as f64 / 255.0),
                         light.get_points(room),
                         light_data,
-                        light_bounds,
                     ));
                 }
             }
@@ -90,14 +75,13 @@ pub fn combine_lighting(
             }
 
             let mut total_light_intensity: f64 = 0.0;
-            for (light_intensity, light_points, light_image, light_bounds) in &lights_data {
-                // Quick early exit if outside bounds
-                if !light_bounds.contains(world) {
+            for (light_intensity, light_points, light_image) in &lights_data {
+                let light_pixel = light_image[i] as f64;
+                if light_pixel == 0.0 {
                     continue;
                 }
                 for light_pos in light_points {
                     let distance = world.distance(*light_pos) * 2.0 / light_intensity;
-                    let light_pixel = light_image[i] as f64;
                     total_light_intensity += light_pixel / distance.powf(2.0);
                     if total_light_intensity >= 255.0 {
                         total_light_intensity = 255.0;
@@ -121,7 +105,7 @@ pub fn combine_lighting(
     }
 }
 
-pub type LightsData = (u64, (Vec<u8>, Bounds));
+pub type LightsData = (u64, Vec<u8>);
 
 pub fn render_lighting(
     bounds_min: Vec2,
@@ -173,28 +157,21 @@ fn render_light(
     all_walls: &[Line],
     light: &Light,
     points: &[Vec2],
-) -> (Vec<u8>, Bounds) {
+) -> Vec<u8> {
     // Create a vec of walls that this light can see
     let mut walls_for_light = Vec::with_capacity(points.len());
     for point in points {
-        walls_for_light.extend(get_visible_walls(*point, all_walls));
+        walls_for_light.push(get_visible_walls(*point, all_walls));
     }
 
     // Calculate the rooms to check against, if lights room is enclosed then only that, if its not then only rooms that arent enclosed
     let mut rooms_to_check: Vec<&Room> = Vec::new();
     let mut is_light_contained = true;
-    let mut light_bounds = Bounds {
-        min: vec2(f64::MAX, f64::MAX),
-        max: vec2(f64::MIN, f64::MIN),
-    };
     for point in points {
         let room = rooms.iter().find(|room| room.contains(*point));
         if let Some(room) = room {
             if !rooms_to_check.iter().any(|r| r.id == room.id) {
                 rooms_to_check.push(room);
-                let bounds = room.bounds();
-                light_bounds.min = light_bounds.min.min(bounds.0);
-                light_bounds.max = light_bounds.max.max(bounds.1);
             }
             if room.walls != Walls::WALL {
                 is_light_contained = false;
@@ -205,9 +182,6 @@ fn render_light(
         for room in rooms {
             if room.walls != Walls::WALL && !rooms_to_check.iter().any(|r| r.id == room.id) {
                 rooms_to_check.push(room);
-                let bounds = room.bounds();
-                light_bounds.min = light_bounds.min.min(bounds.0);
-                light_bounds.max = light_bounds.max.max(bounds.1);
             }
         }
     }
@@ -233,20 +207,19 @@ fn render_light(
 
         let mut total_light_intensity = 0.0;
 
-        for light_pos in points {
-            let distance_to_light = world.distance(*light_pos);
+        for (light_index, light_pos) in points.iter().enumerate() {
             // Do more samples the closer we are to the light
             let dynamic_samples = ((LIGHT_SAMPLES as f64
-                * (1.0 - distance_to_light / (light.intensity * 4.0)))
+                * (1.0 - world.distance(*light_pos) / (light.intensity * 4.0)))
                 .round() as u8)
                 .max(1);
 
             // Get 4 positions at the corners of the pixel
             for point in [
-                vec2(x as f64, y as f64),
-                vec2(x as f64 + 1.0, y as f64),
-                vec2(x as f64, y as f64 + 1.0),
-                vec2(x as f64 + 1.0, y as f64 + 1.0),
+                vec2(x as f64 - 0.5, y as f64 - 0.5),
+                vec2(x as f64 + 0.5, y as f64 - 0.5),
+                vec2(x as f64 - 0.5, y as f64 + 0.5),
+                vec2(x as f64 + 0.5, y as f64 + 0.5),
             ] {
                 let world = bounds_min + vec2(point.x / width, 1.0 - (point.y / height)) * new_size;
                 let mut sampled_light_intensity = 0.0;
@@ -261,7 +234,7 @@ fn render_light(
                     };
 
                     // Check if the sample light position and pixel intersect with any lines
-                    if walls_for_light
+                    if walls_for_light[light_index]
                         .iter()
                         .any(|(p1, p2)| lines_intersect(sample_light_position, world, *p1, *p2))
                     {
@@ -282,16 +255,25 @@ fn render_light(
         *pixel = (total_light_intensity * 255.0) as u8;
     });
 
-    (data_buffer, light_bounds)
+    data_buffer
 }
 
+const POINTS_DISTANCE: f64 = 0.1; // Distance between points on the wall to check for visibility
 fn get_visible_walls(light_pos: Vec2, all_walls: &[Line]) -> Vec<Line> {
-    let mut visible_walls = Vec::new();
+    let mut visible_walls = Vec::with_capacity(all_walls.len());
     for (i, &(start, end)) in all_walls.iter().enumerate() {
         let light_distance = start.distance(light_pos).min(end.distance(light_pos));
 
         // Generate points along the wall for more granular visibility checks
-        let points = generate_points_for_wall_segment(start, end);
+        let mut points = vec![start, end];
+        let total_distance = start.distance(end);
+        if total_distance > POINTS_DISTANCE {
+            let direction = (end - start).normalize();
+            let num_points = (total_distance / POINTS_DISTANCE).ceil() as usize - 1;
+            for i in 1..num_points {
+                points.push(start + direction * (POINTS_DISTANCE * i as f64));
+            }
+        }
 
         // Check if any point on the wall is not blocked by other walls
         if points.iter().any(|&point| {
@@ -312,20 +294,6 @@ fn get_visible_walls(light_pos: Vec2, all_walls: &[Line]) -> Vec<Line> {
         .iter()
         .map(|(start, end, _)| (*start, *end))
         .collect()
-}
-
-const POINTS_DISTANCE: f64 = 0.1; // Distance between points on the wall to check for visibility
-fn generate_points_for_wall_segment(start: Vec2, end: Vec2) -> Vec<Vec2> {
-    let mut points = vec![start, end];
-    let total_distance = start.distance(end);
-    if total_distance > POINTS_DISTANCE {
-        let direction = (end - start).normalize();
-        let num_points = (total_distance / POINTS_DISTANCE).ceil() as usize - 1;
-        for i in 1..num_points {
-            points.push(start + direction * (POINTS_DISTANCE * i as f64));
-        }
-    }
-    points
 }
 
 /// Checks if two lines (p1, p2) and (q1, q2) intersect.

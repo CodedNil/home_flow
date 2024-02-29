@@ -84,7 +84,7 @@ impl Home {
         for room in &self.rooms {
             if let Some(rendered_data) = &room.rendered_data {
                 for poly in &mut wall_polygons {
-                    *poly = geo::SpadeBoolops::difference(poly, &rendered_data.polygons).unwrap();
+                    *poly = difference_polygons(poly, &rendered_data.polygons);
                 }
                 for poly in &rendered_data.wall_polygons {
                     wall_polygons.push(poly.clone().into());
@@ -115,7 +115,7 @@ impl Home {
                     opening.rotation,
                 );
                 for poly in &mut wall_polygons {
-                    *poly = geo::SpadeBoolops::difference(poly, &opening_polygon).unwrap();
+                    *poly = difference_polygons(poly, &opening_polygon);
                 }
             }
         }
@@ -265,7 +265,7 @@ impl Room {
 
     pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
         let (min, max) = self.bounds();
-        (min - Vec2::ONE * WALL_WIDTH, max + Vec2::ONE * WALL_WIDTH)
+        (min - Vec2::splat(WALL_WIDTH), max + Vec2::splat(WALL_WIDTH))
     }
 
     pub fn contains(&self, point: Vec2) -> bool {
