@@ -80,20 +80,26 @@ impl Home {
         }
 
         // Collect all the rooms together to build up the walls
-        let mut wall_polygons = EMPTY_MULTI_POLYGON;
+        let mut wall_polygons = vec![];
         for room in &self.rooms {
             if let Some(rendered_data) = &room.rendered_data {
-                wall_polygons = difference_polygons(&wall_polygons, &rendered_data.polygons);
-                wall_polygons = union_polygons(&wall_polygons, &rendered_data.wall_polygons);
+                for poly in &mut wall_polygons {
+                    *poly = difference_polygons(poly, &rendered_data.polygons);
+                }
+                for poly in &rendered_data.wall_polygons {
+                    wall_polygons.push(poly.clone().into());
+                }
             }
         }
 
         // Gather wall lines from the polygons
         let mut wall_lines = Vec::new();
-        for poly in &wall_polygons {
-            let walls_offset = offset_polygon(poly, -0.005, JoinType::Miter);
-            for line in walls_offset.lines_iter() {
-                wall_lines.push((coord_to_vec2(line.start), coord_to_vec2(line.end)));
+        for multipoly in &wall_polygons {
+            for poly in multipoly {
+                let walls_offset = offset_polygon(poly, -0.025, JoinType::Miter);
+                for line in walls_offset.lines_iter() {
+                    wall_lines.push((coord_to_vec2(line.start), coord_to_vec2(line.end)));
+                }
             }
         }
 
@@ -108,15 +114,19 @@ impl Home {
                     vec2(opening.width, WALL_WIDTH * 1.01),
                     opening.rotation,
                 );
-                wall_polygons = difference_polygons(&wall_polygons, &opening_polygon);
+                for poly in &mut wall_polygons {
+                    *poly = difference_polygons(poly, &opening_polygon);
+                }
             }
         }
 
         // Create triangles for each polygon
         let mut wall_triangles = Vec::new();
-        for polygon in &wall_polygons {
-            let (indices, vertices) = triangulate_polygon(polygon);
-            wall_triangles.push(Triangles { indices, vertices });
+        for multipolygon in &wall_polygons {
+            for polygon in multipolygon {
+                let (indices, vertices) = triangulate_polygon(polygon);
+                wall_triangles.push(Triangles { indices, vertices });
+            }
         }
 
         // If the hashes match, reuse the existing shadows
@@ -128,7 +138,7 @@ impl Home {
             hasher.finish()
         };
 
-        let compute_shadows = || polygons_to_shadows(vec![&wall_polygons], 1.0);
+        let compute_shadows = || polygons_to_shadows(wall_polygons.iter().collect(), 1.0);
         let wall_shadows = if edit_mode {
             (walls_hash, (Color::TRANSPARENT, vec![]))
         } else {
