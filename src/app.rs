@@ -73,36 +73,6 @@ impl Default for StoredData {
     }
 }
 
-impl Default for HomeFlow {
-    fn default() -> Self {
-        Self {
-            time: 0.0,
-            frame_time: 0.0,
-            canvas_center: Vec2::ZERO,
-            mouse_pos: Vec2::ZERO,
-            mouse_pos_world: Vec2::ZERO,
-            is_mobile: false,
-
-            layout_server: Home::default(),
-            layout: Home::default(),
-            textures: HashMap::new(),
-            light_data: None,
-            bounds: (Vec2::ZERO, Vec2::ZERO),
-            rotate_key_down: false,
-            rotate_speed: 0.0,
-            rotate_target: 0.0,
-            interaction_state: InteractionState::default(),
-
-            toasts: Arc::new(Mutex::new(Toasts::default())),
-            edit_mode: EditDetails::default(),
-            frame_times: History::new(0..300, 1.0),
-            host: "localhost:3000".to_string(),
-            stored: StoredData::default(),
-            download_data: Arc::new(Mutex::new(DownloadData::default())),
-        }
-    }
-}
-
 #[derive(Default)]
 struct DownloadData {
     layout: DownloadLayout,
@@ -124,9 +94,29 @@ impl HomeFlow {
 
         let rotation = ((stored.rotation / 90.0).round() * 90.0).rem_euclid(360.0);
         Self {
+            time: 0.0,
+            frame_time: 0.0,
+            canvas_center: Vec2::ZERO,
+            mouse_pos: Vec2::ZERO,
+            mouse_pos_world: Vec2::ZERO,
+            is_mobile: false,
+
+            layout_server: Home::default(),
+            layout: Home::default(),
+            textures: HashMap::new(),
+            light_data: None,
+            bounds: (Vec2::ZERO, Vec2::ZERO),
+            rotate_key_down: false,
+            rotate_speed: 0.0,
             rotate_target: rotation,
+            interaction_state: InteractionState::default(),
+
+            toasts: Arc::new(Mutex::new(Toasts::default())),
+            edit_mode: EditDetails::default(),
+            frame_times: History::new(0..300, 1.0),
+            host: "localhost:3000".to_string(),
             stored: StoredData { rotation, ..stored },
-            ..Default::default()
+            download_data: Arc::new(Mutex::new(DownloadData::default())),
         }
     }
 
