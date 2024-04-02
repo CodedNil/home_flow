@@ -445,7 +445,7 @@ impl Room {
             }
         }
 
-        // If walls arent on all sides, trim as needed
+        // If walls aren't on all sides, trim as needed
         let any_add = self
             .operations
             .iter()
@@ -469,7 +469,7 @@ impl Room {
                 let neg_pos = vec2(-1.0, 1.0);
                 let neg = vec2(-1.0, -1.0);
                 let pos = vec2(1.0, 1.0);
-                let mut vertices = vec![
+                let mut vertices = [
                     vec![Vec2::ZERO, neg_pos, vec2(-4.0, 1.0), vec2(-4.0, -1.0), neg], // Left
                     vec![Vec2::ZERO, neg_pos, vec2(-1.0, 4.0), vec2(1.0, 4.0), pos],   // Top
                     vec![Vec2::ZERO, pos, vec2(4.0, 1.0), vec2(4.0, -1.0), pos_neg],   // Right
