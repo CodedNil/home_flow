@@ -84,7 +84,7 @@ impl HomeFlow {
                 });
             }
         }
-        if response.drag_released_by(interaction_button) {
+        if response.drag_stopped_by(interaction_button) {
             if let Some(light_drag) = &mut self.interaction_state.light_drag {
                 light_drag.active = false;
             }
