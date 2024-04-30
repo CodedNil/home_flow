@@ -7,11 +7,13 @@ use super::{
 };
 use crate::{
     common::{
+        color::Color,
         furniture::{ChairType, Furniture, FurnitureType},
         layout::{
             Action, GlobalMaterial, Home, Light, MultiLight, Opening, Operation, Outline, Room,
             TileOptions,
         },
+        utils::Material,
     },
     server::common_api::save_layout,
 };
@@ -23,25 +25,36 @@ use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::time::Duration;
 use uuid::Uuid;
 
-#[derive(Default)]
-pub struct EditDetails {
-    pub enabled: bool,
-    pub drag_data: Option<DragData>,
-    pub selected_id: Option<Uuid>,
-    pub selected_type: Option<ObjectType>,
-    pub preview_edits: bool,
-    pub resize_enabled: bool,
-    pub material_editor_open: bool,
+nestify::nest! {
+    #[derive(Default)]
+    pub struct EditDetails {
+        pub enabled: bool,
+        pub drag_data: Option<pub struct DragData {
+            pub id: Uuid,
+            pub object_type: ObjectType,
+            pub manipulation_type: ManipulationType,
+            pub mouse_start_pos: Vec2,
+            pub start_pos: Vec2,
+            pub start_size: Vec2,
+            pub start_rotation: i32,
+        }>,
+        pub selected_id: Option<Uuid>,
+        pub selected_type: Option<ObjectType>,
+        pub preview_edits: bool,
+        pub resize_enabled: bool,
+        pub material_editor_open: bool,
+    }
 }
 
-pub struct DragData {
+#[derive(Debug)]
+pub struct HoverDetails {
     pub id: Uuid,
     pub object_type: ObjectType,
+    pub can_drag: bool,
+    pub pos: Vec2,
+    pub size: Vec2,
+    pub rotation: i32,
     pub manipulation_type: ManipulationType,
-    pub mouse_start_pos: Vec2,
-    pub start_pos: Vec2,
-    pub start_size: Vec2,
-    pub start_rotation: i32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,8 +175,8 @@ impl HomeFlow {
         }
         if ui.button("Refresh").clicked() {
             self.edit_mode.enabled = false;
-            self.layout = Home::default();
-            self.layout_server = Home::default();
+            self.layout = Home::empty();
+            self.layout_server = Home::empty();
         }
     }
 
@@ -426,7 +439,12 @@ impl HomeFlow {
 
                     // Add button
                     if ui.button("Add Material").clicked() {
-                        self.layout.materials.push(GlobalMaterial::default());
+                        self.layout.materials.push(GlobalMaterial {
+                            name: "New Material".to_string(),
+                            material: Material::Empty,
+                            tint: Color::WHITE,
+                            tiles: None,
+                        });
                     }
                 });
             });

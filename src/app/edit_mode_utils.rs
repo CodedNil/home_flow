@@ -1,5 +1,5 @@
 use super::{
-    edit_mode::{DragData, ManipulationType, ObjectType},
+    edit_mode::{DragData, HoverDetails, ManipulationType, ObjectType},
     HomeFlow,
 };
 use crate::common::{
@@ -10,18 +10,6 @@ use crate::common::{
 use egui::{ComboBox, DragValue, Key, Ui};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use strum::IntoEnumIterator;
-use uuid::Uuid;
-
-#[derive(Debug)]
-pub struct HoverDetails {
-    pub id: Uuid,
-    pub object_type: ObjectType,
-    pub can_drag: bool,
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub rotation: i32,
-    pub manipulation_type: ManipulationType,
-}
 
 impl HomeFlow {
     pub fn hover_select(&mut self, response: &egui::Response, ui: &Ui) -> Option<HoverDetails> {

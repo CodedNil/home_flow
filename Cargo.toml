@@ -14,9 +14,9 @@ parking_lot = "0.12.2"
 indexmap = "2.2.6"
 itertools = "0.12.1"
 glam = { version = "0.27.0", features = ["serde"] }
+nestify = "0.3.3"
 strum = "0.26.2"
 strum_macros = "0.26.2"
-derivative = "2.2.0"
 diff = "0.1.13"
 image = { version = "0.25.1", default-features = false, features = ["png"] }
 geo = "0.28.0"

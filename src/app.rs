@@ -26,41 +26,49 @@ mod edit_mode_utils;
 mod interaction;
 mod render;
 
-pub struct HomeFlow {
-    time: f64,
-    frame_time: f64,
+nestify::nest! {
+    pub struct HomeFlow {
+        time: f64,
+        frame_time: f64,
 
-    canvas_center: Vec2,
-    mouse_pos: Vec2,
-    mouse_pos_world: Vec2,
-    is_mobile: bool,
+        canvas_center: Vec2,
+        mouse_pos: Vec2,
+        mouse_pos_world: Vec2,
+        is_mobile: bool,
 
-    layout_server: Home,
-    layout: Home,
-    textures: HashMap<String, TextureHandle>,
-    light_data: Option<(u64, TextureHandle)>,
-    bounds: (Vec2, Vec2),
-    rotate_key_down: bool,
-    rotate_speed: f64,
-    rotate_target: f64,
-    interaction_state: InteractionState,
+        layout_server: Home,
+        layout: Home,
+        textures: HashMap<String, TextureHandle>,
+        light_data: Option<(u64, TextureHandle)>,
+        bounds: (Vec2, Vec2),
+        rotate_key_down: bool,
+        rotate_speed: f64,
+        rotate_target: f64,
+        interaction_state: InteractionState,
 
-    toasts: Arc<Mutex<Toasts>>,
-    edit_mode: EditDetails,
-    frame_times: History<f32>,
-    host: String,
+        toasts: Arc<Mutex<Toasts>>,
+        edit_mode: EditDetails,
+        frame_times: History<f32>,
+        host: String,
 
-    stored: StoredData,
+        #>[derive(Deserialize, Serialize)]
+        #>[serde(default)]
+        stored: pub struct StoredData {
+            translation: Vec2,
+            zoom: f64, // Zoom is meter to pixels
+            rotation: f64,
+        },
 
-    download_data: Arc<Mutex<DownloadData>>,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(default)]
-pub struct StoredData {
-    translation: Vec2,
-    zoom: f64, // Zoom is meter to pixels
-    rotation: f64,
+        #>[derive(Default)]*
+        download_data: Arc<Mutex<struct DownloadData {
+            layout: enum DownloadLayout {
+                #[default]
+                None,
+                InProgress,
+                Done(Result<Home>),
+            },
+        }>>,
+    }
 }
 
 impl Default for StoredData {
@@ -71,19 +79,6 @@ impl Default for StoredData {
             rotation: 0.0,
         }
     }
-}
-
-#[derive(Default)]
-struct DownloadData {
-    layout: DownloadLayout,
-}
-
-#[derive(Default)]
-enum DownloadLayout {
-    #[default]
-    None,
-    InProgress,
-    Done(Result<Home>),
 }
 
 impl HomeFlow {
@@ -101,8 +96,8 @@ impl HomeFlow {
             mouse_pos_world: Vec2::ZERO,
             is_mobile: false,
 
-            layout_server: Home::default(),
-            layout: Home::default(),
+            layout_server: Home::empty(),
+            layout: Home::empty(),
             textures: HashMap::new(),
             light_data: None,
             bounds: (Vec2::ZERO, Vec2::ZERO),

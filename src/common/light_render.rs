@@ -15,6 +15,7 @@ const PIXELS_PER_METER: f64 = 30.0;
 const LIGHT_SAMPLES: u8 = 8; // Number of samples within the light's radius for anti-aliasing
 const MAX_LIGHTS_PER_FRAME: u32 = 1;
 
+#[derive(Clone)]
 pub struct LightData {
     pub hash: u64,
     pub image: Vec<u8>,

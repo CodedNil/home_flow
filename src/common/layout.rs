@@ -3,9 +3,8 @@ use super::{
     furniture::Furniture,
     light_render::{LightData, LightsData},
     shape::{Line, ShadowsData},
-    utils::{clone_as_none, Material},
+    utils::Material,
 };
-use derivative::Derivative;
 use geo_types::MultiPolygon;
 use glam::DVec2 as Vec2;
 use indexmap::IndexMap;
@@ -14,139 +13,113 @@ use std::hash::Hash;
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
-pub const LAYOUT_VERSION: &str = "0.1";
+pub const LAYOUT_VERSION: &str = "0.2";
 
-#[derive(Serialize, Deserialize, Default, Derivative)]
-#[derivative(Clone)]
-pub struct Home {
-    pub version: String,
-    pub materials: Vec<GlobalMaterial>,
-    pub rooms: Vec<Room>,
-    pub furniture: Vec<Furniture>,
-    #[serde(skip)]
-    #[derivative(Clone(clone_with = "clone_as_none"))]
-    pub rendered_data: Option<HomeRender>,
-    #[serde(skip)]
-    #[derivative(Clone(clone_with = "clone_as_none"))]
-    pub light_data: Option<LightData>,
+nestify::nest! {
+    #[derive(Serialize, Deserialize, Clone)]*
+    pub struct Home {
+        pub version: String,
+
+        pub materials: Vec<pub struct GlobalMaterial {
+            pub name: String,
+            pub material: Material,
+            pub tint: Color,
+            #>[derive(Default)]
+            pub tiles: Option<pub struct TileOptions {
+                pub spacing: f64,
+                pub grout_width: f64,
+                pub grout_color: Color,
+            }>,
+        }>,
+
+        pub rooms: Vec<pub struct Room {
+            pub id: Uuid,
+            pub name: String,
+            pub material: String,
+            pub pos: Vec2,
+            pub size: Vec2,
+
+            pub operations: Vec<pub struct Operation {
+                pub id: Uuid,
+                #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash)]
+                pub action: pub enum Action {
+                    Add,
+                    Subtract,
+                    AddWall,
+                    SubtractWall,
+                },
+                #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash)]
+                pub shape: pub enum Shape {
+                    Rectangle,
+                    Circle,
+                    Triangle,
+                },
+                pub material: Option<String>,
+                pub pos: Vec2,
+                pub size: Vec2,
+                pub rotation: i32,
+            }>,
+
+            #>[derive(Copy, Hash, PartialEq, Eq)]
+            pub walls: pub struct Walls {
+                pub left: bool,
+                pub top: bool,
+                pub right: bool,
+                pub bottom: bool,
+            },
+
+            pub openings: Vec<pub struct Opening {
+                pub id: Uuid,
+                #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash)]
+                pub opening_type: pub enum OpeningType {
+                    Door,
+                    Window,
+                },
+                pub pos: Vec2,
+                pub rotation: i32,
+                pub width: f64,
+
+                #[serde(skip)]
+                pub open_amount: f64,
+            }>,
+
+            pub lights: Vec<pub struct Light {
+                pub id: Uuid,
+                pub name: String,
+                pub pos: Vec2,
+                pub multi: Option<pub struct MultiLight {
+                    pub room_padding: Vec2,
+                    pub rows: u8,
+                    pub cols: u8,
+                }>,
+                pub intensity: f64,
+                pub radius: f64,
+
+                #[serde(skip)]
+                pub state: u8,
+                #[serde(skip)]
+                pub light_data: Option<LightsData>,
+            }>,
+
+            pub outline: Option<pub struct Outline {
+                pub thickness: f64,
+                pub color: Color,
+            }>,
+
+            #[serde(skip)]
+            pub rendered_data: Option<RoomRender>,
+        }>,
+
+        pub furniture: Vec<Furniture>,
+
+        #[serde(skip)]
+        pub rendered_data: Option<HomeRender>,
+        #[serde(skip)]
+        pub light_data: Option<LightData>,
+    }
 }
 
-#[derive(Serialize, Deserialize, Derivative)]
-#[derivative(Clone)]
-pub struct Room {
-    pub id: Uuid,
-    pub name: String,
-    pub material: String,
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub operations: Vec<Operation>,
-    pub walls: Walls,
-    pub openings: Vec<Opening>,
-    pub lights: Vec<Light>,
-    pub outline: Option<Outline>,
-    #[serde(skip)]
-    #[derivative(Clone(clone_with = "clone_as_none"))]
-    pub rendered_data: Option<RoomRender>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Walls {
-    pub left: bool,
-    pub top: bool,
-    pub right: bool,
-    pub bottom: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Opening {
-    pub id: Uuid,
-    pub opening_type: OpeningType,
-    pub pos: Vec2,
-    pub rotation: i32,
-    pub width: f64,
-    #[serde(skip)]
-    pub open_amount: f64,
-}
-
-#[derive(Serialize, Deserialize, Derivative)]
-#[derivative(Clone)]
-pub struct Light {
-    pub id: Uuid,
-    pub name: String,
-    pub pos: Vec2,
-    pub multi: Option<MultiLight>,
-    pub intensity: f64,
-    pub radius: f64,
-    #[serde(skip)]
-    pub state: u8,
-    #[serde(skip)]
-    #[derivative(Clone(clone_with = "clone_as_none"))]
-    pub light_data: Option<LightsData>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct MultiLight {
-    pub room_padding: Vec2,
-    pub rows: u8,
-    pub cols: u8,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Operation {
-    pub id: Uuid,
-    pub action: Action,
-    pub shape: Shape,
-    pub material: Option<String>,
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub rotation: i32,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum OpeningType {
-    #[default]
-    Door,
-    Window,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Outline {
-    pub thickness: f64,
-    pub color: Color,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum Action {
-    #[default]
-    Add,
-    Subtract,
-    AddWall,
-    SubtractWall,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum Shape {
-    #[default]
-    Rectangle,
-    Circle,
-    Triangle,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default)]
-pub struct GlobalMaterial {
-    pub name: String,
-    pub material: Material,
-    pub tint: Color,
-    pub tiles: Option<TileOptions>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default)]
-pub struct TileOptions {
-    pub spacing: f64,
-    pub grout_width: f64,
-    pub grout_color: Color,
-}
-
+#[derive(Clone)]
 pub struct HomeRender {
     pub hash: u64,
     pub walls_hash: u64,
@@ -156,6 +129,7 @@ pub struct HomeRender {
     pub wall_shadows: (u64, ShadowsData),
 }
 
+#[derive(Clone)]
 pub struct RoomRender {
     pub hash: u64,
     pub polygons: MultiPolygon,
@@ -164,6 +138,7 @@ pub struct RoomRender {
     pub wall_polygons: MultiPolygon,
 }
 
+#[derive(Clone)]
 pub struct Triangles {
     pub indices: Vec<u32>,
     pub vertices: Vec<Vec2>,

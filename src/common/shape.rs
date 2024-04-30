@@ -571,6 +571,7 @@ pub fn triangulate_polygon(polygon: &Polygon) -> (Vec<u32>, Vec<Vec2>) {
     )
 }
 
+#[derive(Clone)]
 pub struct ShadowTriangles {
     pub indices: Vec<u32>,
     pub vertices: Vec<Vec2>,

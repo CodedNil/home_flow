@@ -2,9 +2,8 @@ use super::{
     color::Color,
     layout::{GlobalMaterial, Shape, Triangles},
     shape::{polygons_to_shadows, triangulate_polygon, ShadowsData},
-    utils::{clone_as_none, hash_vec2, Material},
+    utils::{hash_vec2, Material},
 };
-use derivative::Derivative;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
@@ -12,99 +11,82 @@ use std::hash::{Hash, Hasher};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Derivative)]
-#[derivative(Clone)]
-pub struct Furniture {
-    pub id: Uuid,
-    pub furniture_type: FurnitureType,
-    pub material: String,
-    pub material_children: String,
-    pub pos: Vec2,
-    pub size: Vec2,
-    pub rotation: i32,
-    #[serde(skip)]
-    pub hover_amount: f64,
-    #[serde(skip)]
-    #[derivative(Clone(clone_with = "clone_as_none"))]
-    pub rendered_data: Option<FurnitureRender>,
-}
+nestify::nest! {
+    #[derive(Serialize, Deserialize, Clone)]*
+    pub struct Furniture {
+        pub id: Uuid,
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
-pub enum FurnitureType {
-    Chair(ChairType),
-    Table(TableType),
-    Kitchen(KitchenType),
-    Bathroom(BathroomType),
-    Bed(Color),
-    Storage(StorageType),
-    Rug(Color),
-    Display,
-    Radiator,
-    Boiler,
-    Misc(MiscHeight),
-    AnimatedPiece(AnimatedPieceType),
-}
+        #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash, Default)]*
+        pub furniture_type: pub enum FurnitureType {
+            Chair(pub enum ChairType {
+                #[default]
+                Dining,
+                Office,
+                Sofa(Color),
+            }),
+            Table(pub enum TableType {
+                #[default]
+                Empty,
+                Dining,
+                Desk,
+            }),
+            Kitchen(pub enum KitchenType {
+                #[default]
+                Hob,
+                Sink,
+            }),
+            Bathroom(pub enum BathroomType {
+                #[default]
+                Toilet,
+                Shower,
+                Bath,
+                Sink,
+            }),
+            Bed(Color),
+            Storage(pub enum StorageType {
+                #[default]
+                Cupboard,
+                CupboardMid,
+                CupboardHigh,
+                Drawer,
+                DrawerMid,
+                DrawerHigh,
+            }),
+            Rug(Color),
+            Display,
+            #[default]
+            Radiator,
+            Boiler,
+            Misc(pub enum MiscHeight {
+                #[default]
+                Low,
+                Mid,
+                High,
+            }),
+            AnimatedPiece(
+                pub enum AnimatedPieceType {
+                    #[default]
+                    Drawer,
+                    DrawerMid,
+                    DrawerHigh,
+                    Door(bool),
+                    DoorMid(bool),
+                    DoorHigh(bool),
+                }),
+        },
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum ChairType {
-    #[default]
-    Dining,
-    Office,
-    Sofa(Color),
-}
+        pub material: String,
+        pub material_children: String,
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum TableType {
-    #[default]
-    Empty,
-    Dining,
-    Desk,
-}
+        pub pos: Vec2,
+        pub size: Vec2,
+        pub rotation: i32,
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum KitchenType {
-    #[default]
-    Hob,
-    Sink,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum BathroomType {
-    #[default]
-    Toilet,
-    Shower,
-    Bath,
-    Sink,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum StorageType {
-    #[default]
-    Cupboard,
-    CupboardMid,
-    CupboardHigh,
-    Drawer,
-    DrawerMid,
-    DrawerHigh,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum MiscHeight {
-    #[default]
-    Low,
-    Mid,
-    High,
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
-pub enum AnimatedPieceType {
-    #[default]
-    Drawer,
-    DrawerMid,
-    DrawerHigh,
-    Door(bool),
-    DoorMid(bool),
-    DoorHigh(bool),
+        #[serde(skip)]
+        pub hover_amount: f64,
+        #[serde(skip)]
+        pub rendered_data: Option<FurnitureRender>,
+    }
 }
 
 const WOOD: FurnitureMaterial =
@@ -181,23 +163,20 @@ impl Furniture {
         Self::new(furniture_type, pos, size, rotation)
     }
 
-    pub fn materials(&self, material: &str) -> Self {
-        let mut clone = self.clone();
-        clone.material = material.to_owned();
-        clone.material_children = material.to_owned();
-        clone
+    pub fn materials(mut self, material: &str) -> Self {
+        self.material = material.to_owned();
+        self.material_children = material.to_owned();
+        self
     }
 
-    pub fn material(&self, material: &str) -> Self {
-        let mut clone = self.clone();
-        clone.material = material.to_owned();
-        clone
+    pub fn material(mut self, material: &str) -> Self {
+        self.material = material.to_owned();
+        self
     }
 
-    pub fn material_children(&self, material: &str) -> Self {
-        let mut clone = self.clone();
-        clone.material_children = material.to_owned();
-        clone
+    pub fn material_children(mut self, material: &str) -> Self {
+        self.material_children = material.to_owned();
+        self
     }
 
     pub fn default() -> Self {
@@ -733,6 +712,7 @@ impl FurnitureMaterial {
 type FurniturePolygons = Vec<(FurnitureMaterial, MultiPolygon)>;
 type FurnitureTriangles = Vec<(FurnitureMaterial, Vec<Triangles>)>;
 
+#[derive(Clone)]
 pub struct FurnitureRender {
     pub hash: u64,
     pub triangles: FurnitureTriangles,

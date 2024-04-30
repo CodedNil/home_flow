@@ -64,10 +64,18 @@ pub fn rotate_point_pivot_i32(point: Vec2, pivot: Vec2, angle: i32) -> Vec2 {
     rotate_point_pivot(point, pivot, angle as f64)
 }
 
-pub const fn clone_as_none<T>(_x: &Option<T>) -> Option<T> {
-    None
+impl Home {
+    pub fn empty() -> Self {
+        Self {
+            version: String::new(),
+            materials: Vec::new(),
+            rooms: Vec::new(),
+            furniture: Vec::new(),
+            rendered_data: None,
+            light_data: None,
+        }
+    }
 }
-
 impl Hash for Home {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.version.hash(state);
@@ -98,104 +106,94 @@ impl Room {
         Self::new("New Room", Vec2::ZERO, vec2(1.0, 1.0), "")
     }
 
-    pub fn outline(&self, outline: Outline) -> Self {
-        let mut clone = self.clone();
-        clone.outline = Some(outline);
-        clone
+    pub const fn outline(mut self, outline: Outline) -> Self {
+        self.outline = Some(outline);
+        self
     }
 
-    pub fn no_wall_left(&self) -> Self {
-        let mut clone = self.clone();
-        clone.walls.left = false;
-        clone
+    pub const fn no_wall_left(mut self) -> Self {
+        self.walls.left = false;
+        self
     }
 
-    pub fn no_wall_top(&self) -> Self {
-        let mut clone = self.clone();
-        clone.walls.top = false;
-        clone
+    pub const fn no_wall_top(mut self) -> Self {
+        self.walls.top = false;
+        self
     }
 
-    pub fn no_wall_right(&mut self) -> Self {
-        let mut clone = self.clone();
-        clone.walls.right = false;
-        clone
+    pub const fn no_wall_right(mut self) -> Self {
+        self.walls.right = false;
+        self
     }
 
-    pub fn no_wall_bottom(&self) -> Self {
-        let mut clone = self.clone();
-        clone.walls.bottom = false;
-        clone
+    pub const fn no_wall_bottom(mut self) -> Self {
+        self.walls.bottom = false;
+        self
     }
 
-    pub fn opening(&self, opening: Opening) -> Self {
-        let mut clone = self.clone();
-        clone.openings.push(opening);
-        clone
+    pub fn opening(mut self, opening: Opening) -> Self {
+        self.openings.push(opening);
+        self
     }
 
-    pub fn window(&self, pos: Vec2, rotation: i32) -> Self {
+    pub fn window(self, pos: Vec2, rotation: i32) -> Self {
         self.opening(Opening::new(OpeningType::Window, pos, rotation))
     }
 
-    pub fn window_width(&self, pos: Vec2, rotation: i32, width: f64) -> Self {
+    pub fn window_width(self, pos: Vec2, rotation: i32, width: f64) -> Self {
         self.opening(Opening::new(OpeningType::Window, pos, rotation).width(width))
     }
 
-    pub fn door(&self, pos: Vec2, rotation: i32) -> Self {
+    pub fn door(self, pos: Vec2, rotation: i32) -> Self {
         self.opening(Opening::new(OpeningType::Door, pos, rotation))
     }
 
-    pub fn door_width(&self, pos: Vec2, rotation: i32, width: f64) -> Self {
+    pub fn door_width(self, pos: Vec2, rotation: i32, width: f64) -> Self {
         self.opening(Opening::new(OpeningType::Door, pos, rotation).width(width))
     }
 
-    pub fn light(&self, name: &str, x: f64, y: f64) -> Self {
-        let mut clone = self.clone();
-        clone.lights.push(Light::new(name, vec2(x, y)));
-        clone
+    pub fn light(mut self, name: &str, x: f64, y: f64) -> Self {
+        self.lights.push(Light::new(name, vec2(x, y)));
+        self
     }
 
     pub fn lights_grid_offset(
-        &self,
+        mut self,
         name: &str,
         cols: u8,
         rows: u8,
         padding: Vec2,
         off: Vec2,
     ) -> Self {
-        let mut clone = self.clone();
-        clone
-            .lights
+        self.lights
             .push(Light::multi(name, off, padding, rows, cols));
-        clone
+        self
     }
 
-    pub fn lights_grid(&self, name: &str, cols: u8, rows: u8, padding: f64) -> Self {
+    pub fn lights_grid(self, name: &str, cols: u8, rows: u8, padding: f64) -> Self {
         self.lights_grid_offset(name, cols, rows, vec2(padding, padding), vec2(0.0, 0.0))
     }
 
-    pub fn light_center(&self, name: &str) -> Self {
+    pub fn light_center(self, name: &str) -> Self {
         self.light(name, 0.0, 0.0)
     }
 
-    pub fn operation(&self, operation: Operation) -> Self {
-        let mut clone = self.clone();
-        clone.operations.push(operation);
-        clone
+    pub fn operation(mut self, operation: Operation) -> Self {
+        self.operations.push(operation);
+        self
     }
 
-    pub fn add(&self, pos: Vec2, size: Vec2) -> Self {
+    pub fn add(self, pos: Vec2, size: Vec2) -> Self {
         self.operation(Operation::new(Action::Add, Shape::Rectangle, pos, size))
     }
 
-    pub fn add_material(&self, pos: Vec2, size: Vec2, material: &str) -> Self {
+    pub fn add_material(self, pos: Vec2, size: Vec2, material: &str) -> Self {
         self.operation(
             Operation::new(Action::Add, Shape::Rectangle, pos, size).set_material(material),
         )
     }
 
-    pub fn subtract(&self, pos: Vec2, size: Vec2) -> Self {
+    pub fn subtract(self, pos: Vec2, size: Vec2) -> Self {
         self.operation(Operation::new(
             Action::Subtract,
             Shape::Rectangle,
@@ -232,8 +230,9 @@ impl Opening {
         Self::new(OpeningType::Door, Vec2::ZERO, 0)
     }
 
-    pub const fn width(&self, width: f64) -> Self {
-        Self { width, ..*self }
+    pub const fn width(mut self, width: f64) -> Self {
+        self.width = width;
+        self
     }
 }
 impl Hash for Opening {
@@ -352,11 +351,9 @@ impl Operation {
         Self::new(Action::Add, Shape::Rectangle, Vec2::ZERO, vec2(1.0, 1.0))
     }
 
-    pub fn set_material(&self, material: &str) -> Self {
-        Self {
-            material: Some(material.to_owned()),
-            ..*self
-        }
+    pub fn set_material(mut self, material: &str) -> Self {
+        self.material = Some(material.to_owned());
+        self
     }
 }
 impl Hash for Operation {
@@ -396,16 +393,13 @@ impl GlobalMaterial {
         }
     }
 
-    pub fn tiles(&self, spacing: f64, grout_width: f64, grout_color: Color) -> Self {
-        Self {
-            name: self.name.clone(),
-            tiles: Some(TileOptions {
-                spacing,
-                grout_width,
-                grout_color,
-            }),
-            ..*self
-        }
+    pub const fn tiles(mut self, spacing: f64, grout_width: f64, grout_color: Color) -> Self {
+        self.tiles = Some(TileOptions {
+            spacing,
+            grout_width,
+            grout_color,
+        });
+        self
     }
 }
 impl Hash for GlobalMaterial {
