@@ -46,7 +46,7 @@ async fn save_layout_server(body: axum::body::Bytes) -> impl IntoResponse {
 pub fn load_layout_impl() -> Home {
     fs::read_to_string(LAYOUT_PATH).map_or_else(
         |_| template_home(),
-        |contents| toml::from_str::<Home>(&contents).map_or_else(|_| template_home(), |home| home),
+        |contents| toml::from_str::<Home>(&contents).unwrap_or_else(|_| template_home()),
     )
 }
 

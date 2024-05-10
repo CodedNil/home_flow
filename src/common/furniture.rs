@@ -164,18 +164,18 @@ impl Furniture {
     }
 
     pub fn materials(mut self, material: &str) -> Self {
-        self.material = material.to_owned();
-        self.material_children = material.to_owned();
+        material.clone_into(&mut self.material);
+        material.clone_into(&mut self.material_children);
         self
     }
 
     pub fn material(mut self, material: &str) -> Self {
-        self.material = material.to_owned();
+        material.clone_into(&mut self.material);
         self
     }
 
     pub fn material_children(mut self, material: &str) -> Self {
-        self.material_children = material.to_owned();
+        material.clone_into(&mut self.material_children);
         self
     }
 
