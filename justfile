@@ -13,5 +13,5 @@ serve:
 serve-release:
     cargo run --release --no-default-features --target-dir target/server
 
-servefast:
+serve-fast:
     ./target/server/release/home_flow.exe
