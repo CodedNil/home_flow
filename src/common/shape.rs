@@ -51,11 +51,10 @@ impl Home {
                 } else {
                     room.wall_polygons(&polygons)
                 };
-                let (mat_polys, mat_tris) = room.material_polygons(&self.materials);
+                let mat_tris = room.material_polygons(&self.materials);
                 room.rendered_data = Some(RoomRender {
                     hash,
                     polygons,
-                    material_polygons: mat_polys,
                     material_triangles: mat_tris,
                     wall_polygons: wall_polys,
                 });
@@ -156,9 +155,7 @@ impl Home {
 
         self.rendered_data = Some(HomeRender {
             hash: home_hash,
-            walls_hash,
             wall_triangles,
-            wall_polygons,
             wall_lines,
             wall_shadows,
         });
@@ -305,10 +302,7 @@ impl Room {
     pub fn material_polygons(
         &self,
         global_materials: &[GlobalMaterial],
-    ) -> (
-        IndexMap<String, MultiPolygon>,
-        IndexMap<String, Vec<Triangles>>,
-    ) {
+    ) -> IndexMap<String, Vec<Triangles>> {
         let mut polygons = IndexMap::new();
         polygons.insert(
             self.material.clone(),
@@ -403,7 +397,7 @@ impl Room {
             triangles.insert(material.clone(), material_triangles);
         }
 
-        (polygons, triangles)
+        triangles
     }
 
     pub fn wall_polygons(&self, polygons: &MultiPolygon) -> MultiPolygon {
