@@ -59,7 +59,7 @@ async fn main() {
         let _ = eframe::run_native(
             "HomeFlow",
             native_options,
-            Box::new(|cc| Box::new(app::HomeFlow::new(cc))),
+            Box::new(|cc| Ok(Box::new(app::HomeFlow::new(cc)))),
         );
     }
 }

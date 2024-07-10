@@ -7,7 +7,7 @@ use crate::common::{
     utils::{rotate_point, rotate_point_i32, rotate_point_pivot, Lerp, Material},
 };
 use egui::{
-    epaint::{CircleShape, TessellationOptions, Tessellator, Vertex},
+    epaint::{CircleShape, PathStroke, TessellationOptions, Tessellator, Vertex},
     Color32, ColorImage, Mesh, Painter, Shape as EShape, Stroke, TextureId, TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -430,14 +430,14 @@ impl HomeFlow {
                     self.world_to_screen_pos(end_pos),
                 ];
 
-                let stroke = Stroke::new(depth, color);
+                let stroke = PathStroke::new(depth, color);
                 if opening.opening_type == OpeningType::Window {
                     window_meshes.push(EShape::LineSegment { points, stroke });
                 } else {
                     //Render a line filing the gap between the door and the wall
                     painter.add(EShape::LineSegment {
                         points,
-                        stroke: Stroke::new(depth * 0.75, Color32::from_rgb(80, 80, 80)),
+                        stroke: PathStroke::new(depth * 0.75, Color32::from_rgb(80, 80, 80)),
                     });
                     // Render the door
                     let end_pos_door =

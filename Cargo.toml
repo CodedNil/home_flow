@@ -5,10 +5,10 @@ edition = "2021"
 rust-version = "1.79"
 
 [dependencies]
-log = "0.4.21"
+log = "0.4.22"
 anyhow = "1.0.86"
-uuid = { version = "1.8.0", features = ["v4", "fast-rng", "js", "serde"] }
-serde = { version = "1.0.203", features = ["derive"] }
+uuid = { version = "1.10.0", features = ["v4", "fast-rng", "js", "serde"] }
+serde = { version = "1.0.204", features = ["derive"] }
 bincode = "1.3.3"
 toml = "0.8.14"
 parking_lot = "0.12.3"
@@ -16,7 +16,7 @@ indexmap = "2.2.6"
 itertools = "0.13.0"
 glam = { version = "0.28.0", features = ["serde"] }
 nestify = "0.3.3"
-strum = "0.26.2"
+strum = "0.26.3"
 strum_macros = "0.26.4"
 diff = "0.1.13"
 image = { version = "0.25.1", default-features = false, features = ["png"] }
@@ -24,14 +24,16 @@ geo = "0.28.0"
 geo-types = { version = "0.7.13", features = ["serde"] }
 
 # GUI dependencies
-egui = { version = "0.27.2", features = ["serde"], optional = true }
-egui_plot = { version = "0.27.2", optional = true }
-eframe = { version = "0.27.2", default-features = false, features = [
+egui = { version = "0.28.1", features = ["serde"], optional = true }
+egui_plot = { version = "0.28.1", optional = true }
+eframe = { version = "0.28.1", default-features = false, features = [
     "default_fonts",
     "glow",
     "persistence",
 ], optional = true }
-egui-notify = { version = "0.14.0", optional = true }
+# egui-notify = { version = "0.14.0", optional = true }
+# Use git version instead https://github.com/ItsEthra/egui-notify
+egui-notify = { git = "https://github.com/ItsEthra/egui-notify", optional = true }
 
 # WebAssembly dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]

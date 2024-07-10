@@ -390,7 +390,7 @@ impl HomeFlow {
                                             DragValue::new(&mut tiles.spacing)
                                                 .speed(0.1)
                                                 .fixed_decimals(2)
-                                                .clamp_range(0.01..=5.0)
+                                                .range(0.01..=5.0)
                                                 .suffix("m"),
                                         );
                                     });
@@ -399,7 +399,7 @@ impl HomeFlow {
                                             DragValue::new(&mut tiles.grout_width)
                                                 .speed(0.1)
                                                 .fixed_decimals(2)
-                                                .clamp_range(0.01..=5.0)
+                                                .range(0.01..=5.0)
                                                 .suffix("m"),
                                         );
                                     });
@@ -596,7 +596,7 @@ fn room_edit_widgets(
                             DragValue::new(&mut outline.thickness)
                                 .speed(0.1)
                                 .fixed_decimals(2)
-                                .clamp_range(0.01..=5.0)
+                                .range(0.01..=5.0)
                                 .suffix("m"),
                         );
                     });
@@ -726,7 +726,7 @@ fn room_edit_widgets(
                         DragValue::new(&mut opening.width)
                             .speed(0.1)
                             .fixed_decimals(1)
-                            .clamp_range(0.1..=5.0)
+                            .range(0.1..=5.0)
                             .suffix("m"),
                     );
                 });
@@ -795,7 +795,7 @@ fn room_edit_widgets(
                     ui.add(
                         DragValue::new(&mut light.intensity)
                             .speed(0.1)
-                            .clamp_range(0.1..=10.0)
+                            .range(0.1..=10.0)
                             .suffix("cd"),
                     );
                 });
@@ -803,7 +803,7 @@ fn room_edit_widgets(
                     ui.add(
                         DragValue::new(&mut light.radius)
                             .speed(0.01)
-                            .clamp_range(0.01..=0.5)
+                            .range(0.01..=0.5)
                             .suffix("m"),
                     );
                 });
@@ -815,10 +815,10 @@ fn room_edit_widgets(
                     |ui, content| {
                         edit_vec2(ui, "Room Padding", &mut content.room_padding, 0.1);
                         labelled_widget(ui, "Rows", |ui| {
-                            ui.add(DragValue::new(&mut content.rows).clamp_range(1..=20));
+                            ui.add(DragValue::new(&mut content.rows).range(1..=20));
                         });
                         labelled_widget(ui, "Cols", |ui| {
-                            ui.add(DragValue::new(&mut content.cols).clamp_range(1..=20));
+                            ui.add(DragValue::new(&mut content.cols).range(1..=20));
                         });
                     },
                 );
