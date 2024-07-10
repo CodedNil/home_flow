@@ -75,7 +75,7 @@ fn main() {
             .start(
                 "homeflow_canvas",
                 web_options,
-                Box::new(|cc| Box::new(app::HomeFlow::new(cc))),
+                Box::new(|cc| Ok(Box::new(app::HomeFlow::new(cc)))),
             )
             .await
             .expect("failed to start eframe");
