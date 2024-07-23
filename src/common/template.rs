@@ -1,8 +1,7 @@
 use super::{
     color::Color,
     furniture::{
-        BathroomType, ChairType, Furniture, FurnitureType, KitchenType, MiscHeight, StorageType,
-        TableType,
+        BathroomType, Furniture, FurnitureType, KitchenType, MiscHeight, StorageType, TableType,
     },
     layout::{GlobalMaterial, Home, Outline, Room, LAYOUT_VERSION},
     utils::Material,
@@ -177,13 +176,6 @@ pub fn template_home() -> Home {
                 90,
             ),
             Furniture::named(
-                "Centre Island",
-                FurnitureType::Table(TableType::Empty),
-                vec2(-4.1, 1.3),
-                vec2(0.8, 0.8),
-                0,
-            ),
-            Furniture::named(
                 "Microwave",
                 FurnitureType::Storage(StorageType::CupboardMid),
                 vec2(-2.8, 2.65),
@@ -272,20 +264,13 @@ pub fn template_home() -> Home {
                 vec2(0.45, 0.45),
                 0,
             ),
-            // Office
+            // Spare Room
             Furniture::new(
                 FurnitureType::Storage(StorageType::Cupboard),
                 vec2(4.2, 2.7),
                 vec2(3.1, 0.6),
                 0,
             ),
-            Furniture::new(
-                FurnitureType::Table(TableType::Desk),
-                vec2(4.7, 1.3),
-                vec2(1.6, 0.8),
-                0,
-            )
-            .material("WoodDark"),
             Furniture::new(
                 FurnitureType::Radiator,
                 vec2(5.7, 1.95),
@@ -319,40 +304,17 @@ pub fn template_home() -> Home {
             ),
             // Living Room
             Furniture::new(
-                FurnitureType::Table(TableType::Dining),
-                vec2(-1.45, -1.15),
-                vec2(1.8, 0.8),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Rug(Color::from_rgba(60, 135, 136, 255)),
-                vec2(-4.55, -1.5),
-                vec2(1.6, 1.6),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Chair(ChairType::Sofa(Color::from_rgb(200, 200, 200))),
-                vec2(-4.15, -1.1),
-                vec2(1.2, 0.8),
-                45,
-            ),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Drawer),
-                vec2(-5.3, -2.25),
-                vec2(0.8, 0.4),
-                225,
-            ),
+                FurnitureType::Table(TableType::Desk),
+                vec2(-0.275, -1.825),
+                vec2(1.6, 0.8),
+                -90,
+            )
+            .material("WoodDark"),
             Furniture::new(
                 FurnitureType::Display,
-                vec2(-5.3, -2.25),
+                vec2(0.2, -1.65),
                 vec2(1.0, 0.1),
-                45,
-            ),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Drawer),
-                vec2(-2.0, -2.55),
-                vec2(1.1, 0.3),
-                180,
+                -90,
             ),
             Furniture::new(
                 FurnitureType::Radiator,

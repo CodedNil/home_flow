@@ -19,7 +19,7 @@ nestify = "0.3.3"
 strum = "0.26.3"
 strum_macros = "0.26.4"
 diff = "0.1.13"
-image = { version = "0.25.1", default-features = false, features = ["png"] }
+image = { version = "0.25.2", default-features = false, features = ["png"] }
 geo = "0.28.0"
 geo-types = { version = "0.7.13", features = ["serde"] }
 
