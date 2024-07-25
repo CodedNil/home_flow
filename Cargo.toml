@@ -2,7 +2,7 @@
 name = "home_flow"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.79"
+rust-version = "1.80"
 
 [dependencies]
 log = "0.4.22"
@@ -55,7 +55,7 @@ axum = { version = "0.7.5", default-features = false, features = [
     "http1",
     "tokio",
 ] }
-tokio = { version = "1.38.1", features = ["full"] }
+tokio = { version = "1.39.1", features = ["full"] }
 tower-http = { version = "0.5.2", features = [
     "fs",
     "compression-br",
