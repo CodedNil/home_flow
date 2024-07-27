@@ -9,7 +9,7 @@ use axum::{
 use std::{fs, path::Path};
 use time::{format_description, OffsetDateTime};
 
-const LAYOUT_PATH: &str = "home_layout.toml";
+const LAYOUT_PATH: &str = "home_layout.ron";
 
 pub fn setup_routes(app: Router) -> Router {
     app.route("/load_layout", get(load_layout_server))
@@ -46,14 +46,14 @@ async fn save_layout_server(body: axum::body::Bytes) -> impl IntoResponse {
 pub fn load_layout_impl() -> Home {
     fs::read_to_string(LAYOUT_PATH).map_or_else(
         |_| template_home(),
-        |contents| toml::from_str::<Home>(&contents).unwrap_or_else(|_| template_home()),
+        |contents| ron::from_str::<Home>(&contents).unwrap_or_else(|_| template_home()),
     )
 }
 
 pub fn save_layout_impl(home: &Home) -> Result<()> {
-    let home_toml = toml::to_string(home)?;
+    let home_ron = ron::ser::to_string_pretty(home, ron::ser::PrettyConfig::default())?;
     let temp_path = Path::new(LAYOUT_PATH).with_extension("tmp");
-    fs::write(&temp_path, home_toml)
+    fs::write(&temp_path, home_ron)
         .map_err(|e| anyhow!("Failed to write temporary layout: {}", e))?;
 
     if Path::new(LAYOUT_PATH).exists() {
@@ -61,10 +61,7 @@ pub fn save_layout_impl(home: &Home) -> Result<()> {
         let modified_time = metadata.modified()?;
         let modified_time = OffsetDateTime::from(modified_time);
         let format = format_description::parse("[year]-[month]-[day]_[hour]-[minute]-[second]")?;
-        let backup_filename = format!(
-            "backups/home_layout_{}.toml",
-            modified_time.format(&format)?
-        );
+        let backup_filename = format!("backups/home_layout_{}.ron", modified_time.format(&format)?);
 
         fs::create_dir_all("backups")?;
         fs::rename(LAYOUT_PATH, backup_filename)?;

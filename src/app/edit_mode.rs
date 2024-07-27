@@ -147,8 +147,14 @@ impl HomeFlow {
                 .max_height(500.0)
                 .open(&mut self.edit_mode.preview_edits)
                 .show(ctx, |ui| {
-                    let initial_layout = toml::to_string(&self.layout_server).unwrap();
-                    let current_layout = toml::to_string(&self.layout).unwrap();
+                    let initial_layout = ron::ser::to_string_pretty(
+                        &self.layout_server,
+                        ron::ser::PrettyConfig::default(),
+                    )
+                    .unwrap();
+                    let current_layout =
+                        ron::ser::to_string_pretty(&self.layout, ron::ser::PrettyConfig::default())
+                            .unwrap();
                     let diffs = diff::lines(&initial_layout, &current_layout);
                     egui::ScrollArea::vertical()
                         .auto_shrink(true)
