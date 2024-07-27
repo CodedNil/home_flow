@@ -8,7 +8,7 @@ use super::{
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 
-pub fn template_home() -> Home {
+pub fn default() -> Home {
     Home {
         version: LAYOUT_VERSION.to_string(),
         materials: vec![

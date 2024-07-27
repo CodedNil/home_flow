@@ -32,7 +32,7 @@ pub trait Lerp {
 
 impl Lerp for u8 {
     fn lerp(self, other: Self, t: f64) -> Self {
-        (self as f64 + (other as f64 - self as f64) * t) as Self
+        (f64::from(self) + (f64::from(other) - f64::from(self)) * t) as Self
     }
 }
 
@@ -47,7 +47,7 @@ pub fn rotate_point(point: Vec2, angle: f64) -> Vec2 {
 }
 
 pub fn rotate_point_i32(point: Vec2, angle: i32) -> Vec2 {
-    rotate_point(point, angle as f64)
+    rotate_point(point, f64::from(angle))
 }
 
 pub fn rotate_point_pivot(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
@@ -61,7 +61,7 @@ pub fn rotate_point_pivot(point: Vec2, pivot: Vec2, angle: f64) -> Vec2 {
 }
 
 pub fn rotate_point_pivot_i32(point: Vec2, pivot: Vec2, angle: i32) -> Vec2 {
-    rotate_point_pivot(point, pivot, angle as f64)
+    rotate_point_pivot(point, pivot, f64::from(angle))
 }
 
 impl Home {
@@ -282,20 +282,20 @@ impl Light {
                 let mut lights_data = Vec::new();
                 let size = room.size - multi.room_padding;
                 let spacing = if multi.cols > 1 && multi.rows > 1 {
-                    size / vec2(multi.cols as f64 - 1.0, multi.rows as f64 - 1.0)
+                    size / vec2(f64::from(multi.cols) - 1.0, f64::from(multi.rows) - 1.0)
                 } else if multi.cols > 1 {
-                    vec2(size.x / (multi.cols as f64 - 1.0), 0.0)
+                    vec2(size.x / (f64::from(multi.cols) - 1.0), 0.0)
                 } else if multi.rows > 1 {
-                    vec2(0.0, size.y / (multi.rows as f64 - 1.0))
+                    vec2(0.0, size.y / (f64::from(multi.rows) - 1.0))
                 } else {
                     Vec2::ZERO
                 };
                 for col in 0..multi.cols {
                     let x_pos =
-                        self.pos.x + (col as f64 - (multi.cols - 1) as f64 * 0.5) * spacing.x;
+                        self.pos.x + (f64::from(col) - f64::from(multi.cols - 1) * 0.5) * spacing.x;
                     for row in 0..multi.rows {
-                        let y_pos =
-                            self.pos.y + (row as f64 - (multi.rows - 1) as f64 * 0.5) * spacing.y;
+                        let y_pos = self.pos.y
+                            + (f64::from(row) - f64::from(multi.rows - 1) * 0.5) * spacing.y;
                         lights_data.push(room.pos + vec2(x_pos, y_pos));
                     }
                 }

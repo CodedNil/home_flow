@@ -127,20 +127,21 @@ impl Color {
         }
         let Self([r, g, b, a]) = self;
         Self([
-            (r as f32 * factor + 0.5) as u8,
-            (g as f32 * factor + 0.5) as u8,
-            (b as f32 * factor + 0.5) as u8,
-            (a as f32 * factor + 0.5) as u8,
+            (f32::from(r) * factor + 0.5) as u8,
+            (f32::from(g) * factor + 0.5) as u8,
+            (f32::from(b) * factor + 0.5) as u8,
+            (f32::from(a) * factor + 0.5) as u8,
         ])
     }
 
     #[inline]
     pub fn saturate(self, factor: f64) -> Self {
         let mut new_color = self.0;
-        let avg = (new_color[0] as f64 + new_color[1] as f64 + new_color[2] as f64) / 3.0;
+        let avg =
+            (f64::from(new_color[0]) + f64::from(new_color[1]) + f64::from(new_color[2])) / 3.0;
 
         for c in new_color.iter_mut().take(3) {
-            let difference = (*c as f64 - avg) * (1.0 + factor);
+            let difference = (f64::from(*c) - avg) * (1.0 + factor);
             *c = (avg + difference).clamp(0.0, 255.0) as u8;
         }
 
@@ -151,7 +152,7 @@ impl Color {
     pub fn lighten(self, factor: f64) -> Self {
         let mut new_color = self.0;
         for c in new_color.iter_mut().take(3) {
-            *c = (*c as f64 * (1.0 + factor * 2.0)).clamp(0.0, 255.0) as u8;
+            *c = (f64::from(*c) * (1.0 + factor * 2.0)).clamp(0.0, 255.0) as u8;
         }
         Self(new_color)
     }
@@ -164,9 +165,9 @@ impl Color {
 
 fn linear_f32_from_gamma_u8(s: u8) -> f32 {
     if s <= 10 {
-        s as f32 / 3294.6
+        f32::from(s) / 3294.6
     } else {
-        ((s as f32 + 14.025) / 269.025).powf(2.4)
+        ((f32::from(s) + 14.025) / 269.025).powf(2.4)
     }
 }
 
@@ -188,5 +189,5 @@ fn fast_round(r: f32) -> u8 {
 
 #[inline]
 pub fn linear_f32_from_linear_u8(a: u8) -> f32 {
-    a as f32 / 255.0
+    f32::from(a) / 255.0
 }

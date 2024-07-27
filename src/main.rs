@@ -3,11 +3,8 @@
     clippy::cast_precision_loss,
     clippy::suboptimal_flops,
     clippy::cast_sign_loss,
-    clippy::cast_lossless,
     clippy::too_many_lines,
-    clippy::cognitive_complexity,
-    clippy::module_name_repetitions,
-    clippy::similar_names
+    clippy::cognitive_complexity
 )]
 
 #[cfg(feature = "gui")]

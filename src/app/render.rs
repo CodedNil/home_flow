@@ -150,7 +150,7 @@ impl HomeFlow {
         let top_hover = furniture_sorted.last().map(|f| f.id);
 
         for furniture in &mut self.layout.furniture {
-            let target = (Some(furniture.id) == top_hover) as u8 as f64 * 2.0 - 1.0;
+            let target = f64::from(Some(furniture.id) == top_hover) * 2.0 - 1.0;
             let difference = target - furniture.hover_amount;
             if difference.abs() > f64::EPSILON {
                 furniture.hover_amount = (furniture.hover_amount
@@ -159,7 +159,7 @@ impl HomeFlow {
             }
             let rendered_data = furniture.rendered_data.as_mut().unwrap();
             for child in &mut rendered_data.children {
-                let target = (Some(child.id) == top_hover) as u8 as f64 * 2.0 - 1.0;
+                let target = f64::from(Some(child.id) == top_hover) * 2.0 - 1.0;
                 let difference = target - child.hover_amount;
                 if difference.abs() > f64::EPSILON {
                     child.hover_amount = (child.hover_amount
@@ -213,7 +213,7 @@ impl HomeFlow {
                 child.id,
                 (
                     obj.pos + rotate_point_i32(child.pos, -obj.rotation) + offset,
-                    obj.rotation as f64 + child.rotation as f64 + offset_rot,
+                    f64::from(obj.rotation) + f64::from(child.rotation) + offset_rot,
                 ),
             );
         };
@@ -243,7 +243,7 @@ impl HomeFlow {
                     let rendered_data = furniture.rendered_data.as_ref().unwrap();
                     let &(pos, rot) = furniture_adjustments
                         .get(&furniture.id)
-                        .unwrap_or(&(furniture.pos, furniture.rotation as f64));
+                        .unwrap_or(&(furniture.pos, f64::from(furniture.rotation)));
 
                     // Render shadow
                     let shadow_offset = vec2(0.01, -0.02);
@@ -279,7 +279,7 @@ impl HomeFlow {
                     let rendered_data = furniture.rendered_data.as_ref().unwrap();
                     let &(pos, rot) = furniture_adjustments
                         .get(&furniture.id)
-                        .unwrap_or(&(furniture.pos, furniture.rotation as f64));
+                        .unwrap_or(&(furniture.pos, f64::from(furniture.rotation)));
 
                     for (material, multi_triangles) in &rendered_data.triangles {
                         let texture_id = self.load_texture(material.material);
@@ -397,7 +397,7 @@ impl HomeFlow {
                     continue;
                 }
                 let mouse_distance = self.mouse_pos_world.distance(room.pos + opening.pos);
-                let target = (mouse_distance < opening.width / 2.0) as u8 as f64 * 2.0 - 1.0;
+                let target = f64::from(mouse_distance < opening.width / 2.0) * 2.0 - 1.0;
                 let difference = target - opening.open_amount;
                 if difference.abs() > f64::EPSILON {
                     // Linearly interpolate open_amount towards the target value.
@@ -420,8 +420,8 @@ impl HomeFlow {
                     OpeningType::Window => WALL_WIDTH,
                 } * self.stored.zoom) as f32;
                 let rot_dir = vec2(
-                    (-opening.rotation as f64).to_radians().cos(),
-                    (-opening.rotation as f64).to_radians().sin(),
+                    f64::from(-opening.rotation).to_radians().cos(),
+                    f64::from(-opening.rotation).to_radians().sin(),
                 );
                 let hinge_pos = room.pos + opening.pos + rot_dir * opening.width / 2.0;
                 let end_pos = room.pos + opening.pos - rot_dir * opening.width / 2.0;
@@ -525,7 +525,7 @@ impl HomeFlow {
             } else {
                 let color_off = Color32::from_rgb(200, 200, 200);
                 let color_on = Color32::from_rgb(255, 255, 50);
-                let factor = light_state as f64 / 255.0;
+                let factor = f64::from(light_state) / 255.0;
                 Color32::from_rgb(
                     color_off.r().lerp(color_on.r(), factor),
                     color_off.g().lerp(color_on.g(), factor),

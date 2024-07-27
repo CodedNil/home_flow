@@ -1,11 +1,17 @@
+mod edit_mode;
+mod edit_mode_render;
+mod edit_mode_utils;
+mod interaction;
+mod render;
+
 use self::{
     edit_mode::{EditDetails, EditResponse},
-    interaction::InteractionState,
+    interaction::IState,
 };
 use crate::{
     common::{
         layout::Home,
-        template::template_home,
+        template,
         utils::{rotate_point, rotate_point_pivot},
     },
     server::common_api::get_layout,
@@ -19,12 +25,6 @@ use glam::{dvec2 as vec2, DVec2 as Vec2};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
-
-mod edit_mode;
-mod edit_mode_render;
-mod edit_mode_utils;
-mod interaction;
-mod render;
 
 nestify::nest! {
     pub struct HomeFlow {
@@ -44,7 +44,7 @@ nestify::nest! {
         rotate_key_down: bool,
         rotate_speed: f64,
         rotate_target: f64,
-        interaction_state: InteractionState,
+        interaction_state: IState,
 
         toasts: Arc<Mutex<Toasts>>,
         edit_mode: EditDetails,
@@ -104,7 +104,7 @@ impl HomeFlow {
             rotate_key_down: false,
             rotate_speed: 0.0,
             rotate_target: rotation,
-            interaction_state: InteractionState::default(),
+            interaction_state: IState::default(),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
@@ -164,9 +164,9 @@ impl HomeFlow {
         if let Some(multi_touch) = ui.ctx().multi_touch() {
             is_multi_touch = true;
             interaction_rotated = true;
-            scroll_delta = (multi_touch.zoom_delta as f64 - 1.0) * 80.0;
+            scroll_delta = (f64::from(multi_touch.zoom_delta) - 1.0) * 80.0;
             translation_delta = egui_to_vec2(multi_touch.translation_delta) * 0.01;
-            multi_touch_rotation = multi_touch.rotation_delta as f64;
+            multi_touch_rotation = f64::from(multi_touch.rotation_delta);
         }
         if scroll_delta.abs() > 0.0 {
             let zoom_amount = scroll_delta * (self.stored.zoom / 100.0);
@@ -234,8 +234,8 @@ impl HomeFlow {
         }
         // If on github use template instead of loading from server
         if self.host.contains("github.io") {
-            self.layout = template_home();
-            self.layout_server = template_home();
+            self.layout = template::default();
+            self.layout_server = template::default();
             return;
         }
         let download_store = self.download_data.clone();
@@ -323,7 +323,7 @@ impl eframe::App for HomeFlow {
             })
             .show(ctx, |ui| {
                 self.time = ctx.input(|i| i.time);
-                self.frame_time = ui.input(|i| i.unstable_dt) as f64;
+                self.frame_time = f64::from(ui.input(|i| i.unstable_dt));
 
                 let (response, painter) =
                     ui.allocate_painter(ui.available_size(), Sense::click_and_drag());

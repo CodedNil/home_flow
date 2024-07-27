@@ -53,7 +53,7 @@ pub fn combine_lighting(
             if let Some((_, light_data)) = &light.light_data {
                 if light_data.len() == image_pixel_count {
                     lights_data.push((
-                        light.intensity * (light.state as f64 / 255.0),
+                        light.intensity * (f64::from(light.state) / 255.0),
                         light.get_points(room),
                         light_data,
                     ));
@@ -69,7 +69,8 @@ pub fn combine_lighting(
         .for_each(|(i, chunk)| {
             let x = i as u32 % image_width;
             let y = i as u32 / image_width;
-            let world = bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
+            let world =
+                bounds_min + vec2(f64::from(x) / width, 1.0 - (f64::from(y) / height)) * new_size;
 
             if !rooms.iter().any(|r| r.contains(world)) {
                 return;
@@ -77,7 +78,7 @@ pub fn combine_lighting(
 
             let mut total_light_intensity: f64 = 0.0;
             for (light_intensity, light_points, light_image) in &lights_data {
-                let light_pixel = light_image[i] as f64;
+                let light_pixel = f64::from(light_image[i]);
                 if light_pixel == 0.0 {
                     continue;
                 }
@@ -200,7 +201,8 @@ fn render_light(
     data_buffer.iter_mut().enumerate().for_each(|(i, pixel)| {
         let x = i as u32 % image_width;
         let y = i as u32 / image_width;
-        let world = bounds_min + vec2(x as f64 / width, 1.0 - (y as f64 / height)) * new_size;
+        let world =
+            bounds_min + vec2(f64::from(x) / width, 1.0 - (f64::from(y) / height)) * new_size;
 
         if !rooms_to_check.iter().any(|r| r.contains(world)) {
             return;
@@ -210,17 +212,17 @@ fn render_light(
 
         for (light_index, light_pos) in points.iter().enumerate() {
             // Do more samples the closer we are to the light
-            let dynamic_samples = ((LIGHT_SAMPLES as f64
+            let dynamic_samples = ((f64::from(LIGHT_SAMPLES)
                 * (1.0 - world.distance(*light_pos) / (light.intensity * 4.0)))
                 .round() as u8)
                 .max(1);
 
             // Get 4 positions at the corners of the pixel
             for point in [
-                vec2(x as f64 - 0.5, y as f64 - 0.5),
-                vec2(x as f64 + 0.5, y as f64 - 0.5),
-                vec2(x as f64 - 0.5, y as f64 + 0.5),
-                vec2(x as f64 + 0.5, y as f64 + 0.5),
+                vec2(f64::from(x) - 0.5, f64::from(y) - 0.5),
+                vec2(f64::from(x) + 0.5, f64::from(y) - 0.5),
+                vec2(f64::from(x) - 0.5, f64::from(y) + 0.5),
+                vec2(f64::from(x) + 0.5, f64::from(y) + 0.5),
             ] {
                 let world = bounds_min + vec2(point.x / width, 1.0 - (point.y / height)) * new_size;
                 let mut sampled_light_intensity = 0.0;
@@ -230,7 +232,7 @@ fn render_light(
                     let sample_light_position = if dynamic_samples == 1 {
                         *light_pos
                     } else {
-                        let angle = 2.0 * PI * (i as f64 / dynamic_samples as f64);
+                        let angle = 2.0 * PI * (f64::from(i) / f64::from(dynamic_samples));
                         *light_pos + vec2(light.radius * angle.cos(), light.radius * angle.sin())
                     };
 
@@ -245,7 +247,7 @@ fn render_light(
                 }
 
                 // Average the light intensity from all samples
-                total_light_intensity += sampled_light_intensity / dynamic_samples as f64 / 4.0;
+                total_light_intensity += sampled_light_intensity / f64::from(dynamic_samples) / 4.0;
                 if total_light_intensity > 1.0 {
                     total_light_intensity = 1.0;
                     break;

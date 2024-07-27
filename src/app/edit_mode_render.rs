@@ -151,8 +151,8 @@ impl HomeFlow {
                 ));
                 // Add a line along its rotation
                 let rot_dir = vec2(
-                    (opening.rotation as f64).to_radians().cos(),
-                    (opening.rotation as f64).to_radians().sin(),
+                    f64::from(opening.rotation).to_radians().cos(),
+                    f64::from(opening.rotation).to_radians().sin(),
                 ) * (opening.width / 2.0 * self.stored.zoom);
                 let start = vec2_to_egui_pos(pos - rot_dir);
                 let end = vec2_to_egui_pos(pos + rot_dir);

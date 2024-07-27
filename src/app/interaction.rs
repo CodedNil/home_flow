@@ -3,7 +3,7 @@ use crate::common::utils::Lerp;
 use egui::{pos2, Color32, Painter, Pos2, Response, Stroke};
 
 #[derive(Default)]
-pub struct InteractionState {
+pub struct IState {
     pub light_drag: Option<LightDrag>,
 }
 
@@ -52,7 +52,7 @@ impl HomeFlow {
                     if light_drag.group_name == light_hovered.name {
                         is_amended = true;
                         light_drag.last_time = self.time;
-                        light_drag.animated_state_target = target_state as f64 / 255.0;
+                        light_drag.animated_state_target = f64::from(target_state) / 255.0;
                     }
                 }
                 if !is_amended {
@@ -63,8 +63,8 @@ impl HomeFlow {
                         active: false,
                         start_time: self.time,
                         last_time: self.time,
-                        animated_state: light_hovered.state as f64 / 255.0,
-                        animated_state_target: target_state as f64 / 255.0,
+                        animated_state: f64::from(light_hovered.state) / 255.0,
+                        animated_state_target: f64::from(target_state) / 255.0,
                     });
                 }
             }
@@ -79,8 +79,8 @@ impl HomeFlow {
                     active: true,
                     start_time: self.time,
                     last_time: self.time,
-                    animated_state: light_hovered.state as f64 / 255.0,
-                    animated_state_target: light_hovered.state as f64 / 255.0,
+                    animated_state: f64::from(light_hovered.state) / 255.0,
+                    animated_state_target: f64::from(light_hovered.state) / 255.0,
                 });
             }
         }
@@ -92,15 +92,15 @@ impl HomeFlow {
         let mut should_end = false;
         if let Some(light_drag) = &mut self.interaction_state.light_drag {
             let widget_height = 150.0;
-            let start_percent = light_drag.start_state as f32 / 255.0;
+            let start_percent = f32::from(light_drag.start_state) / 255.0;
 
             if response.dragged_by(interaction_button) {
                 let vertical_distance = light_drag.start_pos.y - self.mouse_pos.y as f32;
                 let new_percent =
                     (start_percent + vertical_distance / widget_height).clamp(0.0, 1.0);
 
-                light_drag.animated_state = new_percent as f64;
-                light_drag.animated_state_target = new_percent as f64;
+                light_drag.animated_state = f64::from(new_percent);
+                light_drag.animated_state_target = f64::from(new_percent);
                 light_drag.last_time = self.time;
             } else if (light_drag.animated_state - light_drag.animated_state_target).abs()
                 > f64::EPSILON

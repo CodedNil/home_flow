@@ -359,8 +359,7 @@ impl Room {
                         new_polygons.push(intersection_polygons(&line, poly));
                     }
 
-                    let (starty, endy) = (bounds.min().y, bounds.max().y);
-                    let num_grout_y = ((endy - starty) / tile.spacing).floor() as usize;
+                    let num_grout_y = (bounds.height() / tile.spacing).floor() as usize;
                     for i in 0..num_grout_y {
                         let y_pos = (i as f64 - (num_grout_y - 1) as f64 / 2.0) * tile.spacing;
                         let line = Shape::Rectangle.polygons(
@@ -699,7 +698,8 @@ impl Shape {
                 let quality = 45;
                 (0..quality)
                     .map(|i| {
-                        let angle = (i as f64 / quality as f64) * std::f64::consts::PI * 2.0;
+                        let angle =
+                            (f64::from(i) / f64::from(quality)) * std::f64::consts::PI * 2.0;
                         (angle.cos() * 0.5, angle.sin() * 0.5)
                     })
                     .collect()
