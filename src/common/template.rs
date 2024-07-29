@@ -39,7 +39,7 @@ pub fn default() -> Home {
                 .no_wall_bottom()
                 .add_material(vec2(-0.85, 1.55), vec2(1.1, 2.0), "Wood")
                 .door(vec2(-0.85, 2.55), 0)
-                .lights_grid("Hall Downlights", 3, 1, 1.75)
+                .lights_grid_offset("Hall Downlights", 3, 1, vec2(3.0, 1.75), vec2(0.8, 0.0))
                 .light("Hall Downlights", -0.85, 1.55),
             Room::new("Lounge", vec2(-2.75, -1.4), vec2(6.1, 2.7), "Carpet")
                 .no_wall_top()
@@ -54,11 +54,9 @@ pub fn default() -> Home {
                 .lights_grid_offset("Kitchen Downlights", 2, 1, vec2(2.0, 2.0), vec2(0.1, 0.0))
                 .outline(Outline::new(0.05, Color::from_rgb(200, 170, 150))),
             Room::new("Storage1", vec2(-1.65, 2.5), vec2(1.5, 1.1), "Carpet")
-                .door(vec2(0.75, 0.0), -90)
-                .light_center("Storage1 Downlight"),
+                .door(vec2(0.75, 0.0), -90),
             Room::new("Storage2", vec2(-1.65, 1.4), vec2(1.5, 1.1), "Carpet")
-                .door(vec2(0.75, 0.0), -90)
-                .light_center("Storage2 Downlight"),
+                .door(vec2(0.75, 0.0), -90),
             Room::new("Bedroom", vec2(3.85, -0.95), vec2(3.9, 3.6), "Carpet")
                 .subtract(vec2(-1.1, 1.4), vec2(1.7, 1.0))
                 .door(vec2(-0.25, 1.35), 90)
@@ -68,18 +66,22 @@ pub fn default() -> Home {
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
                 .door(vec2(0.8, -0.85), -90)
                 .window(vec2(0.0, -1.35), 0)
-                .light("Ensuite Downlights", 0.0, -0.4),
-            Room::new("Boiler Room", vec2(1.5, -0.55), vec2(0.8, 1.0), "Carpet")
-                .door_width(vec2(0.0, 0.5), 180, 0.6)
-                .light_center("Boiler Room Downlight"),
-            Room::new("Office", vec2(4.2, 1.95), vec2(3.2, 2.2), "Carpet")
+                .light("Ensuite Downlight", 0.0, -0.4)
+                .light("Ensuite Shower Downlight", -0.4, 0.7),
+            Room::new("Boiler Room", vec2(1.5, -0.55), vec2(0.8, 1.0), "Carpet").door_width(
+                vec2(0.0, 0.5),
+                180,
+                0.6,
+            ),
+            Room::new("Spare Room", vec2(4.2, 1.95), vec2(3.2, 2.2), "Carpet")
                 .subtract(vec2(-1.1, -1.4), vec2(1.0, 1.0))
                 .door(vec2(-1.1, -0.9), 180)
                 .window(vec2(1.6, 0.0), -90)
                 .lights_grid_offset("Office Downlights", 2, 1, vec2(1.75, 1.75), vec2(0.0, -0.1)),
             Room::new("Bathroom", vec2(1.4, 2.05), vec2(2.4, 2.0), "GraniteTiles")
                 .door(vec2(0.7, -1.0), 180)
-                .light_center("Bathroom Downlight"),
+                .light_center("Bathroom Downlight")
+                .light("Bathroom Shower Downlight", 0.85, 0.55),
         ],
         furniture: vec![
             // Kitchen counters
