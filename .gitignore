@@ -1,5 +1,5 @@
 /target
 /dist
 home_layout.ron
-config.ron
+.env
 /backups

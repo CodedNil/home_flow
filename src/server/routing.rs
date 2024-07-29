@@ -7,40 +7,18 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use home_assistant_rest::{get::StateEnum, Client as HomeAssistantClient};
-use serde::{Deserialize, Serialize};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use serde::Deserialize;
+use std::env;
 use std::{collections::HashMap, fs, path::Path};
 use time::{format_description, OffsetDateTime};
 
 const LAYOUT_PATH: &str = "home_layout.ron";
 
-#[derive(Deserialize, Serialize)]
-struct Config {
-    pub home_assistant_url: String,
-    pub home_assistant_token: String,
-}
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            home_assistant_url: "http://localhost:8123".to_string(),
-            home_assistant_token: "Long-Lived Access Token".to_string(),
-        }
-    }
-}
-
-fn get_config() -> Config {
-    std::fs::read_to_string("config.ron").map_or_else(
-        |_| {
-            let config = Config::default();
-            std::fs::write(
-                "config.ron",
-                ron::ser::to_string_pretty(&config, ron::ser::PrettyConfig::default()).unwrap(),
-            )
-            .unwrap();
-            config
-        },
-        |contents| ron::from_str::<Config>(&contents).unwrap_or_else(|_| Config::default()),
-    )
+pub fn get_env_variable(key: &str) -> String {
+    env::var(key).unwrap_or_else(|_| {
+        panic!("Environment variable {key} is not set or contains invalid data.")
+    })
 }
 
 pub fn setup_routes(app: Router) -> Router {
@@ -78,10 +56,16 @@ async fn save_layout_server(body: axum::body::Bytes) -> impl IntoResponse {
 }
 
 async fn get_states_server() -> impl IntoResponse {
-    match bincode::serialize(&get_states_impl().await) {
-        Ok(serialised) => (StatusCode::OK, serialised),
+    match get_states_impl().await {
+        Ok(states) => match bincode::serialize(&states) {
+            Ok(serialized) => (StatusCode::OK, serialized),
+            Err(e) => {
+                log::error!("Failed to serialize states: {:?}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
+            }
+        },
         Err(e) => {
-            log::error!("Failed to serialise states: {:?}", e);
+            log::error!("Failed to get states: {:?}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
         }
     }
@@ -131,25 +115,34 @@ fn save_layout_impl(home: &Home) -> Result<()> {
     Ok(())
 }
 
-async fn get_states_impl() -> StatesPacket {
-    let config = get_config();
-    let home_assistant =
-        HomeAssistantClient::new(&config.home_assistant_url, &config.home_assistant_token).unwrap();
+#[derive(Debug, Deserialize)]
+struct HassState {
+    entity_id: String,
+    state: String,
+    _last_changed: String,
+    _attributes: HashMap<String, serde_json::Value>,
+}
 
-    let states_raw = home_assistant.get_states().await.unwrap_or_default();
+async fn get_states_impl() -> Result<StatesPacket> {
+    let client = reqwest::Client::new();
+    let states_raw = client
+        .get(&format!("{}/api/states", get_env_variable("HASS_URL")))
+        .header(
+            AUTHORIZATION,
+            format!("Bearer {}", get_env_variable("HASS_TOKEN")),
+        )
+        .header(CONTENT_TYPE, "application/json")
+        .send()
+        .await?
+        .json::<Vec<HassState>>()
+        .await?;
 
     let mut light_states = Vec::new();
     for state_raw in &states_raw {
         if state_raw.entity_id.starts_with("light.") {
-            let state_value = match state_raw.state {
-                Some(StateEnum::Boolean(x)) => u8::from(x) * 255,
-                Some(StateEnum::Decimal(x)) => x.round() as u8,
-                Some(StateEnum::Integer(x)) => x as u8,
-                Some(StateEnum::String(ref x)) => match x.as_str() {
-                    "on" => 255,
-                    _ => 0,
-                },
-                None => 0,
+            let state_value = match state_raw.state.as_str() {
+                "on" => 255,
+                _ => 0,
             };
 
             let state = LightPacket {
@@ -159,27 +152,34 @@ async fn get_states_impl() -> StatesPacket {
             light_states.push(state);
         }
     }
-    StatesPacket {
+
+    Ok(StatesPacket {
         lights: light_states,
-    }
+    })
 }
 
 async fn post_state_impl(params: Vec<PostStatesPacket>) -> Result<()> {
-    let config = get_config();
-    let home_assistant =
-        HomeAssistantClient::new(&config.home_assistant_url, &config.home_assistant_token).unwrap();
+    let client = reqwest::Client::new();
     let mut errors = Vec::new();
 
     // Convert params to the format required by the Home Assistant API
     for param in params {
-        if let Err(e) = home_assistant
-            .post_states(home_assistant_rest::post::StateParams {
-                entity_id: param.entity_id,
-                state: param.state,
-                attributes: HashMap::new(),
-            })
-            .await
-        {
+        let response = client
+            .post(&format!(
+                "{}/api/states/{}",
+                &get_env_variable("HASS_URL"),
+                param.entity_id
+            ))
+            .header(
+                AUTHORIZATION,
+                format!("Bearer {}", get_env_variable("HASS_TOKEN")),
+            )
+            .header(CONTENT_TYPE, "application/json")
+            .json(&param)
+            .send()
+            .await;
+
+        if let Err(e) = response {
             errors.push(anyhow!("Failed to post state: {}", e));
         }
     }

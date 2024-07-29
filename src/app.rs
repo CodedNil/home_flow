@@ -30,6 +30,7 @@ use std::{collections::HashMap, sync::Arc};
 
 static HOME_ASSISTANT_STATE_REFRESH: f64 = 1.0;
 static HOME_ASSISTANT_STATE_LOCAL_OVERRIDE: f64 = 5.0;
+static HOME_ASSISTANT_STATE_POST_EVERY: f64 = 0.1;
 
 nestify::nest! {
     pub struct HomeFlow {
@@ -82,6 +83,7 @@ nestify::nest! {
             hass_post: enum UploadStates {
                 #[default]
                 None,
+                Waiting(f64),
                 InProgress,
             },
         }>>,
@@ -314,8 +316,8 @@ impl HomeFlow {
                         for light in &mut room.lights {
                             // Update light if it hasn't been locally edited recently
                             if light.last_manual == 0.0
-                                || light.last_manual
-                                    < self.time + HOME_ASSISTANT_STATE_LOCAL_OVERRIDE
+                                || self.time
+                                    > light.last_manual + HOME_ASSISTANT_STATE_LOCAL_OVERRIDE
                             {
                                 for light_packet in &states.lights {
                                     if light.entity_id == light_packet.entity_id {
@@ -344,10 +346,17 @@ impl HomeFlow {
             UploadStates::None => {
                 download_data_guard.hass_post = UploadStates::InProgress;
                 drop(download_data_guard);
+                let next_post = self.time;
                 post_state(&self.host, &self.post_queue, move |_| {
-                    download_store.lock().hass_post = UploadStates::None;
+                    download_store.lock().hass_post =
+                        UploadStates::Waiting(next_post + HOME_ASSISTANT_STATE_POST_EVERY);
                 });
                 self.post_queue.clear();
+            }
+            UploadStates::Waiting(time) => {
+                if self.time > *time {
+                    download_data_guard.hass_post = UploadStates::None;
+                }
             }
             UploadStates::InProgress => {}
         }

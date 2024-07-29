@@ -117,19 +117,14 @@ impl HomeFlow {
                 > f64::EPSILON
             {
                 // Move state towards target
-                if matches!(light_drag.light_type, LightType::Binary) {
-                    light_drag.animated_state = if light_drag.animated_state_target > 0.5 {
-                        1.0
+                let diff = (light_drag.animated_state_target - light_drag.animated_state).signum()
+                    * self.frame_time
+                    * if matches!(light_drag.light_type, LightType::Binary) {
+                        8.0
                     } else {
-                        0.0
+                        3.0
                     };
-                }
-                {
-                    let diff =
-                        (light_drag.animated_state_target - light_drag.animated_state).signum();
-                    light_drag.animated_state =
-                        (light_drag.animated_state + diff * self.frame_time * 3.0).clamp(0.0, 1.0);
-                }
+                light_drag.animated_state = (light_drag.animated_state + diff).clamp(0.0, 1.0);
                 light_drag.last_time = self.time;
             }
             if self.time - light_drag.last_time > POPUP_FADE_TIME {
