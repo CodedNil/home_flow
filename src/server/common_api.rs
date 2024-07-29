@@ -1,6 +1,6 @@
+use super::{PostStatesPacket, StatesPacket};
 use crate::common::layout::Home;
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 
 pub fn get_layout(host: &str, on_done: impl 'static + Send + FnOnce(Result<Home>)) {
     ehttp::fetch(
@@ -27,17 +27,6 @@ pub fn save_layout(host: &str, home: &Home, on_done: impl 'static + Send + FnOnc
     );
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
-pub struct StatesPacket {
-    pub lights: Vec<LightPacket>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct LightPacket {
-    pub entity_id: String,
-    pub state: u8,
-}
-
 pub fn get_states(host: &str, on_done: impl 'static + Send + FnOnce(Result<StatesPacket>)) {
     ehttp::fetch(
         ehttp::Request::get(&format!("http://{host}/get_states")),
@@ -47,6 +36,22 @@ pub fn get_states(host: &str, on_done: impl 'static + Send + FnOnce(Result<State
                     .map_err(|e| anyhow::anyhow!("Failed to load states: {}", e)),
                 Err(e) => Err(anyhow::anyhow!("Failed to load states: {}", e)),
             });
+        }),
+    );
+}
+
+pub fn post_state(
+    host: &str,
+    packets: &Vec<PostStatesPacket>,
+    on_done: impl 'static + Send + FnOnce(Result<()>),
+) {
+    ehttp::fetch(
+        ehttp::Request::post(
+            &format!("http://{host}/post_state"),
+            bincode::serialize(packets).unwrap(),
+        ),
+        Box::new(move |_| {
+            on_done(Ok(()));
         }),
     );
 }

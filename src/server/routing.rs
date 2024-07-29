@@ -1,4 +1,4 @@
-use super::common_api::{LightPacket, StatesPacket};
+use super::{LightPacket, PostStatesPacket, StatesPacket};
 use crate::common::{layout::Home, template};
 use anyhow::{anyhow, Result};
 use axum::{
@@ -9,7 +9,7 @@ use axum::{
 };
 use home_assistant_rest::{get::StateEnum, Client as HomeAssistantClient};
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 use time::{format_description, OffsetDateTime};
 
 const LAYOUT_PATH: &str = "home_layout.ron";
@@ -47,6 +47,7 @@ pub fn setup_routes(app: Router) -> Router {
     app.route("/load_layout", get(load_layout_server))
         .route("/save_layout", post(save_layout_server))
         .route("/get_states", get(get_states_server))
+        .route("/post_state", post(post_state_server))
 }
 
 async fn load_layout_server() -> impl IntoResponse {
@@ -86,14 +87,30 @@ async fn get_states_server() -> impl IntoResponse {
     }
 }
 
-pub fn load_layout_impl() -> Home {
+async fn post_state_server(body: axum::body::Bytes) -> impl IntoResponse {
+    match bincode::deserialize(&body) {
+        Ok(params) => match post_state_impl(params).await {
+            Ok(()) => StatusCode::OK.into_response(),
+            Err(e) => {
+                log::error!("Failed to post state: {:?}", e);
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        },
+        Err(e) => {
+            log::error!("Failed to deserialise state: {:?}", e);
+            StatusCode::BAD_REQUEST.into_response()
+        }
+    }
+}
+
+fn load_layout_impl() -> Home {
     fs::read_to_string(LAYOUT_PATH).map_or_else(
         |_| template::default(),
         |contents| ron::from_str::<Home>(&contents).unwrap_or_else(|_| template::default()),
     )
 }
 
-pub fn save_layout_impl(home: &Home) -> Result<()> {
+fn save_layout_impl(home: &Home) -> Result<()> {
     let home_ron = ron::ser::to_string_pretty(home, ron::ser::PrettyConfig::default())?;
     let temp_path = Path::new(LAYOUT_PATH).with_extension("tmp");
     fs::write(&temp_path, home_ron)
@@ -114,7 +131,7 @@ pub fn save_layout_impl(home: &Home) -> Result<()> {
     Ok(())
 }
 
-pub async fn get_states_impl() -> StatesPacket {
+async fn get_states_impl() -> StatesPacket {
     let config = get_config();
     let home_assistant =
         HomeAssistantClient::new(&config.home_assistant_url, &config.home_assistant_token).unwrap();
@@ -144,5 +161,35 @@ pub async fn get_states_impl() -> StatesPacket {
     }
     StatesPacket {
         lights: light_states,
+    }
+}
+
+async fn post_state_impl(params: Vec<PostStatesPacket>) -> Result<()> {
+    let config = get_config();
+    let home_assistant =
+        HomeAssistantClient::new(&config.home_assistant_url, &config.home_assistant_token).unwrap();
+    let mut errors = Vec::new();
+
+    // Convert params to the format required by the Home Assistant API
+    for param in params {
+        if let Err(e) = home_assistant
+            .post_states(home_assistant_rest::post::StateParams {
+                entity_id: param.entity_id,
+                state: param.state,
+                attributes: HashMap::new(),
+            })
+            .await
+        {
+            errors.push(anyhow!("Failed to post state: {}", e));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "Errors occurred while posting states: {:?}",
+            errors
+        ))
     }
 }

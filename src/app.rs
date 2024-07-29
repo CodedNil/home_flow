@@ -13,7 +13,10 @@ use crate::{
         layout::Home,
         utils::{rotate_point, rotate_point_pivot},
     },
-    server::common_api::{get_layout, get_states, StatesPacket},
+    server::{
+        common_api::{get_layout, get_states, post_state},
+        PostStatesPacket, StatesPacket,
+    },
 };
 use anyhow::Result;
 use egui::{
@@ -26,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
 static HOME_ASSISTANT_STATE_REFRESH: f64 = 1.0;
+static HOME_ASSISTANT_STATE_LOCAL_OVERRIDE: f64 = 5.0;
 
 nestify::nest! {
     pub struct HomeFlow {
@@ -61,7 +65,7 @@ nestify::nest! {
         },
 
         #>[derive(Default)]*
-        download_data: Arc<Mutex<struct DownloadData {
+        network_data: Arc<Mutex<struct DownloadData {
             layout: enum DownloadLayout {
                 #[default]
                 None,
@@ -75,9 +79,14 @@ nestify::nest! {
                 InProgress,
                 Done(Result<StatesPacket>),
             },
+            hass_post: enum UploadStates {
+                #[default]
+                None,
+                InProgress,
+            },
         }>>,
 
-
+        post_queue: Vec<PostStatesPacket>,
     }
 }
 
@@ -121,7 +130,8 @@ impl HomeFlow {
             frame_times: History::new(0..300, 1.0),
             host: "localhost:8127".to_string(),
             stored: StoredData { rotation, ..stored },
-            download_data: Arc::new(Mutex::new(DownloadData::default())),
+            network_data: Arc::new(Mutex::new(DownloadData::default())),
+            post_queue: Vec::new(),
         }
     }
 
@@ -242,7 +252,7 @@ impl HomeFlow {
         if !self.layout.version.is_empty() {
             return;
         }
-        let download_store = self.download_data.clone();
+        let download_store = self.network_data.clone();
         let mut download_data_guard = download_store.lock();
         match &download_data_guard.layout {
             DownloadLayout::None => {
@@ -281,7 +291,7 @@ impl HomeFlow {
     }
 
     fn get_states(&mut self) {
-        let download_store = self.download_data.clone();
+        let download_store = self.network_data.clone();
         let mut download_data_guard = download_store.lock();
         match &download_data_guard.hass_states {
             DownloadStates::None => {
@@ -303,7 +313,10 @@ impl HomeFlow {
                     for room in &mut self.layout.rooms {
                         for light in &mut room.lights {
                             // Update light if it hasn't been locally edited recently
-                            if light.last_manual == 0.0 || light.last_manual < self.time + 2.0 {
+                            if light.last_manual == 0.0
+                                || light.last_manual
+                                    < self.time + HOME_ASSISTANT_STATE_LOCAL_OVERRIDE
+                            {
                                 for light_packet in &states.lights {
                                     if light.entity_id == light_packet.entity_id {
                                         light.state = light_packet.state;
@@ -318,6 +331,25 @@ impl HomeFlow {
                 download_data_guard.hass_states =
                     DownloadStates::Waiting(self.time + HOME_ASSISTANT_STATE_REFRESH);
             }
+        }
+    }
+
+    fn post_states(&mut self) {
+        if self.post_queue.is_empty() {
+            return;
+        }
+        let download_store = self.network_data.clone();
+        let mut download_data_guard = download_store.lock();
+        match &download_data_guard.hass_post {
+            UploadStates::None => {
+                download_data_guard.hass_post = UploadStates::InProgress;
+                drop(download_data_guard);
+                post_state(&self.host, &self.post_queue, move |_| {
+                    download_store.lock().hass_post = UploadStates::None;
+                });
+                self.post_queue.clear();
+            }
+            UploadStates::InProgress => {}
         }
     }
 }
@@ -361,6 +393,7 @@ impl eframe::App for HomeFlow {
 
         self.load_layout(ctx);
         self.get_states();
+        self.post_states();
 
         CentralPanel::default()
             .frame(Frame {

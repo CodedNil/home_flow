@@ -1,5 +1,8 @@
 use super::HomeFlow;
-use crate::common::{layout::LightType, utils::Lerp};
+use crate::{
+    common::{layout::LightType, utils::Lerp},
+    server::PostStatesPacket,
+};
 use egui::{pos2, Color32, Painter, Pos2, Response, Stroke};
 
 #[derive(Default)]
@@ -114,10 +117,19 @@ impl HomeFlow {
                 > f64::EPSILON
             {
                 // Move state towards target
-                let diff = (light_drag.animated_state_target - light_drag.animated_state).signum();
-                let new_state =
-                    (light_drag.animated_state + diff * self.frame_time * 3.0).clamp(0.0, 1.0);
-                light_drag.animated_state = new_state;
+                if matches!(light_drag.light_type, LightType::Binary) {
+                    light_drag.animated_state = if light_drag.animated_state_target > 0.5 {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                }
+                {
+                    let diff =
+                        (light_drag.animated_state_target - light_drag.animated_state).signum();
+                    light_drag.animated_state =
+                        (light_drag.animated_state + diff * self.frame_time * 3.0).clamp(0.0, 1.0);
+                }
                 light_drag.last_time = self.time;
             }
             if self.time - light_drag.last_time > POPUP_FADE_TIME {
@@ -137,6 +149,13 @@ impl HomeFlow {
                     if light.entity_id == light_drag.group_id {
                         light.state = new_state;
                         light.last_manual = self.time;
+
+                        // Remove existing post packets for this light, and add a new one
+                        self.post_queue.retain(|x| x.entity_id != light.entity_id);
+                        self.post_queue.push(PostStatesPacket {
+                            entity_id: format!("light.{}", light.entity_id),
+                            state: if new_state > 150 { "on" } else { "off" }.to_string(),
+                        });
                     }
                 }
             }
