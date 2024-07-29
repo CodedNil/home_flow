@@ -10,9 +10,8 @@
 #[cfg(feature = "gui")]
 mod app;
 
-mod server;
-
 mod common;
+mod server;
 
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
@@ -23,13 +22,13 @@ async fn main() {
         .unwrap();
 
     // Set up router
-    let app = axum::Router::new()
-        .nest_service("/", tower_http::services::ServeDir::new("dist"))
-        .layer(tower_http::compression::CompressionLayer::new());
+    let app = server::routing::setup_routes(
+        axum::Router::new()
+            .nest_service("/", tower_http::services::ServeDir::new("dist"))
+            .layer(tower_http::compression::CompressionLayer::new()),
+    );
 
-    let app = server::routing::setup_routes(app);
-
-    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8127));
     println!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     #[cfg(not(feature = "gui"))]

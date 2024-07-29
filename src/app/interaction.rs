@@ -1,5 +1,5 @@
 use super::HomeFlow;
-use crate::common::utils::Lerp;
+use crate::common::{layout::LightType, utils::Lerp};
 use egui::{pos2, Color32, Painter, Pos2, Response, Stroke};
 
 #[derive(Default)]
@@ -8,9 +8,10 @@ pub struct IState {
 }
 
 pub struct LightDrag {
-    pub group_name: String,
+    pub group_id: String,
     pub start_state: u8,
     pub start_pos: Pos2,
+    pub light_type: LightType,
 
     pub active: bool,
     pub start_time: f64,
@@ -49,7 +50,7 @@ impl HomeFlow {
                 let target_state = if light_hovered.state < 130 { 255 } else { 0 };
                 let mut is_amended = false;
                 if let Some(light_drag) = &mut self.interaction_state.light_drag {
-                    if light_drag.group_name == light_hovered.name {
+                    if light_drag.group_id == light_hovered.entity_id {
                         is_amended = true;
                         light_drag.last_time = self.time;
                         light_drag.animated_state_target = f64::from(target_state) / 255.0;
@@ -57,9 +58,10 @@ impl HomeFlow {
                 }
                 if !is_amended {
                     self.interaction_state.light_drag = Some(LightDrag {
-                        group_name: light_hovered.name.clone(),
+                        group_id: light_hovered.entity_id.clone(),
                         start_state: light_hovered.state,
                         start_pos: self.world_to_screen_pos(light_hovered.pos),
+                        light_type: light_hovered.light_type.clone(),
                         active: false,
                         start_time: self.time,
                         last_time: self.time,
@@ -73,9 +75,10 @@ impl HomeFlow {
         if response.drag_started_by(interaction_button) {
             if let Some(light_hovered) = &light_hovered {
                 self.interaction_state.light_drag = Some(LightDrag {
-                    group_name: light_hovered.name.clone(),
+                    group_id: light_hovered.entity_id.clone(),
                     start_state: light_hovered.state,
                     start_pos: self.world_to_screen_pos(light_hovered.pos),
+                    light_type: light_hovered.light_type.clone(),
                     active: true,
                     start_time: self.time,
                     last_time: self.time,
@@ -99,16 +102,22 @@ impl HomeFlow {
                 let new_percent =
                     (start_percent + vertical_distance / widget_height).clamp(0.0, 1.0);
 
-                light_drag.animated_state = f64::from(new_percent);
-                light_drag.animated_state_target = f64::from(new_percent);
+                if matches!(light_drag.light_type, LightType::Binary) {
+                    light_drag.animated_state = if new_percent > 0.5 { 1.0 } else { 0.0 };
+                    light_drag.animated_state_target = if new_percent > 0.5 { 1.0 } else { 0.0 };
+                } else {
+                    light_drag.animated_state = f64::from(new_percent);
+                    light_drag.animated_state_target = f64::from(new_percent);
+                }
                 light_drag.last_time = self.time;
             } else if (light_drag.animated_state - light_drag.animated_state_target).abs()
                 > f64::EPSILON
             {
                 // Move state towards target
                 let diff = (light_drag.animated_state_target - light_drag.animated_state).signum();
-                light_drag.animated_state =
+                let new_state =
                     (light_drag.animated_state + diff * self.frame_time * 3.0).clamp(0.0, 1.0);
+                light_drag.animated_state = new_state;
                 light_drag.last_time = self.time;
             }
             if self.time - light_drag.last_time > POPUP_FADE_TIME {
@@ -125,8 +134,9 @@ impl HomeFlow {
             let new_state = (light_drag.animated_state * 255.0) as u8;
             for room in &mut self.layout.rooms {
                 for light in &mut room.lights {
-                    if light.name == light_drag.group_name {
+                    if light.entity_id == light_drag.group_id {
                         light.state = new_state;
+                        light.last_manual = self.time;
                     }
                 }
             }

@@ -86,6 +86,11 @@ nestify::nest! {
             pub lights: Vec<pub struct Light {
                 pub id: Uuid,
                 pub name: String,
+                pub entity_id: String,
+                pub light_type: pub enum LightType {
+                    Dimmable,
+                    Binary,
+                },
                 pub pos: Vec2,
                 pub multi: Option<pub struct MultiLight {
                     pub room_padding: Vec2,
@@ -99,6 +104,8 @@ nestify::nest! {
                 pub state: u8,
                 #[serde(skip)]
                 pub light_data: Option<LightsData>,
+                #[serde(skip)]
+                pub last_manual: f64,
             }>,
 
             pub outline: Option<pub struct Outline {

@@ -1,8 +1,8 @@
 use super::{
     color::Color,
     layout::{
-        Action, GlobalMaterial, Home, Light, MultiLight, Opening, OpeningType, Operation, Outline,
-        Room, Shape, TileOptions, Walls,
+        Action, GlobalMaterial, Home, Light, LightType, MultiLight, Opening, OpeningType,
+        Operation, Outline, Room, Shape, TileOptions, Walls,
     },
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -157,6 +157,33 @@ impl Room {
         self
     }
 
+    pub fn light_full(
+        mut self,
+        name: &str,
+        x: f64,
+        y: f64,
+        light_type: LightType,
+        intensity: f64,
+        radius: f64,
+    ) -> Self {
+        self.lights.push({
+            Light {
+                id: Uuid::new_v4(),
+                name: name.to_owned(),
+                entity_id: name.to_lowercase().replace(' ', "_"),
+                light_type,
+                pos: vec2(x, y),
+                multi: None,
+                intensity,
+                radius,
+                state: 255,
+                light_data: None,
+                last_manual: 0.0,
+            }
+        });
+        self
+    }
+
     pub fn lights_grid_offset(
         mut self,
         name: &str,
@@ -249,12 +276,15 @@ impl Light {
         Self {
             id: Uuid::new_v4(),
             name: name.to_owned(),
+            entity_id: name.to_lowercase().replace(' ', "_"),
+            light_type: LightType::Dimmable,
             pos,
             multi: None,
             intensity: 2.0,
             radius: 0.025,
             state: 255,
             light_data: None,
+            last_manual: 0.0,
         }
     }
 
@@ -262,6 +292,8 @@ impl Light {
         Self {
             id: Uuid::new_v4(),
             name: name.to_owned(),
+            entity_id: name.to_lowercase().replace(' ', "_"),
+            light_type: LightType::Dimmable,
             pos,
             multi: Some(MultiLight {
                 room_padding,
@@ -272,6 +304,7 @@ impl Light {
             radius: 0.025,
             state: 255,
             light_data: None,
+            last_manual: 0.0,
         }
     }
 

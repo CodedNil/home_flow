@@ -3,7 +3,7 @@ use super::{
     furniture::{
         BathroomType, Furniture, FurnitureType, KitchenType, MiscHeight, StorageType, TableType,
     },
-    layout::{GlobalMaterial, Home, Outline, Room, LAYOUT_VERSION},
+    layout::{GlobalMaterial, Home, LightType, Outline, Room, LAYOUT_VERSION},
     utils::Material,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -63,7 +63,8 @@ pub fn default() -> Home {
                 .subtract(vec2(-1.1, 1.4), vec2(1.7, 1.0))
                 .door(vec2(-0.25, 1.35), 90)
                 .window(vec2(0.0, -1.8), 0)
-                .lights_grid_offset("Bedroom Downlights", 2, 2, vec2(2.0, 2.5), vec2(0.0, -0.4)),
+                .lights_grid_offset("Bedroom Downlights", 2, 2, vec2(2.0, 2.5), vec2(0.0, -0.4))
+                .light_full("Bedside Light", 1.65, -1.45, LightType::Binary, 1.0, 0.025),
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
                 .door(vec2(0.8, -0.85), -90)
                 .window(vec2(0.0, -1.35), 0)

@@ -11,10 +11,9 @@ use self::{
 use crate::{
     common::{
         layout::Home,
-        template,
         utils::{rotate_point, rotate_point_pivot},
     },
-    server::common_api::get_layout,
+    server::common_api::{get_layout, get_states, StatesPacket},
 };
 use anyhow::Result;
 use egui::{
@@ -25,6 +24,8 @@ use glam::{dvec2 as vec2, DVec2 as Vec2};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
+
+static HOME_ASSISTANT_STATE_REFRESH: f64 = 1.0;
 
 nestify::nest! {
     pub struct HomeFlow {
@@ -67,7 +68,16 @@ nestify::nest! {
                 InProgress,
                 Done(Result<Home>),
             },
+            hass_states: enum DownloadStates {
+                #[default]
+                None,
+                Waiting(f64),
+                InProgress,
+                Done(Result<StatesPacket>),
+            },
         }>>,
+
+
     }
 }
 
@@ -109,7 +119,7 @@ impl HomeFlow {
             toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
             frame_times: History::new(0..300, 1.0),
-            host: "localhost:3000".to_string(),
+            host: "localhost:8127".to_string(),
             stored: StoredData { rotation, ..stored },
             download_data: Arc::new(Mutex::new(DownloadData::default())),
         }
@@ -232,12 +242,6 @@ impl HomeFlow {
         if !self.layout.version.is_empty() {
             return;
         }
-        // If on github use template instead of loading from server
-        if self.host.contains("github.io") {
-            self.layout = template::default();
-            self.layout_server = template::default();
-            return;
-        }
         let download_store = self.download_data.clone();
         let mut download_data_guard = download_store.lock();
         match &download_data_guard.layout {
@@ -272,6 +276,47 @@ impl HomeFlow {
                     log::error!("Failed to fetch or parse layout from server");
                 }
                 download_data_guard.layout = DownloadLayout::None;
+            }
+        }
+    }
+
+    fn get_states(&mut self) {
+        let download_store = self.download_data.clone();
+        let mut download_data_guard = download_store.lock();
+        match &download_data_guard.hass_states {
+            DownloadStates::None => {
+                download_data_guard.hass_states = DownloadStates::InProgress;
+                drop(download_data_guard);
+                get_states(&self.host, move |res| {
+                    download_store.lock().hass_states = DownloadStates::Done(res);
+                });
+            }
+            DownloadStates::Waiting(time) => {
+                if self.time > *time {
+                    download_data_guard.hass_states = DownloadStates::None;
+                }
+            }
+            DownloadStates::InProgress => {}
+            DownloadStates::Done(ref response) => {
+                if let Ok(states) = response {
+                    // Update all data with the new state
+                    for room in &mut self.layout.rooms {
+                        for light in &mut room.lights {
+                            // Update light if it hasn't been locally edited recently
+                            if light.last_manual == 0.0 || light.last_manual < self.time + 2.0 {
+                                for light_packet in &states.lights {
+                                    if light.entity_id == light_packet.entity_id {
+                                        light.state = light_packet.state;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    log::error!("Failed to fetch or parse states from server");
+                }
+                download_data_guard.hass_states =
+                    DownloadStates::Waiting(self.time + HOME_ASSISTANT_STATE_REFRESH);
             }
         }
     }
@@ -315,6 +360,7 @@ impl eframe::App for HomeFlow {
         });
 
         self.load_layout(ctx);
+        self.get_states();
 
         CentralPanel::default()
             .frame(Frame {
