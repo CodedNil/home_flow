@@ -15,10 +15,16 @@ use time::{format_description, OffsetDateTime};
 
 const LAYOUT_PATH: &str = "home_layout.ron";
 
-pub fn get_env_variable(key: &str) -> String {
-    env::var(key).unwrap_or_else(|_| {
-        panic!("Environment variable {key} is not set or contains invalid data.")
-    })
+fn get_env_variable(key: &str) -> String {
+    match env::var(key) {
+        Ok(value) => value,
+        Err(e) => match e {
+            env::VarError::NotPresent => panic!("Environment variable {key} not found."),
+            env::VarError::NotUnicode(oss) => {
+                panic!("Environment variable {key} contains invalid data: {oss:?}")
+            }
+        },
+    }
 }
 
 pub fn setup_routes(app: Router) -> Router {
@@ -115,12 +121,13 @@ fn save_layout_impl(home: &Home) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct HassState {
     entity_id: String,
     state: String,
-    _last_changed: String,
-    _attributes: HashMap<String, serde_json::Value>,
+    last_changed: String,
+    attributes: HashMap<String, serde_json::Value>,
 }
 
 async fn get_states_impl() -> Result<StatesPacket> {
