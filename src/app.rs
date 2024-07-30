@@ -366,7 +366,7 @@ impl eframe::App for HomeFlow {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
         ctx.request_repaint();
 
         #[cfg(target_arch = "wasm32")]
