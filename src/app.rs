@@ -19,9 +19,7 @@ use crate::{
     },
 };
 use anyhow::Result;
-use egui::{
-    util::History, Align2, CentralPanel, Color32, Context, Frame, Sense, TextureHandle, Window,
-};
+use egui::{Align2, CentralPanel, Color32, Context, Frame, Sense, TextureHandle, Window};
 use egui_notify::Toasts;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use parking_lot::Mutex;
@@ -54,7 +52,6 @@ nestify::nest! {
 
         toasts: Arc<Mutex<Toasts>>,
         edit_mode: EditDetails,
-        frame_times: History<f32>,
         host: String,
 
         #>[derive(Deserialize, Serialize)]
@@ -129,7 +126,6 @@ impl HomeFlow {
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
-            frame_times: History::new(0..300, 1.0),
             host: "localhost:8127".to_string(),
             stored: StoredData { rotation, ..stored },
             network_data: Arc::new(Mutex::new(DownloadData::default())),
@@ -370,24 +366,8 @@ impl eframe::App for HomeFlow {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
-        let previous_frame_time = frame.info().cpu_usage.unwrap_or_default();
-        if let Some(latest) = self.frame_times.latest_mut() {
-            *latest = previous_frame_time; // rewrite history now that we know
-        }
-        self.frame_times
-            .add(ctx.input(|i| i.time), previous_frame_time); // projected
-        let fps = 1.0 / self.frame_times.mean_time_interval().unwrap_or_default();
-        Window::new("Performance")
-            .fixed_pos(egui::pos2(20.0, 20.0))
-            .pivot(Align2::LEFT_TOP)
-            .title_bar(false)
-            .resizable(false)
-            .interactable(false)
-            .show(ctx, |ui| {
-                ui.label(format!("FPS: {fps:.2}"));
-            });
 
         #[cfg(target_arch = "wasm32")]
         {
