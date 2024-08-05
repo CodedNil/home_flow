@@ -1,6 +1,6 @@
 use super::{
     color::Color,
-    furniture::Furniture,
+    furniture::{self, Furniture, FurnitureType},
     layout::{
         Action, GlobalMaterial, Home, Light, LightType, MultiLight, Opening, OpeningType,
         Operation, Outline, Room, Shape, TileOptions, Walls,
@@ -206,7 +206,43 @@ impl Room {
     }
 
     pub fn furniture(mut self, furniture: Vec<Furniture>) -> Self {
-        self.furniture = furniture;
+        self.furniture.extend(furniture);
+        self
+    }
+
+    pub fn furniture_bulk(
+        mut self,
+        _: &str,
+        furniture_type: FurnitureType,
+        render_order: furniture::RenderOrder,
+        locations: Vec<(Vec2, Vec2, i32)>,
+    ) -> Self {
+        for (pos, size, rotation) in locations {
+            self.furniture.push(Furniture::new_ordered(
+                furniture_type,
+                render_order,
+                pos,
+                size,
+                rotation,
+            ));
+        }
+        self
+    }
+
+    pub fn furniture_bulk_material(
+        mut self,
+        _: &str,
+        furniture_type: FurnitureType,
+        render_order: furniture::RenderOrder,
+        material: &str,
+        locations: Vec<(Vec2, Vec2, i32)>,
+    ) -> Self {
+        for (pos, size, rotation) in locations {
+            self.furniture.push(
+                Furniture::new_ordered(furniture_type, render_order, pos, size, rotation)
+                    .material(material),
+            );
+        }
         self
     }
 

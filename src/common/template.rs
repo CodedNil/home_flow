@@ -84,104 +84,50 @@ pub fn default() -> Home {
                 .window(vec2(0.2, 1.55), 0)
                 .lights_grid_offset("Kitchen Downlights", 2, 1, vec2(2.0, 2.0), vec2(0.1, 0.0))
                 .outline(Outline::new(0.05, Color::from_rgb(200, 170, 150)))
+                .furniture_bulk_material(
+                    "Granite Counters",
+                    FurnitureType::Misc,
+                    RenderOrder::Low,
+                    "Granite",
+                    vec![
+                        (vec2(-5.475, 2.725), vec2(0.55, 0.55), 0),
+                        (vec2(-2.725, 2.725), vec2(0.55, 0.55), 0),
+                    ],
+                )
+                .furniture_bulk(
+                    "High Cupboards",
+                    FurnitureType::Storage(StorageType::Cupboard),
+                    RenderOrder::High,
+                    vec![
+                        (vec2(-5.625, 1.35), vec2(2.2, 0.25), -90),
+                        (vec2(-4.925, 2.875), vec2(0.55, 0.25), 0),
+                        (vec2(-5.425, 2.675), vec2(0.55, 0.25), -45),
+                        (vec2(-2.575, 1.9), vec2(1.1, 0.25), 90),
+                        (vec2(-2.775, 2.675), vec2(0.55, 0.25), 45),
+                    ],
+                )
+                .furniture_bulk(
+                    "High Cupboards Corners",
+                    FurnitureType::Misc,
+                    RenderOrder::High,
+                    vec![
+                        (vec2(-4.1, 2.8625), vec2(3.3, 0.275), 0),
+                        (vec2(-5.625, 2.725), vec2(0.55, 0.275), -90),
+                        (vec2(-2.575, 2.725), vec2(0.55, 0.275), 90),
+                    ],
+                )
+                .furniture_bulk_material(
+                    "Drawers",
+                    FurnitureType::Storage(StorageType::Drawer),
+                    RenderOrder::Mid,
+                    "Granite",
+                    vec![
+                        (vec2(-5.475, 1.35), vec2(2.2, 0.55), -90),
+                        (vec2(-4.1, 2.725), vec2(2.2, 0.55), 0),
+                        (vec2(-2.725, 1.9), vec2(1.1, 0.55), 90),
+                    ],
+                )
                 .furniture(vec![
-                    // Counters
-                    Furniture::new_ordered(
-                        FurnitureType::Misc,
-                        RenderOrder::Low,
-                        vec2(-5.475, 2.725),
-                        vec2(0.55, 0.55),
-                        0,
-                    )
-                    .material("Granite"),
-                    Furniture::new(
-                        FurnitureType::Storage(StorageType::Drawer),
-                        vec2(-5.475, 1.35),
-                        vec2(2.2, 0.55),
-                        -90,
-                    )
-                    .material("Granite"),
-                    Furniture::new(
-                        FurnitureType::Storage(StorageType::Drawer),
-                        vec2(-4.1, 2.725),
-                        vec2(2.2, 0.55),
-                        0,
-                    )
-                    .material("Granite"),
-                    Furniture::new_ordered(
-                        FurnitureType::Misc,
-                        RenderOrder::Low,
-                        vec2(-2.725, 2.725),
-                        vec2(0.55, 0.55),
-                        0,
-                    )
-                    .material("Granite"),
-                    Furniture::new(
-                        FurnitureType::Storage(StorageType::Drawer),
-                        vec2(-2.725, 1.9),
-                        vec2(1.1, 0.55),
-                        90,
-                    )
-                    .material("Granite"),
-                    // Cupboards
-                    Furniture::new_ordered(
-                        FurnitureType::Storage(StorageType::Cupboard),
-                        RenderOrder::High,
-                        vec2(-5.625, 1.35),
-                        vec2(2.2, 0.25),
-                        -90,
-                    ),
-                    Furniture::new_ordered(
-                        FurnitureType::Storage(StorageType::Cupboard),
-                        RenderOrder::High,
-                        vec2(-4.925, 2.875),
-                        vec2(0.55, 0.25),
-                        0,
-                    ),
-                    Furniture::new_ordered(
-                        FurnitureType::Storage(StorageType::Cupboard),
-                        RenderOrder::High,
-                        vec2(-5.425, 2.675),
-                        vec2(0.55, 0.25),
-                        -45,
-                    ),
-                    Furniture::new_ordered(
-                        FurnitureType::Storage(StorageType::Cupboard),
-                        RenderOrder::High,
-                        vec2(-2.575, 1.9),
-                        vec2(1.1, 0.25),
-                        90,
-                    ),
-                    Furniture::new_ordered(
-                        FurnitureType::Storage(StorageType::Cupboard),
-                        RenderOrder::High,
-                        vec2(-2.775, 2.675),
-                        vec2(0.55, 0.25),
-                        45,
-                    ),
-                    // Cupboard corners
-                    Furniture::new_ordered(
-                        FurnitureType::Misc,
-                        RenderOrder::High,
-                        vec2(-4.1, 2.8625),
-                        vec2(3.3, 0.2750),
-                        0,
-                    ),
-                    Furniture::new_ordered(
-                        FurnitureType::Misc,
-                        RenderOrder::High,
-                        vec2(-5.625, 2.725),
-                        vec2(0.55, 0.2750),
-                        -90,
-                    ),
-                    Furniture::new_ordered(
-                        FurnitureType::Misc,
-                        RenderOrder::High,
-                        vec2(-2.575, 2.725),
-                        vec2(0.55, 0.2750),
-                        90,
-                    ),
-                    // Kitchen
                     Furniture::named_ordered(
                         "Fridge",
                         FurnitureType::Storage(StorageType::Cupboard),
@@ -207,7 +153,8 @@ pub fn default() -> Home {
                     )
                     .materials("Granite")
                     .material_children("MetalDark"),
-                    Furniture::new(
+                    Furniture::named(
+                        "Hob",
                         FurnitureType::Kitchen(KitchenType::Hob),
                         vec2(-5.475, 1.625),
                         vec2(0.45, 0.45),
