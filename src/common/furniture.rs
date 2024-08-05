@@ -56,7 +56,8 @@ nestify::nest! {
             Electronic(pub enum ElectronicType {
                 #[default]
                 Display,
-                Computer
+                Computer,
+                UltimateSensorMini, // https://ultimatesensor.nl/en/mini
             }),
             Radiator,
             #[default]
@@ -87,6 +88,8 @@ nestify::nest! {
         pub rotation: i32,
 
         pub power_draw_entity: String,
+        pub misc_sensors: Vec<String>,
+        pub misc_data: HashMap<String, DataPoint>,
 
         #[serde(skip)]
         pub hover_amount: f64,
@@ -95,6 +98,13 @@ nestify::nest! {
         #[serde(skip)]
         pub hass_data: HashMap<String, String>,
     }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum DataPoint {
+    String(String),
+    Number(f64),
+    Vec2(Vec2),
 }
 
 const WOOD: FurnMaterial = FurnMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80));
@@ -120,6 +130,8 @@ impl Furniture {
             size,
             rotation,
             power_draw_entity: String::new(),
+            misc_sensors: Vec::new(),
+            misc_data: HashMap::new(),
             hover_amount: 0.0,
             rendered_data: None,
             hass_data: HashMap::new(),
@@ -145,6 +157,8 @@ impl Furniture {
             size,
             rotation,
             power_draw_entity: String::new(),
+            misc_sensors: Vec::new(),
+            misc_data: HashMap::new(),
             hover_amount: 0.0,
             rendered_data: None,
             hass_data: HashMap::new(),
@@ -169,6 +183,30 @@ impl Furniture {
 
     pub fn power_draw_entity(mut self, entity: &str) -> Self {
         entity.clone_into(&mut self.power_draw_entity);
+        self
+    }
+
+    pub fn add_sensor(mut self, entity: &str) -> Self {
+        self.misc_sensors.push(entity.to_owned());
+        self
+    }
+
+    pub fn add_sensors(mut self, entities: Vec<&str>) -> Self {
+        for entity in entities {
+            self.misc_sensors.push(entity.to_owned());
+        }
+        self
+    }
+
+    pub fn add_data(mut self, key: &str, value: DataPoint) -> Self {
+        self.misc_data.insert(key.to_owned(), value);
+        self
+    }
+
+    pub fn add_datas(mut self, data: Vec<(&str, DataPoint)>) -> Self {
+        for (key, value) in data {
+            self.misc_data.insert(key.to_owned(), value);
+        }
         self
     }
 
@@ -214,6 +252,7 @@ impl Furniture {
         if !self.power_draw_entity.is_empty() {
             sensors.push(self.power_draw_entity.clone());
         }
+        sensors.extend(self.misc_sensors.iter().cloned());
         sensors
     }
 
@@ -658,6 +697,12 @@ impl Furniture {
             }
             ElectronicType::Computer => {
                 vec![(METAL_DARK, self.full_shape())]
+            }
+            ElectronicType::UltimateSensorMini => {
+                vec![(
+                    FurnMaterial::new(Material::Empty, Color::from_rgb(255, 255, 255)),
+                    self.full_shape(),
+                )]
             }
         }
     }

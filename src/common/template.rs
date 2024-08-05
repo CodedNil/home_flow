@@ -1,8 +1,8 @@
 use super::{
     color::Color,
     furniture::{
-        BathroomType, ElectronicType, Furniture, FurnitureType, KitchenType, RenderOrder,
-        StorageType, TableType,
+        BathroomType, DataPoint, ElectronicType, Furniture, FurnitureType, KitchenType,
+        RenderOrder, StorageType, TableType,
     },
     layout::{GlobalMaterial, Home, LightType, Outline, Room, LAYOUT_VERSION},
     utils::Material,
@@ -62,6 +62,29 @@ pub fn default() -> Home {
                         vec2(1.4, 0.1),
                         0,
                     ),
+                    Furniture::new(
+                        "Ultimate Mini",
+                        FurnitureType::Electronic(ElectronicType::UltimateSensorMini),
+                        vec2(-2.975, -1.125),
+                        vec2(0.1, 0.1),
+                        45,
+                    )
+                    .add_sensors(vec![
+                        "ultimatesensor_mini_target_1_x",
+                        "ultimatesensor_mini_target_1_y",
+                        "ultimatesensor_mini_target_2_x",
+                        "ultimatesensor_mini_target_2_y",
+                        "ultimatesensor_mini_target_3_x",
+                        "ultimatesensor_mini_target_3_y",
+                    ])
+                    .add_datas(vec![
+                        ("calib_point1", DataPoint::Vec2(vec2(0.0, 0.0))),
+                        ("calib_world1", DataPoint::Vec2(vec2(-5.8, -2.5))),
+                        ("calib_point2", DataPoint::Vec2(vec2(2900.0, 3900.0))),
+                        ("calib_world2", DataPoint::Vec2(vec2(-0.8, -1.8))),
+                        ("calib_point3", DataPoint::Vec2(vec2(-2400.0, 3000.0))),
+                        ("calib_world3", DataPoint::Vec2(vec2(-4.1, 1.4))),
+                    ]),
                     Furniture::new(
                         "Desk",
                         FurnitureType::Table(TableType::Desk),

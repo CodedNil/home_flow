@@ -592,5 +592,7 @@ impl HomeFlow {
                 }
             }
         }
+
+        self.render_presence_sensors(painter);
     }
 }
