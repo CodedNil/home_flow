@@ -71,8 +71,7 @@ nestify::nest! {
             Floor,
             Low,
             Mid,
-            High,
-            Ceiling
+            High
         },
 
         pub material: String,
@@ -191,7 +190,6 @@ impl Furniture {
 
     pub const fn render_order(&self) -> u8 {
         let mut order = match self.render_order {
-            RenderOrder::Ceiling => 8,
             RenderOrder::High => 6,
             RenderOrder::Mid => 4,
             RenderOrder::Low => 2,
@@ -209,7 +207,7 @@ impl Furniture {
     }
 
     pub fn height_shadow(&self) -> f64 {
-        ((f64::from(self.render_order()) / 8.0) + 0.5) / 1.5
+        ((f64::from(self.render_order()) / 6.0) + 0.5) / 1.5
     }
 
     pub const fn can_hover(&self) -> bool {
@@ -236,8 +234,8 @@ impl Furniture {
         )
     }
 
-    pub fn contains(&self, point: Vec2) -> bool {
-        Shape::Rectangle.contains(point, self.pos, self.size, self.rotation)
+    pub fn contains(&self, room_pos: Vec2, point: Vec2) -> bool {
+        Shape::Rectangle.contains(point, room_pos + self.pos, self.size, self.rotation)
     }
 
     pub fn render(

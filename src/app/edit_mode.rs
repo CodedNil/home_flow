@@ -327,7 +327,7 @@ impl HomeFlow {
                                     drag_data,
                                     delta,
                                     new_pos,
-                                    Vec2::ZERO,
+                                    room.pos,
                                 );
                             }
                         }

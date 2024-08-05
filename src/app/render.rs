@@ -127,7 +127,7 @@ impl HomeFlow {
                 if furniture.can_hover()
                     && Shape::Rectangle.contains(
                         self.mouse_pos_world,
-                        furniture.pos,
+                        room.pos + furniture.pos,
                         furniture.size * 1.2,
                         furniture.rotation,
                     )
@@ -139,7 +139,9 @@ impl HomeFlow {
                     if child.can_hover()
                         && Shape::Rectangle.contains(
                             self.mouse_pos_world,
-                            furniture.pos + rotate_point_i32(child.pos, -furniture.rotation),
+                            room.pos
+                                + furniture.pos
+                                + rotate_point_i32(child.pos, -furniture.rotation),
                             child.size * 1.2,
                             furniture.rotation + child.rotation,
                         )
@@ -177,9 +179,10 @@ impl HomeFlow {
 
         // Gather furniture and children
         let mut furniture_map = HashMap::new();
-        let mut furniture_adjustments = HashMap::new();
+        let mut furniture_locations = HashMap::new();
+        let mut child_adjustments = HashMap::new();
 
-        let mut handle_furniture_child = |obj: &Furniture, child: &Furniture| {
+        let mut handle_furniture_child = |room_pos: Vec2, obj: &Furniture, child: &Furniture| {
             let hover = child.hover_amount.max(0.0);
             let (offset, offset_rot) = match child.furniture_type {
                 FurnitureType::Chair(_) => (vec2(hover * 0.15, hover * 0.3), hover * 20.0),
@@ -209,10 +212,10 @@ impl HomeFlow {
             };
 
             let offset = rotate_point_i32(offset, -(obj.rotation + child.rotation));
-            furniture_adjustments.insert(
+            child_adjustments.insert(
                 child.id,
                 (
-                    obj.pos + rotate_point_i32(child.pos, -obj.rotation) + offset,
+                    room_pos + obj.pos + rotate_point_i32(child.pos, -obj.rotation) + offset,
                     f64::from(obj.rotation) + f64::from(child.rotation) + offset_rot,
                 ),
             );
@@ -221,18 +224,25 @@ impl HomeFlow {
         for room in &self.layout.rooms {
             for furniture in &room.furniture {
                 let rendered_data = furniture.rendered_data.as_ref().unwrap();
+                furniture_locations.insert(
+                    furniture.id,
+                    (room.pos + furniture.pos, f64::from(furniture.rotation)),
+                );
                 furniture_map
                     .entry(furniture.render_order())
                     .or_insert_with(Vec::new)
                     .push(furniture);
                 for child in &rendered_data.children {
-                    handle_furniture_child(furniture, child);
+                    handle_furniture_child(room.pos, furniture, child);
                     furniture_map
                         .entry(child.render_order())
                         .or_insert_with(Vec::new)
                         .push(child);
                 }
             }
+        }
+        for (id, adjustment) in child_adjustments {
+            furniture_locations.insert(id, adjustment);
         }
 
         let mut order_keys: Vec<&u8> = furniture_map.keys().collect();
@@ -243,9 +253,9 @@ impl HomeFlow {
             if let Some(furnitures) = furniture_map.get(key) {
                 for furniture in furnitures {
                     let rendered_data = furniture.rendered_data.as_ref().unwrap();
-                    let &(pos, rot) = furniture_adjustments
+                    let &(pos, rot) = furniture_locations
                         .get(&furniture.id)
-                        .unwrap_or(&(furniture.pos, f64::from(furniture.rotation)));
+                        .unwrap_or(&(vec2(0.0, 0.0), 0.0));
 
                     // Render shadow
                     let shadow_offset = vec2(0.01, -0.02);
@@ -279,9 +289,9 @@ impl HomeFlow {
                 }
                 for furniture in furnitures {
                     let rendered_data = furniture.rendered_data.as_ref().unwrap();
-                    let &(pos, rot) = furniture_adjustments
+                    let &(pos, rot) = furniture_locations
                         .get(&furniture.id)
-                        .unwrap_or(&(furniture.pos, f64::from(furniture.rotation)));
+                        .unwrap_or(&(vec2(0.0, 0.0), 0.0));
 
                     for (material, multi_triangles) in &rendered_data.triangles {
                         let texture_id = self.load_texture(material.material);

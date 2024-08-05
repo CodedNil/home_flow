@@ -176,7 +176,11 @@ impl HomeFlow {
             {
                 self.closed_dashed_line_with_offset(
                     painter,
-                    &Shape::Rectangle.vertices(furniture.pos, furniture.size, furniture.rotation),
+                    &Shape::Rectangle.vertices(
+                        room.pos + furniture.pos,
+                        furniture.size,
+                        furniture.rotation,
+                    ),
                     Stroke::new(6.0, Color32::from_rgb(150, 0, 50).gamma_multiply(0.8)),
                     35.0,
                     self.time * 50.0,

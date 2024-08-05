@@ -110,12 +110,12 @@ impl HomeFlow {
                     }
                 }
                 for obj in room.furniture.iter().rev() {
-                    if obj.contains(self.mouse_pos_world) {
+                    if obj.contains(room.pos, self.mouse_pos_world) {
                         hovered_data = Some(HoverDetails {
                             id: obj.id,
                             object_type: ObjectType::Furniture,
                             can_drag: true,
-                            pos: obj.pos,
+                            pos: room.pos + obj.pos,
                             size: obj.size,
                             rotation: obj.rotation,
                             manipulation_type: ManipulationType::Move,
