@@ -1,4 +1,4 @@
-use super::{LightPacket, PostStatesPacket, StatesPacket};
+use super::{LightPacket, PostServicesPacket, StatesPacket};
 use crate::common::{layout::Home, template};
 use anyhow::{anyhow, Result};
 use axum::{
@@ -9,6 +9,7 @@ use axum::{
 };
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Deserialize;
+use serde_json::json;
 use std::env;
 use std::{collections::HashMap, fs, path::Path};
 use time::{format_description, OffsetDateTime};
@@ -79,7 +80,7 @@ async fn get_states_server() -> impl IntoResponse {
 
 async fn post_state_server(body: axum::body::Bytes) -> impl IntoResponse {
     match bincode::deserialize(&body) {
-        Ok(params) => match post_state_impl(params).await {
+        Ok(params) => match post_services_impl(params).await {
             Ok(()) => StatusCode::OK.into_response(),
             Err(e) => {
                 log::error!("Failed to post state: {:?}", e);
@@ -165,29 +166,38 @@ async fn get_states_impl() -> Result<StatesPacket> {
     })
 }
 
-async fn post_state_impl(params: Vec<PostStatesPacket>) -> Result<()> {
+async fn post_services_impl(params: Vec<PostServicesPacket>) -> Result<()> {
     let client = reqwest::Client::new();
     let mut errors = Vec::new();
 
     // Convert params to the format required by the Home Assistant API
     for param in params {
+        // Construct the JSON payload
+        let mut data = HashMap::new();
+        data.insert("entity_id".to_string(), json!(param.entity_id));
+        for (key, value) in param.additional_data {
+            data.insert(key, value);
+        }
+
+        // Send the request
         let response = client
             .post(&format!(
-                "{}/api/states/{}",
+                "{}/api/services/{}/{}",
                 &get_env_variable("HASS_URL"),
-                param.entity_id
+                param.domain,
+                param.service
             ))
             .header(
                 AUTHORIZATION,
                 format!("Bearer {}", get_env_variable("HASS_TOKEN")),
             )
             .header(CONTENT_TYPE, "application/json")
-            .json(&param)
+            .json(&data)
             .send()
             .await;
 
         if let Err(e) = response {
-            errors.push(anyhow!("Failed to post state: {}", e));
+            errors.push(anyhow!("Failed to post services: {}", e));
         }
     }
 
@@ -195,7 +205,7 @@ async fn post_state_impl(params: Vec<PostStatesPacket>) -> Result<()> {
         Ok(())
     } else {
         Err(anyhow!(
-            "Errors occurred while posting states: {:?}",
+            "Errors occurred while posting services: {:?}",
             errors
         ))
     }

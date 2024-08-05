@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod routing;
@@ -7,9 +8,11 @@ pub mod routing;
 pub mod common_api;
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct PostStatesPacket {
+pub struct PostServicesPacket {
     pub entity_id: String,
-    pub state: String,
+    pub domain: String,
+    pub service: String,
+    pub additional_data: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]

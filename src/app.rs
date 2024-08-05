@@ -15,7 +15,7 @@ use crate::{
     },
     server::{
         common_api::{get_layout, get_states, post_state},
-        PostStatesPacket, StatesPacket,
+        PostServicesPacket, StatesPacket,
     },
 };
 use anyhow::Result;
@@ -85,7 +85,7 @@ nestify::nest! {
             },
         }>>,
 
-        post_queue: Vec<PostStatesPacket>,
+        post_queue: Vec<PostServicesPacket>,
     }
 }
 

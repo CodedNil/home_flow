@@ -1,4 +1,4 @@
-use super::{PostStatesPacket, StatesPacket};
+use super::{PostServicesPacket, StatesPacket};
 use crate::common::layout::Home;
 use anyhow::Result;
 
@@ -42,7 +42,7 @@ pub fn get_states(host: &str, on_done: impl 'static + Send + FnOnce(Result<State
 
 pub fn post_state(
     host: &str,
-    packets: &Vec<PostStatesPacket>,
+    packets: &Vec<PostServicesPacket>,
     on_done: impl 'static + Send + FnOnce(Result<()>),
 ) {
     ehttp::fetch(

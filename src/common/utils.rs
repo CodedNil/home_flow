@@ -170,7 +170,7 @@ impl Room {
             Light {
                 id: Uuid::new_v4(),
                 name: name.to_owned(),
-                entity_id: name.to_lowercase().replace(' ', "_"),
+                entity_id: name.replace(' ', "_"),
                 light_type,
                 pos: vec2(x, y),
                 multi: None,
@@ -276,7 +276,7 @@ impl Light {
         Self {
             id: Uuid::new_v4(),
             name: name.to_owned(),
-            entity_id: name.to_lowercase().replace(' ', "_"),
+            entity_id: name.replace(' ', "_"),
             light_type: LightType::Dimmable,
             pos,
             multi: None,
@@ -292,7 +292,7 @@ impl Light {
         Self {
             id: Uuid::new_v4(),
             name: name.to_owned(),
-            entity_id: name.to_lowercase().replace(' ', "_"),
+            entity_id: name.replace(' ', "_"),
             light_type: LightType::Dimmable,
             pos,
             multi: Some(MultiLight {
