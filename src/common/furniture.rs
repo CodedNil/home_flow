@@ -7,7 +7,10 @@ use super::{
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
@@ -15,6 +18,7 @@ nestify::nest! {
     #[derive(Serialize, Deserialize, Clone)]*
     pub struct Furniture {
         pub id: Uuid,
+        pub name: String,
 
         #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash, Default)]*
         pub furniture_type: pub enum FurnitureType {
@@ -68,6 +72,7 @@ nestify::nest! {
         #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash, Default)]*
         pub render_order: pub enum RenderOrder {
             #[default]
+            Default,
             Floor,
             Low,
             Mid,
@@ -87,6 +92,8 @@ nestify::nest! {
         pub hover_amount: f64,
         #[serde(skip)]
         pub rendered_data: Option<FurnRender>,
+        #[serde(skip)]
+        pub hass_data: HashMap<String, String>,
     }
 }
 
@@ -95,15 +102,18 @@ const CERAMIC: FurnMaterial = FurnMaterial::new(Material::Empty, Color::from_rgb
 const METAL_DARK: FurnMaterial = FurnMaterial::new(Material::Empty, Color::from_rgb(80, 80, 80));
 
 impl Furniture {
-    pub fn new(furniture_type: FurnitureType, pos: Vec2, size: Vec2, rotation: i32) -> Self {
+    pub fn new(
+        name: &str,
+        furniture_type: FurnitureType,
+        pos: Vec2,
+        size: Vec2,
+        rotation: i32,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
+            name: name.to_owned(),
             furniture_type,
-            render_order: match furniture_type {
-                FurnitureType::Chair(_) => RenderOrder::Low,
-                FurnitureType::Rug(_) => RenderOrder::Floor,
-                _ => RenderOrder::Mid,
-            },
+            render_order: RenderOrder::Default,
             material: "Wood".to_owned(),
             material_children: "Wood".to_owned(),
             pos,
@@ -112,10 +122,12 @@ impl Furniture {
             power_draw_entity: String::new(),
             hover_amount: 0.0,
             rendered_data: None,
+            hass_data: HashMap::new(),
         }
     }
 
     pub fn new_ordered(
+        name: &str,
         furniture_type: FurnitureType,
         render_order: RenderOrder,
         pos: Vec2,
@@ -124,6 +136,7 @@ impl Furniture {
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
+            name: name.to_owned(),
             furniture_type,
             render_order,
             material: "Wood".to_owned(),
@@ -134,28 +147,8 @@ impl Furniture {
             power_draw_entity: String::new(),
             hover_amount: 0.0,
             rendered_data: None,
+            hass_data: HashMap::new(),
         }
-    }
-
-    pub fn named(
-        _: &str,
-        furniture_type: FurnitureType,
-        pos: Vec2,
-        size: Vec2,
-        rotation: i32,
-    ) -> Self {
-        Self::new(furniture_type, pos, size, rotation)
-    }
-
-    pub fn named_ordered(
-        _: &str,
-        furniture_type: FurnitureType,
-        render_order: RenderOrder,
-        pos: Vec2,
-        size: Vec2,
-        rotation: i32,
-    ) -> Self {
-        Self::new_ordered(furniture_type, render_order, pos, size, rotation)
     }
 
     pub fn materials(mut self, material: &str) -> Self {
@@ -181,6 +174,7 @@ impl Furniture {
 
     pub fn default() -> Self {
         Self::new(
+            "New Furniture",
             FurnitureType::Chair(ChairType::default()),
             Vec2::ZERO,
             vec2(1.0, 1.0),
@@ -189,11 +183,20 @@ impl Furniture {
     }
 
     pub const fn render_order(&self) -> u8 {
-        let mut order = match self.render_order {
+        let render_order = match self.render_order {
+            RenderOrder::Default => match self.furniture_type {
+                FurnitureType::Chair(_) => RenderOrder::Low,
+                FurnitureType::Rug(_) => RenderOrder::Floor,
+                _ => RenderOrder::Mid,
+            },
+            _ => self.render_order,
+        };
+        let mut order = match render_order {
             RenderOrder::High => 6,
             RenderOrder::Mid => 4,
             RenderOrder::Low => 2,
             RenderOrder::Floor => 0,
+            RenderOrder::Default => panic!("Invalid render order"),
         };
 
         if matches!(
@@ -204,6 +207,14 @@ impl Furniture {
         }
 
         order
+    }
+
+    pub fn wanted_sensors(&self) -> Vec<String> {
+        let mut sensors = Vec::new();
+        if !self.power_draw_entity.is_empty() {
+            sensors.push(self.power_draw_entity.clone());
+        }
+        sensors
     }
 
     pub fn height_shadow(&self) -> f64 {
@@ -324,6 +335,7 @@ impl Furniture {
         let mut add_chair = |x: f64, y: f64, rotation: i32| {
             children.push(
                 Self::new(
+                    "Child Chair",
                     FurnitureType::Chair(match sub_type {
                         TableType::Desk => ChairType::Office,
                         _ => ChairType::Dining,
@@ -373,6 +385,7 @@ impl Furniture {
             let side = i % 2 == 0;
             children.push(
                 Self::new_ordered(
+                    "Child Drawer",
                     FurnitureType::AnimatedPiece(match sub_type {
                         StorageType::Drawer => AnimatedPieceType::Drawer,
                         StorageType::Cupboard => AnimatedPieceType::Door(side),

@@ -27,9 +27,16 @@ pub fn save_layout(host: &str, home: &Home, on_done: impl 'static + Send + FnOnc
     );
 }
 
-pub fn get_states(host: &str, on_done: impl 'static + Send + FnOnce(Result<StatesPacket>)) {
+pub fn get_states(
+    host: &str,
+    sensors: &Vec<String>,
+    on_done: impl 'static + Send + FnOnce(Result<StatesPacket>),
+) {
     ehttp::fetch(
-        ehttp::Request::get(&format!("http://{host}/get_states")),
+        ehttp::Request::post(
+            &format!("http://{host}/get_states"),
+            bincode::serialize(sensors).unwrap(),
+        ),
         Box::new(move |res: std::result::Result<ehttp::Response, String>| {
             on_done(match res {
                 Ok(res) => bincode::deserialize(&res.bytes)

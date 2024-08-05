@@ -212,13 +212,14 @@ impl Room {
 
     pub fn furniture_bulk(
         mut self,
-        _: &str,
+        name: &str,
         furniture_type: FurnitureType,
         render_order: furniture::RenderOrder,
         locations: Vec<(Vec2, Vec2, i32)>,
     ) -> Self {
         for (pos, size, rotation) in locations {
             self.furniture.push(Furniture::new_ordered(
+                name,
                 furniture_type,
                 render_order,
                 pos,
@@ -231,7 +232,7 @@ impl Room {
 
     pub fn furniture_bulk_material(
         mut self,
-        _: &str,
+        name: &str,
         furniture_type: FurnitureType,
         render_order: furniture::RenderOrder,
         material: &str,
@@ -239,7 +240,7 @@ impl Room {
     ) -> Self {
         for (pos, size, rotation) in locations {
             self.furniture.push(
-                Furniture::new_ordered(furniture_type, render_order, pos, size, rotation)
+                Furniture::new_ordered(name, furniture_type, render_order, pos, size, rotation)
                     .material(material),
             );
         }

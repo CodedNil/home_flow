@@ -51,17 +51,13 @@ impl HomeFlow {
                     ui.label("Drag to move room or operation");
                     ui.label("Click to select room, escape to deselect");
                     ui.label("Shift to disable snap");
-                    ui.horizontal(|ui| {
-                        ui.add_space(ui.available_width() / 4.0);
-                        if ui.button("Add Room").clicked() {
-                            let pos = self.screen_to_world(self.canvas_center);
-                            self.layout.rooms.push(Room {
-                                pos: vec2(pos.x.round_factor(10.0), pos.y.round_factor(10.0)),
-                                ..Room::default()
-                            });
-                        }
-                        ui.add_space(ui.available_width() / 4.0);
-                    });
+                    if ui.button("Add Room").clicked() {
+                        let pos = self.screen_to_world(self.canvas_center);
+                        self.layout.rooms.push(Room {
+                            pos: vec2(pos.x.round_factor(10.0), pos.y.round_factor(10.0)),
+                            ..Room::default()
+                        });
+                    }
                 });
             });
 

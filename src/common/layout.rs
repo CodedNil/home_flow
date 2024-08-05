@@ -13,7 +13,7 @@ use std::hash::Hash;
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
-pub const LAYOUT_VERSION: &str = "0.3";
+pub const LAYOUT_VERSION: &str = "0.4";
 
 nestify::nest! {
     #[derive(Serialize, Deserialize, Clone)]*

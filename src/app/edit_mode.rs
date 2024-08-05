@@ -828,6 +828,10 @@ fn room_edit_widgets(
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
+                    TextEdit::singleline(&mut furniture.name)
+                        .min_size(egui::vec2(100.0, 0.0))
+                        .show(ui);
+
                     egui::ComboBox::from_id_source(format!("Furniture {}", furniture.id))
                         .selected_text(furniture.furniture_type.to_string())
                         .show_ui(ui, |ui| {
@@ -879,6 +883,12 @@ fn room_edit_widgets(
                         }
                         _ => {}
                     }
+                    combo_box_for_enum(
+                        ui,
+                        format!("{} Render Order", furniture.id),
+                        &mut furniture.render_order,
+                        "Render Order",
+                    );
                     if furniture.has_material() {
                         combo_box_for_materials(
                             ui,
@@ -915,7 +925,9 @@ fn room_edit_widgets(
                     edit_vec2(ui, "Size", &mut furniture.size, 0.1);
                     edit_rotation(ui, &mut furniture.rotation);
                     ui.label("Power Entity");
-                    ui.text_edit_singleline(&mut furniture.power_draw_entity);
+                    TextEdit::singleline(&mut furniture.power_draw_entity)
+                        .min_size(egui::vec2(200.0, 0.0))
+                        .show(ui);
                 });
             });
         }

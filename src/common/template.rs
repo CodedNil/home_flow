@@ -41,7 +41,14 @@ pub fn default() -> Home {
                 .add_material(vec2(-0.85, 1.55), vec2(1.1, 2.0), "Wood")
                 .door(vec2(-0.85, 2.55), 0)
                 .lights_grid_offset("Hall Downlights", 3, 1, vec2(3.0, 1.75), vec2(0.8, 0.0))
-                .light("Hall Downlights", -0.85, 1.55),
+                .light("Hall Downlights", -0.85, 1.55)
+                .furniture(vec![Furniture::new(
+                    "Hall Radiator",
+                    FurnitureType::Radiator,
+                    vec2(0.45, 0.45),
+                    vec2(1.4, 0.1),
+                    0,
+                )]),
             Room::new("Lounge", vec2(-2.75, -1.4), vec2(6.1, 2.7), "Carpet")
                 .no_wall_top()
                 .window_width(vec2(-1.15, -1.35), 0, 1.4)
@@ -49,33 +56,99 @@ pub fn default() -> Home {
                 .lights_grid_offset("Lounge Downlights", 4, 2, vec2(2.0, 1.25), Vec2::ZERO)
                 .furniture(vec![
                     Furniture::new(
-                        FurnitureType::Table(TableType::Desk),
-                        vec2(2.475, -0.475),
-                        vec2(1.6, 0.8),
-                        -90,
-                    )
-                    .material("WoodDark"),
-                    Furniture::new(
-                        FurnitureType::Electronic(ElectronicType::Display),
-                        vec2(2.95, -0.25),
-                        vec2(1.0, 0.1),
-                        -90,
-                    )
-                    .power_draw_entity("living_tv_current_consumption"),
-                    Furniture::new(
-                        FurnitureType::Electronic(ElectronicType::Computer),
-                        vec2(2.525, -1.075),
-                        vec2(0.7, 0.4),
-                        0,
-                    )
-                    .power_draw_entity("desktop_current_consumption"),
-                    Furniture::new(
+                        "Lounge Radiator",
                         FurnitureType::Radiator,
                         vec2(-1.15, -1.25),
                         vec2(1.4, 0.1),
                         0,
                     ),
-                    Furniture::new(FurnitureType::Radiator, vec2(3.7, 2.35), vec2(1.4, 0.1), 0),
+                    Furniture::new(
+                        "Desk",
+                        FurnitureType::Table(TableType::Desk),
+                        vec2(2.55, -0.475),
+                        vec2(1.6, 0.8),
+                        -90,
+                    )
+                    .material("WoodDark"),
+                    Furniture::new(
+                        "Desk TV",
+                        FurnitureType::Electronic(ElectronicType::Display),
+                        vec2(2.975, -0.25),
+                        vec2(1.0, 0.05),
+                        -90,
+                    )
+                    .power_draw_entity("living_tv_current_consumption"),
+                    Furniture::new(
+                        "Desktop",
+                        FurnitureType::Electronic(ElectronicType::Computer),
+                        vec2(2.625, -1.1),
+                        vec2(0.5, 0.3),
+                        0,
+                    )
+                    .power_draw_entity("desktop_current_consumption"),
+                    Furniture::new(
+                        "Router",
+                        FurnitureType::Electronic(ElectronicType::Computer),
+                        vec2(2.325, -1.1),
+                        vec2(0.07, 0.3),
+                        0,
+                    ),
+                    Furniture::new(
+                        "Raspberry Pi",
+                        FurnitureType::Electronic(ElectronicType::Computer),
+                        vec2(2.225, -1.2),
+                        vec2(0.07, 0.1),
+                        0,
+                    ),
+                    Furniture::new(
+                        "Desk Fan",
+                        FurnitureType::Electronic(ElectronicType::Computer),
+                        vec2(2.55, 0.175),
+                        vec2(0.2, 0.2),
+                        45,
+                    )
+                    .power_draw_entity("desk_fan_current_consumption"),
+                    Furniture::new_ordered(
+                        "Desk Mat",
+                        FurnitureType::Rug(Color::from_rgb(88, 155, 238)),
+                        RenderOrder::Mid,
+                        vec2(2.425, -0.45),
+                        vec2(0.375, 0.85),
+                        0,
+                    )
+                    .material("Wood"),
+                    Furniture::new(
+                        "Keyboard",
+                        FurnitureType::Misc,
+                        vec2(2.5, -0.375),
+                        vec2(0.175, 0.35),
+                        0,
+                    )
+                    .material("Marble"),
+                    Furniture::new(
+                        "Mini Display",
+                        FurnitureType::Electronic(ElectronicType::Display),
+                        vec2(2.7, -0.85),
+                        vec2(0.2, 0.025),
+                        300,
+                    )
+                    .material("Wood"),
+                    Furniture::new(
+                        "Mini Control",
+                        FurnitureType::Misc,
+                        vec2(2.55, -0.8),
+                        vec2(0.1, 0.15),
+                        15,
+                    )
+                    .material("Marble"),
+                    Furniture::new(
+                        "Mouse",
+                        FurnitureType::Misc,
+                        vec2(2.5, -0.625),
+                        vec2(0.1, 0.07),
+                        0,
+                    )
+                    .material("MetalDark"),
                 ]),
             Room::new("Kitchen", vec2(-4.2, 1.5), vec2(3.2, 3.1), "MarbleTiles")
                 .no_wall_right()
@@ -128,7 +201,7 @@ pub fn default() -> Home {
                     ],
                 )
                 .furniture(vec![
-                    Furniture::named_ordered(
+                    Furniture::new_ordered(
                         "Fridge",
                         FurnitureType::Storage(StorageType::Cupboard),
                         RenderOrder::High,
@@ -136,7 +209,7 @@ pub fn default() -> Home {
                         vec2(0.55, 0.55),
                         90,
                     ),
-                    Furniture::named(
+                    Furniture::new(
                         "Microwave",
                         FurnitureType::Storage(StorageType::Cupboard),
                         vec2(1.4, 1.15),
@@ -144,7 +217,7 @@ pub fn default() -> Home {
                         45,
                     )
                     .materials("MetalDark"),
-                    Furniture::named(
+                    Furniture::new(
                         "Oven",
                         FurnitureType::Storage(StorageType::Drawer),
                         vec2(-1.275, 0.125),
@@ -153,14 +226,14 @@ pub fn default() -> Home {
                     )
                     .materials("Granite")
                     .material_children("MetalDark"),
-                    Furniture::named(
+                    Furniture::new(
                         "Hob",
                         FurnitureType::Kitchen(KitchenType::Hob),
                         vec2(-1.275, 0.125),
                         vec2(0.45, 0.45),
                         -90,
                     ),
-                    Furniture::named_ordered(
+                    Furniture::new_ordered(
                         "Extractor Vent",
                         FurnitureType::Misc,
                         RenderOrder::High,
@@ -170,6 +243,7 @@ pub fn default() -> Home {
                     )
                     .materials("MetalDark"),
                     Furniture::new(
+                        "Kitchen Sink",
                         FurnitureType::Kitchen(KitchenType::Sink),
                         vec2(0.2, 1.2),
                         vec2(0.65, 0.5),
@@ -188,12 +262,14 @@ pub fn default() -> Home {
                 .light_full("Bedside Light", 1.65, -1.45, LightType::Binary, 1.0, 0.025)
                 .furniture(vec![
                     Furniture::new(
+                        "Bed",
                         FurnitureType::Bed(Color::from_rgb(110, 120, 130)),
                         vec2(0.8, -0.45),
                         vec2(1.4, 2.1),
                         90,
                     ),
                     Furniture::new(
+                        "Bedside Table",
                         FurnitureType::Storage(StorageType::Drawer),
                         vec2(1.625, -1.45),
                         vec2(0.4, 0.55),
@@ -201,19 +277,27 @@ pub fn default() -> Home {
                     )
                     .materials("WoodDark"),
                     Furniture::new(
+                        "Wardrobe",
                         FurnitureType::Storage(StorageType::Cupboard),
                         vec2(1.225, 1.45),
                         vec2(1.35, 0.6),
                         0,
                     ),
                     Furniture::new(
+                        "Drawers",
                         FurnitureType::Storage(StorageType::Drawer),
                         vec2(-1.5, 0.08),
                         vec2(1.54, 0.8),
                         -90,
                     )
                     .materials("WoodDark"),
-                    Furniture::new(FurnitureType::Radiator, vec2(0.0, -1.7), vec2(1.4, 0.1), 0),
+                    Furniture::new(
+                        "Bedroom Radiator",
+                        FurnitureType::Radiator,
+                        vec2(0.0, -1.7),
+                        vec2(1.4, 0.1),
+                        0,
+                    ),
                 ]),
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
                 .door(vec2(0.8, -0.85), -90)
@@ -222,24 +306,28 @@ pub fn default() -> Home {
                 .light("Ensuite Shower Downlight", -0.4, 0.7)
                 .furniture(vec![
                     Furniture::new(
+                        "Ensuite Shower",
                         FurnitureType::Bathroom(BathroomType::Shower),
                         vec2(-0.4, 0.65),
                         vec2(0.7, 1.3),
                         0,
                     ),
                     Furniture::new(
+                        "Ensuite Toilet",
                         FurnitureType::Bathroom(BathroomType::Toilet),
                         vec2(-0.425, -0.9),
                         vec2(0.55, 0.65),
                         -90,
                     ),
                     Furniture::new(
+                        "Ensuite Sink",
                         FurnitureType::Bathroom(BathroomType::Sink),
                         vec2(0.35, 0.075),
                         vec2(0.45, 0.45),
                         0,
                     ),
                     Furniture::new(
+                        "Ensuite Radiator",
                         FurnitureType::Radiator,
                         vec2(0.375, -1.25),
                         vec2(0.7, 0.1),
@@ -248,7 +336,7 @@ pub fn default() -> Home {
                 ]),
             Room::new("Boiler Room", vec2(1.5, -0.55), vec2(0.8, 1.0), "Carpet")
                 .door_width(vec2(0.0, 0.5), 180, 0.6)
-                .furniture(vec![Furniture::named(
+                .furniture(vec![Furniture::new(
                     "Boiler",
                     FurnitureType::Misc,
                     vec2(0.0, -0.1),
@@ -263,12 +351,19 @@ pub fn default() -> Home {
                 .lights_grid_offset("Office Downlights", 2, 1, vec2(1.75, 1.75), vec2(0.0, -0.1))
                 .furniture(vec![
                     Furniture::new(
+                        "Spare Wardrobe",
                         FurnitureType::Storage(StorageType::Cupboard),
                         vec2(0.0, 0.75),
                         vec2(3.1, 0.6),
                         0,
                     ),
-                    Furniture::new(FurnitureType::Radiator, vec2(1.5, 0.0), vec2(0.75, 0.1), 90),
+                    Furniture::new(
+                        "Spare Radiator",
+                        FurnitureType::Radiator,
+                        vec2(1.5, 0.0),
+                        vec2(0.75, 0.1),
+                        90,
+                    ),
                 ]),
             Room::new("Bathroom", vec2(1.4, 2.05), vec2(2.4, 2.0), "GraniteTiles")
                 .door(vec2(0.7, -1.0), 180)
@@ -276,30 +371,35 @@ pub fn default() -> Home {
                 .light("Bathroom Shower Downlight", 0.85, 0.55)
                 .furniture(vec![
                     Furniture::new(
+                        "Bathroom Shower",
                         FurnitureType::Bathroom(BathroomType::Shower),
                         vec2(0.85, 0.525),
                         vec2(0.6, 0.85),
                         0,
                     ),
                     Furniture::new(
+                        "Bathroom Bath",
                         FurnitureType::Bathroom(BathroomType::Bath),
                         vec2(-0.75, 0.0),
                         vec2(0.8, 1.9),
                         0,
                     ),
                     Furniture::new(
+                        "Bathroom Toilet",
                         FurnitureType::Bathroom(BathroomType::Toilet),
                         vec2(0.075, 0.625),
                         vec2(0.55, 0.65),
                         0,
                     ),
                     Furniture::new(
+                        "Bathroom Sink",
                         FurnitureType::Bathroom(BathroomType::Sink),
                         vec2(0.0, -0.725),
                         vec2(0.45, 0.45),
                         -180,
                     ),
                     Furniture::new(
+                        "Bathroom Radiator",
                         FurnitureType::Radiator,
                         vec2(1.1, -0.375),
                         vec2(0.7, 0.1),

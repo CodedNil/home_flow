@@ -1,4 +1,4 @@
-use super::{LightPacket, PostServicesPacket, StatesPacket};
+use super::{LightPacket, PostServicesPacket, SensorPacket, StatesPacket};
 use crate::common::{layout::Home, template};
 use anyhow::{anyhow, Result};
 use axum::{
@@ -31,7 +31,7 @@ fn get_env_variable(key: &str) -> String {
 pub fn setup_routes(app: Router) -> Router {
     app.route("/load_layout", get(load_layout_server))
         .route("/save_layout", post(save_layout_server))
-        .route("/get_states", get(get_states_server))
+        .route("/get_states", post(get_states_server))
         .route("/post_state", post(post_state_server))
 }
 
@@ -62,18 +62,24 @@ async fn save_layout_server(body: axum::body::Bytes) -> impl IntoResponse {
     }
 }
 
-async fn get_states_server() -> impl IntoResponse {
-    match get_states_impl().await {
-        Ok(states) => match bincode::serialize(&states) {
-            Ok(serialized) => (StatusCode::OK, serialized),
+async fn get_states_server(sensors: axum::body::Bytes) -> impl IntoResponse {
+    match bincode::deserialize(&sensors) {
+        Ok(sensors) => match get_states_impl(sensors).await {
+            Ok(states) => match bincode::serialize(&states) {
+                Ok(serialized) => (StatusCode::OK, serialized),
+                Err(e) => {
+                    log::error!("Failed to serialize states: {:?}", e);
+                    (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
+                }
+            },
             Err(e) => {
-                log::error!("Failed to serialize states: {:?}", e);
+                log::error!("Failed to get states: {:?}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
             }
         },
         Err(e) => {
-            log::error!("Failed to get states: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
+            log::error!("Failed to deserialise sensors: {:?}", e);
+            (StatusCode::BAD_REQUEST, Vec::<u8>::new())
         }
     }
 }
@@ -131,7 +137,7 @@ struct HassState {
     attributes: HashMap<String, serde_json::Value>,
 }
 
-async fn get_states_impl() -> Result<StatesPacket> {
+async fn get_states_impl(sensors: Vec<String>) -> Result<StatesPacket> {
     let client = reqwest::Client::new();
     let states_raw = client
         .get(&format!("{}/api/states", get_env_variable("HASS_URL")))
@@ -146,7 +152,9 @@ async fn get_states_impl() -> Result<StatesPacket> {
         .await?;
 
     let mut light_states = Vec::new();
+    let mut sensor_states = Vec::new();
     for state_raw in &states_raw {
+        let entity_id = state_raw.entity_id.split('.').nth(1).unwrap();
         if state_raw.entity_id.starts_with("light.") {
             let state_value = match state_raw.state.as_str() {
                 "on" => 255,
@@ -154,15 +162,23 @@ async fn get_states_impl() -> Result<StatesPacket> {
             };
 
             let state = LightPacket {
-                entity_id: state_raw.entity_id.split('.').nth(1).unwrap().to_string(),
+                entity_id: entity_id.to_string(),
                 state: state_value,
             };
             light_states.push(state);
+        }
+        if state_raw.entity_id.starts_with("sensor.") && sensors.contains(&entity_id.to_string()) {
+            let state = SensorPacket {
+                entity_id: entity_id.to_string(),
+                state: state_raw.state.clone(),
+            };
+            sensor_states.push(state);
         }
     }
 
     Ok(StatesPacket {
         lights: light_states,
+        sensors: sensor_states,
     })
 }
 

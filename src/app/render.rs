@@ -8,7 +8,7 @@ use crate::common::{
 };
 use egui::{
     epaint::{CircleShape, PathStroke, TessellationOptions, Tessellator, Vertex},
-    Color32, ColorImage, Mesh, Painter, Shape as EShape, Stroke, TextureId, TextureOptions,
+    Color32, ColorImage, FontId, Mesh, Painter, Shape as EShape, Stroke, TextureId, TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::collections::HashMap;
@@ -552,6 +552,45 @@ impl HomeFlow {
                 Color32::from_rgb(0, 0, 0).gamma_multiply(0.5 * alpha),
             );
             painter.add(shape);
+        }
+
+        // Render sensors
+        for room in &self.layout.rooms {
+            for furniture in &room.furniture {
+                let (min_opacity, max_opacity) = (0.05, 0.75);
+                let (min_distance, max_distance) = (0.2, 1.0);
+
+                // Normalize the distance within the range of min_distance to max_distance for opacity
+                let pos = room.pos + furniture.pos;
+                let mouse_dist = self.mouse_pos_world.distance(pos) as f32;
+                let norm_dist =
+                    ((mouse_dist - min_distance) / (max_distance - min_distance)).clamp(0.0, 1.0);
+                let alpha = min_opacity + (max_opacity - min_opacity) * (1.0 - norm_dist);
+
+                // Render power draw
+                if !furniture.power_draw_entity.is_empty() {
+                    let power_draw = furniture
+                        .hass_data
+                        .get(&furniture.power_draw_entity)
+                        .and_then(|value| value.parse::<f64>().ok())
+                        .unwrap_or(0.0);
+                    let power_draw_scale = 0.1 * self.stored.zoom as f32;
+
+                    let galley = painter.layout_no_wrap(
+                        format!("⚡ {} W", power_draw.round() as i64).to_string(),
+                        FontId::proportional(power_draw_scale),
+                        Color32::WHITE.gamma_multiply(alpha),
+                    );
+                    let rect = egui::Align2::CENTER_CENTER
+                        .anchor_size(self.world_to_screen_pos(pos), galley.size());
+                    painter.add(EShape::rect_filled(
+                        rect.expand(power_draw_scale * 0.5),
+                        power_draw_scale,
+                        Color32::from_black_alpha((150.0 * alpha).round() as u8),
+                    ));
+                    painter.galley(rect.min, galley, Color32::WHITE);
+                }
+            }
         }
     }
 }

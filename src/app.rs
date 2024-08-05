@@ -288,7 +288,19 @@ impl HomeFlow {
             DownloadStates::None => {
                 download_data_guard.hass_states = DownloadStates::InProgress;
                 drop(download_data_guard);
-                get_states(&self.host, move |res| {
+
+                // Get list of sensors to fetch
+                let mut sensors = Vec::new();
+                for room in &self.layout.rooms {
+                    for furniture in &room.furniture {
+                        let wanted = furniture.wanted_sensors();
+                        if !wanted.is_empty() {
+                            sensors.extend(wanted);
+                        }
+                    }
+                }
+
+                get_states(&self.host, &sensors, move |res| {
                     download_store.lock().hass_states = DownloadStates::Done(res);
                 });
             }
@@ -311,6 +323,17 @@ impl HomeFlow {
                                 for light_packet in &states.lights {
                                     if light.entity_id == light_packet.entity_id {
                                         light.state = light_packet.state;
+                                    }
+                                }
+                            }
+                        }
+                        for furniture in &mut room.furniture {
+                            for sensor in &mut furniture.wanted_sensors() {
+                                for sensor_packet in &states.sensors {
+                                    if sensor == &sensor_packet.entity_id {
+                                        furniture
+                                            .hass_data
+                                            .insert(sensor.clone(), sensor_packet.state.clone());
                                     }
                                 }
                             }

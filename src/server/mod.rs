@@ -18,10 +18,17 @@ pub struct PostServicesPacket {
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct StatesPacket {
     pub lights: Vec<LightPacket>,
+    pub sensors: Vec<SensorPacket>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LightPacket {
     pub entity_id: String,
     pub state: u8,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SensorPacket {
+    pub entity_id: String,
+    pub state: String,
 }
