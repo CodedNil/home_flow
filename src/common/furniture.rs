@@ -46,11 +46,7 @@ nestify::nest! {
             Storage(pub enum StorageType {
                 #[default]
                 Cupboard,
-                CupboardMid,
-                CupboardHigh,
                 Drawer,
-                DrawerMid,
-                DrawerHigh,
             }),
             Rug(Color),
             Electronic(pub enum ElectronicType {
@@ -58,24 +54,25 @@ nestify::nest! {
                 Display,
                 Computer
             }),
-            #[default]
             Radiator,
-            Misc(pub enum MiscHeight {
-                #[default]
-                Low,
-                Mid,
-                High,
-            }),
+            #[default]
+            Misc,
             AnimatedPiece(
                 pub enum AnimatedPieceType {
                     #[default]
                     Drawer,
-                    DrawerMid,
-                    DrawerHigh,
                     Door(bool),
-                    DoorMid(bool),
-                    DoorHigh(bool),
                 }),
+        },
+
+        #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash, Default)]*
+        pub render_order: pub enum RenderOrder {
+            #[default]
+            Floor,
+            Low,
+            Mid,
+            High,
+            Ceiling
         },
 
         pub material: String,
@@ -98,53 +95,38 @@ const WOOD: FurnMaterial = FurnMaterial::new(Material::Wood, Color::from_rgb(190
 const CERAMIC: FurnMaterial = FurnMaterial::new(Material::Empty, Color::from_rgb(230, 220, 200));
 const METAL_DARK: FurnMaterial = FurnMaterial::new(Material::Empty, Color::from_rgb(80, 80, 80));
 
-impl FurnitureType {
-    pub const fn render_order(self) -> u8 {
-        match self {
-            Self::Storage(StorageType::CupboardHigh | StorageType::DrawerHigh)
-            | Self::Misc(MiscHeight::High) => 6,
-            Self::Storage(StorageType::CupboardMid | StorageType::DrawerMid)
-            | Self::Misc(MiscHeight::Mid) => 4,
-            Self::AnimatedPiece(animated_type) => match animated_type {
-                AnimatedPieceType::DrawerHigh | AnimatedPieceType::DoorHigh(_) => 5,
-                AnimatedPieceType::DrawerMid | AnimatedPieceType::DoorMid(_) => 3,
-                AnimatedPieceType::Drawer | AnimatedPieceType::Door(_) => 1,
-            },
-            Self::Chair(_) => 1,
-            Self::Rug(_) => 0,
-            _ => 2,
-        }
-    }
-
-    pub fn height(self) -> f64 {
-        f64::from(self.render_order()) / 6.0
-    }
-
-    pub fn height_shadow(self) -> f64 {
-        (self.height() + 0.5) / 1.5
-    }
-
-    pub const fn can_hover(self) -> bool {
-        matches!(self, Self::AnimatedPiece(_) | Self::Chair(_))
-    }
-
-    pub const fn has_material(self) -> bool {
-        matches!(
-            self,
-            Self::Table(_) | Self::Chair(ChairType::Dining) | Self::Storage(_) | Self::Misc(_)
-        )
-    }
-
-    pub const fn has_children_material(self) -> bool {
-        matches!(self, Self::Table(TableType::Dining) | Self::Storage(_))
-    }
-}
-
 impl Furniture {
     pub fn new(furniture_type: FurnitureType, pos: Vec2, size: Vec2, rotation: i32) -> Self {
         Self {
             id: Uuid::new_v4(),
             furniture_type,
+            render_order: match furniture_type {
+                FurnitureType::Chair(_) => RenderOrder::Low,
+                FurnitureType::Rug(_) => RenderOrder::Floor,
+                _ => RenderOrder::Mid,
+            },
+            material: "Wood".to_owned(),
+            material_children: "Wood".to_owned(),
+            pos,
+            size,
+            rotation,
+            power_draw_entity: String::new(),
+            hover_amount: 0.0,
+            rendered_data: None,
+        }
+    }
+
+    pub fn new_ordered(
+        furniture_type: FurnitureType,
+        render_order: RenderOrder,
+        pos: Vec2,
+        size: Vec2,
+        rotation: i32,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            furniture_type,
+            render_order,
             material: "Wood".to_owned(),
             material_children: "Wood".to_owned(),
             pos,
@@ -164,6 +146,17 @@ impl Furniture {
         rotation: i32,
     ) -> Self {
         Self::new(furniture_type, pos, size, rotation)
+    }
+
+    pub fn named_ordered(
+        _: &str,
+        furniture_type: FurnitureType,
+        render_order: RenderOrder,
+        pos: Vec2,
+        size: Vec2,
+        rotation: i32,
+    ) -> Self {
+        Self::new_ordered(furniture_type, render_order, pos, size, rotation)
     }
 
     pub fn materials(mut self, material: &str) -> Self {
@@ -197,11 +190,50 @@ impl Furniture {
     }
 
     pub const fn render_order(&self) -> u8 {
-        self.furniture_type.render_order()
+        let mut order = match self.render_order {
+            RenderOrder::Ceiling => 8,
+            RenderOrder::High => 6,
+            RenderOrder::Mid => 4,
+            RenderOrder::Low => 2,
+            RenderOrder::Floor => 0,
+        };
+
+        if matches!(
+            self.furniture_type,
+            FurnitureType::AnimatedPiece(_) | FurnitureType::Chair(_)
+        ) {
+            order -= 1;
+        }
+
+        order
+    }
+
+    pub fn height_shadow(&self) -> f64 {
+        ((f64::from(self.render_order()) / 8.0) + 0.5) / 1.5
     }
 
     pub const fn can_hover(&self) -> bool {
-        self.furniture_type.can_hover()
+        matches!(
+            self.furniture_type,
+            FurnitureType::AnimatedPiece(_) | FurnitureType::Chair(_)
+        )
+    }
+
+    pub const fn has_material(&self) -> bool {
+        matches!(
+            self.furniture_type,
+            FurnitureType::Table(_)
+                | FurnitureType::Chair(ChairType::Dining)
+                | FurnitureType::Storage(_)
+                | FurnitureType::Misc
+        )
+    }
+
+    pub const fn has_children_material(&self) -> bool {
+        matches!(
+            self.furniture_type,
+            FurnitureType::Table(TableType::Dining) | FurnitureType::Storage(_)
+        )
     }
 
     pub fn contains(&self, point: Vec2) -> bool {
@@ -239,13 +271,10 @@ impl Furniture {
                 _ => true,
             };
             if use_simple {
-                polygons_to_shadows(
-                    vec![&self.full_shape()],
-                    self.furniture_type.height_shadow(),
-                )
+                polygons_to_shadows(vec![&self.full_shape()], self.height_shadow())
             } else {
                 let shadow_polys = polygons.iter().map(|(_, p)| p).collect::<Vec<_>>();
-                polygons_to_shadows(shadow_polys, self.furniture_type.height_shadow())
+                polygons_to_shadows(shadow_polys, self.height_shadow())
             }
         } else {
             (Color::TRANSPARENT, Vec::new())
@@ -273,7 +302,7 @@ impl Furniture {
             FurnitureType::Radiator => self.radiator_render(),
             FurnitureType::Electronic(sub_type) => self.electronic_render(sub_type),
             FurnitureType::AnimatedPiece(sub_type) => self.animated_render(material, sub_type),
-            FurnitureType::Misc(_) => vec![(material, self.full_shape())],
+            FurnitureType::Misc => vec![(material, self.full_shape())],
         }
     }
 
@@ -345,15 +374,12 @@ impl Furniture {
             let x_pos = (i as f64 - (num_drawers - 1) as f64 * 0.5) * drawer_width;
             let side = i % 2 == 0;
             children.push(
-                Self::new(
+                Self::new_ordered(
                     FurnitureType::AnimatedPiece(match sub_type {
                         StorageType::Drawer => AnimatedPieceType::Drawer,
-                        StorageType::DrawerMid => AnimatedPieceType::DrawerMid,
-                        StorageType::DrawerHigh => AnimatedPieceType::DrawerHigh,
                         StorageType::Cupboard => AnimatedPieceType::Door(side),
-                        StorageType::CupboardMid => AnimatedPieceType::DoorMid(side),
-                        StorageType::CupboardHigh => AnimatedPieceType::DoorHigh(side),
                     }),
+                    self.render_order,
                     vec2(x_pos, 0.0),
                     vec2(drawer_width - 0.025, self.size.y),
                     0,
@@ -641,14 +667,10 @@ impl Furniture {
         sub_type: AnimatedPieceType,
     ) -> FurniturePolygons {
         match sub_type {
-            AnimatedPieceType::Drawer
-            | AnimatedPieceType::DrawerMid
-            | AnimatedPieceType::DrawerHigh => {
+            AnimatedPieceType::Drawer => {
                 fancy_rectangle(Vec2::ZERO, self.size, material, 0.1, 0.05)
             }
-            AnimatedPieceType::Door(_)
-            | AnimatedPieceType::DoorMid(_)
-            | AnimatedPieceType::DoorHigh(_) => {
+            AnimatedPieceType::Door(_) => {
                 let depth = 0.05;
                 vec![(
                     material.lighten(0.1),

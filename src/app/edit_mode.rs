@@ -869,9 +869,6 @@ fn room_edit_widgets(
                         FurnitureType::Storage(ref mut storage_type) => {
                             combo_box_for_enum(ui, format!("{}-s", furniture.id), storage_type, "");
                         }
-                        FurnitureType::Misc(ref mut misc_type) => {
-                            combo_box_for_enum(ui, format!("{}-m", furniture.id), misc_type, "");
-                        }
                         FurnitureType::Electronic(ref mut electronic_type) => {
                             combo_box_for_enum(
                                 ui,
@@ -882,7 +879,7 @@ fn room_edit_widgets(
                         }
                         _ => {}
                     }
-                    if furniture.furniture_type.has_material() {
+                    if furniture.has_material() {
                         combo_box_for_materials(
                             ui,
                             &furniture.id.to_string(),
@@ -890,7 +887,7 @@ fn room_edit_widgets(
                             &mut furniture.material,
                         );
                     }
-                    if furniture.furniture_type.has_children_material() {
+                    if furniture.has_children_material() {
                         combo_box_for_materials(
                             ui,
                             &format!("{} Children", furniture.id),

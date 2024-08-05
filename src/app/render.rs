@@ -184,14 +184,8 @@ impl HomeFlow {
             let (offset, offset_rot) = match child.furniture_type {
                 FurnitureType::Chair(_) => (vec2(hover * 0.15, hover * 0.3), hover * 20.0),
                 FurnitureType::AnimatedPiece(animated_piece_type) => match animated_piece_type {
-                    AnimatedPieceType::Drawer
-                    | AnimatedPieceType::DrawerMid
-                    | AnimatedPieceType::DrawerHigh => {
-                        (vec2(0.0, child.size.y * hover * -0.6), 0.0)
-                    }
-                    AnimatedPieceType::Door(side)
-                    | AnimatedPieceType::DoorMid(side)
-                    | AnimatedPieceType::DoorHigh(side) => {
+                    AnimatedPieceType::Drawer => (vec2(0.0, child.size.y * hover * -0.6), 0.0),
+                    AnimatedPieceType::Door(side) => {
                         if side {
                             let rotate = -hover * 60.0;
                             let offset = rotate_point_pivot(
