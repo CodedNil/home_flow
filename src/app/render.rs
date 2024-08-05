@@ -60,14 +60,16 @@ impl HomeFlow {
                 }
             }
         }
-        for furniture in &self.layout.furniture {
-            let rendered_data = furniture.rendered_data.as_ref().unwrap();
-            for (material, _) in &rendered_data.triangles {
-                materials_to_ready.push(material.material);
-            }
-            for child in &rendered_data.children {
-                for (material, _) in &child.rendered_data.as_ref().unwrap().triangles {
+        for room in &self.layout.rooms {
+            for furniture in &room.furniture {
+                let rendered_data = furniture.rendered_data.as_ref().unwrap();
+                for (material, _) in &rendered_data.triangles {
                     materials_to_ready.push(material.material);
+                }
+                for child in &rendered_data.children {
+                    for (material, _) in &child.rendered_data.as_ref().unwrap().triangles {
+                        materials_to_ready.push(material.material);
+                    }
                 }
             }
         }
@@ -120,28 +122,30 @@ impl HomeFlow {
 
         // Hover furniture
         let mut furnitures_hovered = Vec::new();
-        for furniture in &self.layout.furniture {
-            if furniture.can_hover()
-                && Shape::Rectangle.contains(
-                    self.mouse_pos_world,
-                    furniture.pos,
-                    furniture.size * 1.2,
-                    furniture.rotation,
-                )
-            {
-                furnitures_hovered.push(furniture);
-            }
-            let rendered_data = furniture.rendered_data.as_ref().unwrap();
-            for child in &rendered_data.children {
-                if child.can_hover()
+        for room in &self.layout.rooms {
+            for furniture in &room.furniture {
+                if furniture.can_hover()
                     && Shape::Rectangle.contains(
                         self.mouse_pos_world,
-                        furniture.pos + rotate_point_i32(child.pos, -furniture.rotation),
-                        child.size * 1.2,
-                        furniture.rotation + child.rotation,
+                        furniture.pos,
+                        furniture.size * 1.2,
+                        furniture.rotation,
                     )
                 {
-                    furnitures_hovered.push(child);
+                    furnitures_hovered.push(furniture);
+                }
+                let rendered_data = furniture.rendered_data.as_ref().unwrap();
+                for child in &rendered_data.children {
+                    if child.can_hover()
+                        && Shape::Rectangle.contains(
+                            self.mouse_pos_world,
+                            furniture.pos + rotate_point_i32(child.pos, -furniture.rotation),
+                            child.size * 1.2,
+                            furniture.rotation + child.rotation,
+                        )
+                    {
+                        furnitures_hovered.push(child);
+                    }
                 }
             }
         }
@@ -149,22 +153,24 @@ impl HomeFlow {
         furniture_sorted.sort_by_key(|f| f.render_order());
         let top_hover = furniture_sorted.last().map(|f| f.id);
 
-        for furniture in &mut self.layout.furniture {
-            let target = f64::from(Some(furniture.id) == top_hover) * 2.0 - 1.0;
-            let difference = target - furniture.hover_amount;
-            if difference.abs() > f64::EPSILON {
-                furniture.hover_amount = (furniture.hover_amount
-                    + difference.signum() * self.frame_time * 10.0)
-                    .clamp(-1.0, 1.0);
-            }
-            let rendered_data = furniture.rendered_data.as_mut().unwrap();
-            for child in &mut rendered_data.children {
-                let target = f64::from(Some(child.id) == top_hover) * 2.0 - 1.0;
-                let difference = target - child.hover_amount;
+        for room in &mut self.layout.rooms {
+            for furniture in &mut room.furniture {
+                let target = f64::from(Some(furniture.id) == top_hover) * 2.0 - 1.0;
+                let difference = target - furniture.hover_amount;
                 if difference.abs() > f64::EPSILON {
-                    child.hover_amount = (child.hover_amount
+                    furniture.hover_amount = (furniture.hover_amount
                         + difference.signum() * self.frame_time * 10.0)
                         .clamp(-1.0, 1.0);
+                }
+                let rendered_data = furniture.rendered_data.as_mut().unwrap();
+                for child in &mut rendered_data.children {
+                    let target = f64::from(Some(child.id) == top_hover) * 2.0 - 1.0;
+                    let difference = target - child.hover_amount;
+                    if difference.abs() > f64::EPSILON {
+                        child.hover_amount = (child.hover_amount
+                            + difference.signum() * self.frame_time * 10.0)
+                            .clamp(-1.0, 1.0);
+                    }
                 }
             }
         }
@@ -218,18 +224,20 @@ impl HomeFlow {
             );
         };
 
-        for obj in &self.layout.furniture {
-            let rendered_data = obj.rendered_data.as_ref().unwrap();
-            furniture_map
-                .entry(obj.render_order())
-                .or_insert_with(Vec::new)
-                .push(obj);
-            for child in &rendered_data.children {
-                handle_furniture_child(obj, child);
+        for room in &self.layout.rooms {
+            for furniture in &room.furniture {
+                let rendered_data = furniture.rendered_data.as_ref().unwrap();
                 furniture_map
-                    .entry(child.render_order())
+                    .entry(furniture.render_order())
                     .or_insert_with(Vec::new)
-                    .push(child);
+                    .push(furniture);
+                for child in &rendered_data.children {
+                    handle_furniture_child(furniture, child);
+                    furniture_map
+                        .entry(child.render_order())
+                        .or_insert_with(Vec::new)
+                        .push(child);
+                }
             }
         }
 

@@ -113,11 +113,11 @@ nestify::nest! {
                 pub color: Color,
             }>,
 
+            pub furniture: Vec<Furniture>,
+
             #[serde(skip)]
             pub rendered_data: Option<RoomRender>,
         }>,
-
-        pub furniture: Vec<Furniture>,
 
         #[serde(skip)]
         pub rendered_data: Option<HomeRender>,

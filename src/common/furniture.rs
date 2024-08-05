@@ -53,10 +53,13 @@ nestify::nest! {
                 DrawerHigh,
             }),
             Rug(Color),
-            Display,
+            Electronic(pub enum ElectronicType {
+                #[default]
+                Display,
+                Computer
+            }),
             #[default]
             Radiator,
-            Boiler,
             Misc(pub enum MiscHeight {
                 #[default]
                 Low,
@@ -81,6 +84,8 @@ nestify::nest! {
         pub pos: Vec2,
         pub size: Vec2,
         pub rotation: i32,
+
+        pub power_draw_entity: String,
 
         #[serde(skip)]
         pub hover_amount: f64,
@@ -145,6 +150,7 @@ impl Furniture {
             pos,
             size,
             rotation,
+            power_draw_entity: String::new(),
             hover_amount: 0.0,
             rendered_data: None,
         }
@@ -173,6 +179,11 @@ impl Furniture {
 
     pub fn material_children(mut self, material: &str) -> Self {
         material.clone_into(&mut self.material_children);
+        self
+    }
+
+    pub fn power_draw_entity(mut self, entity: &str) -> Self {
+        entity.clone_into(&mut self.power_draw_entity);
         self
     }
 
@@ -259,9 +270,8 @@ impl Furniture {
             FurnitureType::Rug(color) => self.rug_render(color),
             FurnitureType::Kitchen(sub_type) => self.kitchen_render(sub_type),
             FurnitureType::Bathroom(sub_type) => self.bathroom_render(sub_type),
-            FurnitureType::Boiler => vec![(METAL_DARK, self.full_shape())],
             FurnitureType::Radiator => self.radiator_render(),
-            FurnitureType::Display => self.display_render(),
+            FurnitureType::Electronic(sub_type) => self.electronic_render(sub_type),
             FurnitureType::AnimatedPiece(sub_type) => self.animated_render(material, sub_type),
             FurnitureType::Misc(_) => vec![(material, self.full_shape())],
         }
@@ -589,23 +599,30 @@ impl Furniture {
         polygons
     }
 
-    fn display_render(&self) -> FurniturePolygons {
-        vec![
-            (
-                METAL_DARK,
-                rect(
-                    vec2(0.0, -self.size.y * 0.25),
-                    vec2(self.size.x, self.size.y * 0.5),
-                ),
-            ),
-            (
-                FurnMaterial::new(Material::Empty, Color::from_rgb(50, 150, 255)),
-                rect(
-                    vec2(0.0, self.size.y * 0.25),
-                    vec2(self.size.x, self.size.y * 0.5),
-                ),
-            ),
-        ]
+    fn electronic_render(&self, sub_type: ElectronicType) -> FurniturePolygons {
+        match sub_type {
+            ElectronicType::Display => {
+                vec![
+                    (
+                        METAL_DARK,
+                        rect(
+                            vec2(0.0, -self.size.y * 0.25),
+                            vec2(self.size.x, self.size.y * 0.5),
+                        ),
+                    ),
+                    (
+                        FurnMaterial::new(Material::Empty, Color::from_rgb(50, 150, 255)),
+                        rect(
+                            vec2(0.0, self.size.y * 0.25),
+                            vec2(self.size.x, self.size.y * 0.5),
+                        ),
+                    ),
+                ]
+            }
+            ElectronicType::Computer => {
+                vec![(METAL_DARK, self.full_shape())]
+            }
+        }
     }
 
     fn rug_render(&self, color: Color) -> FurniturePolygons {

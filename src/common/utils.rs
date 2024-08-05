@@ -1,5 +1,6 @@
 use super::{
     color::Color,
+    furniture::Furniture,
     layout::{
         Action, GlobalMaterial, Home, Light, LightType, MultiLight, Opening, OpeningType,
         Operation, Outline, Room, Shape, TileOptions, Walls,
@@ -70,7 +71,6 @@ impl Home {
             version: String::new(),
             materials: Vec::new(),
             rooms: Vec::new(),
-            furniture: Vec::new(),
             rendered_data: None,
             light_data: None,
         }
@@ -81,7 +81,6 @@ impl Hash for Home {
         self.version.hash(state);
         self.materials.hash(state);
         self.rooms.hash(state);
-        self.furniture.hash(state);
     }
 }
 
@@ -97,6 +96,7 @@ impl Room {
             operations: Vec::new(),
             openings: Vec::new(),
             lights: Vec::new(),
+            furniture: Vec::new(),
             outline: None,
             rendered_data: None,
         }
@@ -170,7 +170,7 @@ impl Room {
             Light {
                 id: Uuid::new_v4(),
                 name: name.to_owned(),
-                entity_id: name.replace(' ', "_"),
+                entity_id: name.to_lowercase().replace(' ', "_"),
                 light_type,
                 pos: vec2(x, y),
                 multi: None,
@@ -203,6 +203,11 @@ impl Room {
 
     pub fn light_center(self, name: &str) -> Self {
         self.light(name, 0.0, 0.0)
+    }
+
+    pub fn furniture(mut self, furniture: Vec<Furniture>) -> Self {
+        self.furniture = furniture;
+        self
     }
 
     pub fn operation(mut self, operation: Operation) -> Self {
@@ -238,6 +243,7 @@ impl Hash for Room {
         self.walls.hash(state);
         self.openings.hash(state);
         self.outline.hash(state);
+        self.furniture.hash(state);
     }
 }
 
@@ -276,7 +282,7 @@ impl Light {
         Self {
             id: Uuid::new_v4(),
             name: name.to_owned(),
-            entity_id: name.replace(' ', "_"),
+            entity_id: name.to_lowercase().replace(' ', "_"),
             light_type: LightType::Dimmable,
             pos,
             multi: None,
@@ -292,7 +298,7 @@ impl Light {
         Self {
             id: Uuid::new_v4(),
             name: name.to_owned(),
-            entity_id: name.replace(' ', "_"),
+            entity_id: name.to_lowercase().replace(' ', "_"),
             light_type: LightType::Dimmable,
             pos,
             multi: Some(MultiLight {

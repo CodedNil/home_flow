@@ -319,18 +319,18 @@ impl HomeFlow {
                                 light.pos = new_pos - room.pos;
                             }
                         }
-                    }
-                }
-                for furniture in &mut self.layout.furniture {
-                    if furniture.id == drag_data.id {
-                        apply_standard_transform(
-                            &mut furniture.pos,
-                            &mut furniture.size,
-                            drag_data,
-                            delta,
-                            new_pos,
-                            Vec2::ZERO,
-                        );
+                        for furniture in &mut room.furniture {
+                            if furniture.id == drag_data.id {
+                                apply_standard_transform(
+                                    &mut furniture.pos,
+                                    &mut furniture.size,
+                                    drag_data,
+                                    delta,
+                                    new_pos,
+                                    Vec2::ZERO,
+                                );
+                            }
+                        }
                     }
                 }
                 snap_line_x = snap_x;
@@ -395,7 +395,6 @@ impl HomeFlow {
                                         ui.add(
                                             DragValue::new(&mut tiles.spacing)
                                                 .speed(0.1)
-                                                .fixed_decimals(2)
                                                 .range(0.01..=5.0)
                                                 .suffix("m"),
                                         );
@@ -404,7 +403,6 @@ impl HomeFlow {
                                         ui.add(
                                             DragValue::new(&mut tiles.grout_width)
                                                 .speed(0.1)
-                                                .fixed_decimals(2)
                                                 .range(0.01..=5.0)
                                                 .suffix("m"),
                                         );
@@ -464,79 +462,35 @@ impl HomeFlow {
     }
 
     fn edit_widgets(&mut self, ui: &mut Ui, selected_id: Uuid) {
-        match self.edit_mode.selected_type.unwrap() {
-            ObjectType::Room => {
-                let room_and_index = self.layout.rooms.iter_mut().enumerate().find_map(|obj| {
-                    if obj.1.id == selected_id {
-                        Some(obj)
-                    } else {
-                        None
+        if self.edit_mode.selected_type.unwrap() == ObjectType::Room {
+            let room_and_index = self.layout.rooms.iter_mut().enumerate().find_map(|obj| {
+                if obj.1.id == selected_id {
+                    Some(obj)
+                } else {
+                    None
+                }
+            });
+            if let Some((index, room)) = room_and_index {
+                let alter_type = room_edit_widgets(ui, &self.layout.materials, room);
+                match alter_type {
+                    AlterObject::Delete => {
+                        self.layout.rooms.retain(|r| r.id != selected_id);
+                        self.edit_mode.selected_id = None;
+                        self.edit_mode.selected_type = None;
                     }
-                });
-                if let Some((index, room)) = room_and_index {
-                    let alter_type = room_edit_widgets(ui, &self.layout.materials, room);
-                    match alter_type {
-                        AlterObject::Delete => {
-                            self.layout.rooms.retain(|r| r.id != selected_id);
-                            self.edit_mode.selected_id = None;
-                            self.edit_mode.selected_type = None;
+                    AlterObject::MoveUp => {
+                        if index < self.layout.rooms.len() - 1 {
+                            self.layout.rooms.swap(index, index + 1);
                         }
-                        AlterObject::MoveUp => {
-                            if index < self.layout.rooms.len() - 1 {
-                                self.layout.rooms.swap(index, index + 1);
-                            }
-                        }
-                        AlterObject::MoveDown => {
-                            if index > 0 {
-                                self.layout.rooms.swap(index, index - 1);
-                            }
-                        }
-                        _ => {}
                     }
+                    AlterObject::MoveDown => {
+                        if index > 0 {
+                            self.layout.rooms.swap(index, index - 1);
+                        }
+                    }
+                    _ => {}
                 }
             }
-            ObjectType::Furniture => {
-                let furniture_and_index =
-                    self.layout
-                        .furniture
-                        .iter_mut()
-                        .enumerate()
-                        .find_map(|obj| {
-                            if obj.1.id == selected_id {
-                                Some(obj)
-                            } else {
-                                None
-                            }
-                        });
-                if let Some((index, furniture)) = furniture_and_index {
-                    let alter_type = furniture_edit_widgets(ui, &self.layout.materials, furniture);
-                    match alter_type {
-                        AlterObject::Delete => {
-                            self.layout.furniture.retain(|r| r.id != selected_id);
-                            self.edit_mode.selected_id = None;
-                            self.edit_mode.selected_type = None;
-                        }
-                        AlterObject::MoveUp => {
-                            if index < self.layout.furniture.len() - 1 {
-                                self.layout.furniture.swap(index, index + 1);
-                            }
-                        }
-                        AlterObject::MoveDown => {
-                            if index > 0 {
-                                self.layout.furniture.swap(index, index - 1);
-                            }
-                        }
-                        AlterObject::Duplicate => {
-                            let mut new_furniture = furniture.clone();
-                            new_furniture.id = Uuid::new_v4();
-                            new_furniture.pos += vec2(0.1, -0.1);
-                            self.layout.furniture.push(new_furniture);
-                        }
-                        AlterObject::None => {}
-                    }
-                }
-            }
-            _ => {}
         }
     }
 }
@@ -601,7 +555,6 @@ fn room_edit_widgets(
                         ui.add(
                             DragValue::new(&mut outline.thickness)
                                 .speed(0.1)
-                                .fixed_decimals(2)
                                 .range(0.01..=5.0)
                                 .suffix("m"),
                         );
@@ -715,7 +668,7 @@ fn room_edit_widgets(
         });
     })
     .body(|ui| {
-        let num_objects = room.operations.len();
+        let num_objects = room.openings.len();
         let mut alterations = vec![AlterObject::None; num_objects];
         for (index, opening) in room.openings.iter_mut().enumerate() {
             ui.horizontal(|ui| {
@@ -731,7 +684,6 @@ fn room_edit_widgets(
                     ui.add(
                         DragValue::new(&mut opening.width)
                             .speed(0.1)
-                            .fixed_decimals(1)
                             .range(0.1..=5.0)
                             .suffix("m"),
                     );
@@ -781,53 +733,59 @@ fn room_edit_widgets(
         let num_objects = room.lights.len();
         let mut alterations = vec![AlterObject::None; num_objects];
         for (index, light) in room.lights.iter_mut().enumerate() {
-            ui.horizontal(|ui| {
-                TextEdit::singleline(&mut light.name)
-                    .min_size(egui::vec2(100.0, 0.0))
-                    .show(ui);
-                edit_vec2(ui, "Pos", &mut light.pos, 0.1);
-                if ui.button("Delete").clicked() {
-                    alterations[index] = AlterObject::Delete;
-                }
-                if index > 0 && ui.button("^").clicked() {
-                    alterations[index] = AlterObject::MoveUp;
-                }
-                if num_objects > 0 && index < num_objects - 1 && ui.button("v").clicked() {
-                    alterations[index] = AlterObject::MoveDown;
-                }
-            });
-            ui.horizontal(|ui| {
-                labelled_widget(ui, "Intensity", |ui| {
-                    ui.add(
-                        DragValue::new(&mut light.intensity)
-                            .speed(0.1)
-                            .range(0.1..=10.0)
-                            .suffix("cd"),
+            egui::Frame::fill(
+                egui::Frame::central_panel(ui.style()),
+                Color32::from_rgb(150, 150, 50),
+            )
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    TextEdit::singleline(&mut light.name)
+                        .min_size(egui::vec2(100.0, 0.0))
+                        .show(ui);
+                    edit_vec2(ui, "Pos", &mut light.pos, 0.1);
+                    if ui.button("Delete").clicked() {
+                        alterations[index] = AlterObject::Delete;
+                    }
+                    if index > 0 && ui.button("^").clicked() {
+                        alterations[index] = AlterObject::MoveUp;
+                    }
+                    if num_objects > 0 && index < num_objects - 1 && ui.button("v").clicked() {
+                        alterations[index] = AlterObject::MoveDown;
+                    }
+                });
+                ui.horizontal(|ui| {
+                    labelled_widget(ui, "Intensity", |ui| {
+                        ui.add(
+                            DragValue::new(&mut light.intensity)
+                                .speed(0.1)
+                                .range(0.1..=10.0)
+                                .suffix("cd"),
+                        );
+                    });
+                    labelled_widget(ui, "Radius", |ui| {
+                        ui.add(
+                            DragValue::new(&mut light.radius)
+                                .speed(0.01)
+                                .range(0.01..=0.5)
+                                .suffix("m"),
+                        );
+                    });
+                    edit_option(
+                        ui,
+                        "Multi",
+                        &mut light.multi,
+                        MultiLight::default,
+                        |ui, content| {
+                            edit_vec2(ui, "Room Padding", &mut content.room_padding, 0.1);
+                            labelled_widget(ui, "Rows", |ui| {
+                                ui.add(DragValue::new(&mut content.rows).range(1..=20));
+                            });
+                            labelled_widget(ui, "Cols", |ui| {
+                                ui.add(DragValue::new(&mut content.cols).range(1..=20));
+                            });
+                        },
                     );
                 });
-                labelled_widget(ui, "Radius", |ui| {
-                    ui.add(
-                        DragValue::new(&mut light.radius)
-                            .speed(0.01)
-                            .range(0.01..=0.5)
-                            .suffix("m"),
-                    );
-                });
-                edit_option(
-                    ui,
-                    "Multi",
-                    &mut light.multi,
-                    MultiLight::default,
-                    |ui, content| {
-                        edit_vec2(ui, "Room Padding", &mut content.room_padding, 0.1);
-                        labelled_widget(ui, "Rows", |ui| {
-                            ui.add(DragValue::new(&mut content.rows).range(1..=20));
-                        });
-                        labelled_widget(ui, "Cols", |ui| {
-                            ui.add(DragValue::new(&mut content.cols).range(1..=20));
-                        });
-                    },
-                );
             });
         }
         for (index, alteration) in alterations.into_iter().enumerate().rev() {
@@ -846,96 +804,143 @@ fn room_edit_widgets(
         }
     });
 
-    alter_type
-}
-
-fn furniture_edit_widgets(
-    ui: &mut egui::Ui,
-    materials: &[GlobalMaterial],
-    furniture: &mut Furniture,
-) -> AlterObject {
-    let mut alter_type = AlterObject::None;
-    ui.horizontal(|ui| {
-        ui.label("Furniture");
-        if ui.add(Button::new("Duplicate")).clicked() {
-            alter_type = AlterObject::Duplicate;
-        }
-        if ui.add(Button::new("Delete")).clicked() {
-            alter_type = AlterObject::Delete;
-        }
-        if ui.add(Button::new("^")).clicked() {
-            alter_type = AlterObject::MoveUp;
-        }
-        if ui.add(Button::new("v")).clicked() {
-            alter_type = AlterObject::MoveDown;
-        }
-    });
-
-    ui.horizontal(|ui| {
-        egui::ComboBox::from_id_source(format!("Furniture {}", furniture.id))
-            .selected_text(furniture.furniture_type.to_string())
-            .show_ui(ui, |ui| {
-                for variant in <FurnitureType as strum::IntoEnumIterator>::iter() {
-                    if matches!(variant, FurnitureType::AnimatedPiece(_)) {
-                        continue;
-                    }
-                    ui.selectable_value(
-                        &mut furniture.furniture_type,
-                        variant,
-                        variant.to_string(),
-                    );
+    CollapsingState::load_with_default_open(
+        ui.ctx(),
+        ui.make_persistent_id("furniture_collapsing_header"),
+        false,
+    )
+    .show_header(ui, |ui| {
+        ui.horizontal(|ui| {
+            labelled_widget(ui, "Furniture", |ui| {
+                if ui.add(Button::new("Add")).clicked() {
+                    room.furniture.push(Furniture::default());
                 }
             });
-        match &mut furniture.furniture_type {
-            FurnitureType::Chair(ref mut chair_type) => {
-                combo_box_for_enum(ui, "Chair Type", chair_type, "");
-                if let ChairType::Sofa(ref mut color) = chair_type {
-                    ui.color_edit_button_srgba_unmultiplied(color.mut_array());
-                }
-            }
-            FurnitureType::Table(ref mut table_type) => {
-                combo_box_for_enum(ui, "Table Type", table_type, "");
-            }
-            FurnitureType::Bed(ref mut color) | FurnitureType::Rug(ref mut color) => {
-                ui.color_edit_button_srgba_unmultiplied(color.mut_array());
-            }
-            FurnitureType::Kitchen(ref mut kitchen_type) => {
-                combo_box_for_enum(ui, "Kitchen Type", kitchen_type, "");
-            }
-            FurnitureType::Bathroom(ref mut bathroom_type) => {
-                combo_box_for_enum(ui, "Bathroom Type", bathroom_type, "");
-            }
-            FurnitureType::Storage(ref mut storage_type) => {
-                combo_box_for_enum(ui, "Storage Type", storage_type, "");
-            }
-            FurnitureType::Misc(ref mut misc_type) => {
-                combo_box_for_enum(ui, "Misc Type", misc_type, "");
-            }
-            _ => {}
-        }
-        if furniture.furniture_type.has_material() {
-            combo_box_for_materials(
-                ui,
-                &furniture.id.to_string(),
-                materials,
-                &mut furniture.material,
-            );
-        }
-        if furniture.furniture_type.has_children_material() {
-            combo_box_for_materials(
-                ui,
-                &format!("{} Children", furniture.id),
-                materials,
-                &mut furniture.material_children,
-            );
-        }
-    });
+        });
+    })
+    .body(|ui| {
+        let num_objects = room.furniture.len();
+        let mut alterations = vec![AlterObject::None; num_objects];
+        for (index, furniture) in room.furniture.iter_mut().enumerate() {
+            egui::Frame::fill(
+                egui::Frame::central_panel(ui.style()),
+                Color32::from_rgb(20, 60, 20),
+            )
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_source(format!("Furniture {}", furniture.id))
+                        .selected_text(furniture.furniture_type.to_string())
+                        .show_ui(ui, |ui| {
+                            for variant in <FurnitureType as strum::IntoEnumIterator>::iter() {
+                                if matches!(variant, FurnitureType::AnimatedPiece(_)) {
+                                    continue;
+                                }
+                                ui.selectable_value(
+                                    &mut furniture.furniture_type,
+                                    variant,
+                                    variant.to_string(),
+                                );
+                            }
+                        });
+                    match &mut furniture.furniture_type {
+                        FurnitureType::Chair(ref mut chair_type) => {
+                            combo_box_for_enum(ui, format!("{}-c", furniture.id), chair_type, "");
+                            if let ChairType::Sofa(ref mut color) = chair_type {
+                                ui.color_edit_button_srgba_unmultiplied(color.mut_array());
+                            }
+                        }
+                        FurnitureType::Table(ref mut table_type) => {
+                            combo_box_for_enum(ui, format!("{}-t", furniture.id), table_type, "");
+                        }
+                        FurnitureType::Bed(ref mut color) | FurnitureType::Rug(ref mut color) => {
+                            ui.color_edit_button_srgba_unmultiplied(color.mut_array());
+                        }
+                        FurnitureType::Kitchen(ref mut kitchen_type) => {
+                            combo_box_for_enum(ui, format!("{}-k", furniture.id), kitchen_type, "");
+                        }
+                        FurnitureType::Bathroom(ref mut bathroom_type) => {
+                            combo_box_for_enum(
+                                ui,
+                                format!("{}-b", furniture.id),
+                                bathroom_type,
+                                "",
+                            );
+                        }
+                        FurnitureType::Storage(ref mut storage_type) => {
+                            combo_box_for_enum(ui, format!("{}-s", furniture.id), storage_type, "");
+                        }
+                        FurnitureType::Misc(ref mut misc_type) => {
+                            combo_box_for_enum(ui, format!("{}-m", furniture.id), misc_type, "");
+                        }
+                        FurnitureType::Electronic(ref mut electronic_type) => {
+                            combo_box_for_enum(
+                                ui,
+                                format!("{}-e", furniture.id),
+                                electronic_type,
+                                "",
+                            );
+                        }
+                        _ => {}
+                    }
+                    if furniture.furniture_type.has_material() {
+                        combo_box_for_materials(
+                            ui,
+                            &furniture.id.to_string(),
+                            materials,
+                            &mut furniture.material,
+                        );
+                    }
+                    if furniture.furniture_type.has_children_material() {
+                        combo_box_for_materials(
+                            ui,
+                            &format!("{} Children", furniture.id),
+                            materials,
+                            &mut furniture.material_children,
+                        );
+                    }
 
-    ui.horizontal(|ui| {
-        edit_vec2(ui, "Pos", &mut furniture.pos, 0.1);
-        edit_vec2(ui, "Size", &mut furniture.size, 0.1);
-        edit_rotation(ui, &mut furniture.rotation);
-        ui.end_row();
+                    if index > 0 && ui.button("^").clicked() {
+                        alterations[index] = AlterObject::MoveUp;
+                    }
+                    if num_objects > 0 && index < num_objects - 1 && ui.button("v").clicked() {
+                        alterations[index] = AlterObject::MoveDown;
+                    }
+                    if ui.button("Duplicate").clicked() {
+                        alterations[index] = AlterObject::Duplicate;
+                    }
+                    if ui.button("Delete").clicked() {
+                        alterations[index] = AlterObject::Delete;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    edit_vec2(ui, "Pos", &mut furniture.pos, 0.1);
+                    edit_vec2(ui, "Size", &mut furniture.size, 0.1);
+                    edit_rotation(ui, &mut furniture.rotation);
+                    ui.label("Power Entity");
+                    ui.text_edit_singleline(&mut furniture.power_draw_entity);
+                });
+            });
+        }
+        for (index, alteration) in alterations.into_iter().enumerate().rev() {
+            match alteration {
+                AlterObject::Delete => {
+                    room.furniture.remove(index);
+                }
+                AlterObject::MoveUp => {
+                    room.furniture.swap(index, index - 1);
+                }
+                AlterObject::MoveDown => {
+                    room.furniture.swap(index, index + 1);
+                }
+                AlterObject::Duplicate => {
+                    let mut new_furniture = room.furniture[index].clone();
+                    new_furniture.id = Uuid::new_v4();
+                    room.furniture.insert(index + 1, new_furniture);
+                }
+                AlterObject::None => {}
+            }
+        }
     });
 
     alter_type

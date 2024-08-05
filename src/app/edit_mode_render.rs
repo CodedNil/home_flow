@@ -1,6 +1,5 @@
 use super::{edit_mode::EditResponse, vec2_to_egui_pos, HomeFlow};
 use crate::common::{
-    furniture::Furniture,
     layout::{Action, OpeningType, Room, Shape},
     shape::point_to_vec2,
     utils::RoundFactor,
@@ -59,13 +58,6 @@ impl HomeFlow {
                             self.layout.rooms.push(Room {
                                 pos: vec2(pos.x.round_factor(10.0), pos.y.round_factor(10.0)),
                                 ..Room::default()
-                            });
-                        }
-                        if ui.button("Add Furniture").clicked() {
-                            let pos = self.screen_to_world(self.canvas_center);
-                            self.layout.furniture.push(Furniture {
-                                pos: vec2(pos.x.round_factor(10.0), pos.y.round_factor(10.0)),
-                                ..Furniture::default()
                             });
                         }
                         ui.add_space(ui.available_width() / 4.0);
@@ -175,21 +167,21 @@ impl HomeFlow {
                     Color32::from_rgb(0, 0, 0),
                 ));
             }
-        }
 
-        // Render furniture
-        if let Some(furniture) = [edit_response.hovered_id, self.edit_mode.selected_id]
-            .iter()
-            .filter_map(|&id| id)
-            .find_map(|id| self.layout.furniture.iter().find(|r| r.id == id))
-        {
-            self.closed_dashed_line_with_offset(
-                painter,
-                &Shape::Rectangle.vertices(furniture.pos, furniture.size, furniture.rotation),
-                Stroke::new(6.0, Color32::from_rgb(150, 0, 50).gamma_multiply(0.8)),
-                35.0,
-                self.time * 50.0,
-            );
+            // Render furniture
+            if let Some(furniture) = [edit_response.hovered_id, self.edit_mode.selected_id]
+                .iter()
+                .filter_map(|&id| id)
+                .find_map(|id| room.furniture.iter().find(|r| r.id == id))
+            {
+                self.closed_dashed_line_with_offset(
+                    painter,
+                    &Shape::Rectangle.vertices(furniture.pos, furniture.size, furniture.rotation),
+                    Stroke::new(6.0, Color32::from_rgb(150, 0, 50).gamma_multiply(0.8)),
+                    35.0,
+                    self.time * 50.0,
+                );
+            }
         }
     }
 

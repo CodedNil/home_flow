@@ -29,20 +29,6 @@ impl HomeFlow {
                 break;
             }
         }
-        for obj in self.layout.furniture.iter().rev() {
-            if obj.contains(self.mouse_pos_world) {
-                hovered_data = Some(HoverDetails {
-                    id: obj.id,
-                    object_type: ObjectType::Furniture,
-                    can_drag: true,
-                    pos: obj.pos,
-                    size: obj.size,
-                    rotation: obj.rotation,
-                    manipulation_type: ManipulationType::Move,
-                });
-                break;
-            }
-        }
 
         // Click to select room
         if response.clicked() {
@@ -118,6 +104,20 @@ impl HomeFlow {
                             pos: room.pos + obj.pos,
                             size: Vec2::ZERO,
                             rotation: 0,
+                            manipulation_type: ManipulationType::Move,
+                        });
+                        break;
+                    }
+                }
+                for obj in room.furniture.iter().rev() {
+                    if obj.contains(self.mouse_pos_world) {
+                        hovered_data = Some(HoverDetails {
+                            id: obj.id,
+                            object_type: ObjectType::Furniture,
+                            can_drag: true,
+                            pos: obj.pos,
+                            size: obj.size,
+                            rotation: obj.rotation,
                             manipulation_type: ManipulationType::Move,
                         });
                         break;
@@ -418,18 +418,8 @@ pub fn combo_box_for_materials(
 
 pub fn edit_vec2(ui: &mut egui::Ui, label: &str, vec2: &mut Vec2, speed: f32) {
     labelled_widget(ui, label, |ui| {
-        ui.add(
-            egui::DragValue::new(&mut vec2.x)
-                .speed(speed)
-                .fixed_decimals(4)
-                .prefix("X: "),
-        );
-        ui.add(
-            egui::DragValue::new(&mut vec2.y)
-                .speed(speed)
-                .fixed_decimals(4)
-                .prefix("Y: "),
-        );
+        ui.add(egui::DragValue::new(&mut vec2.x).speed(speed).prefix("X: "));
+        ui.add(egui::DragValue::new(&mut vec2.y).speed(speed).prefix("Y: "));
     });
 }
 

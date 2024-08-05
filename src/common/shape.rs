@@ -63,18 +63,21 @@ impl Home {
 
         // Process all furniture
         let materials = &self.materials;
-        for furniture in &mut self.furniture {
-            let mut hasher = DefaultHasher::new();
-            furniture.hash(&mut hasher);
-            let hash = hasher.finish();
-            if furniture.rendered_data.is_none()
-                || furniture.rendered_data.as_ref().unwrap().hash != hash
-            {
-                let material = get_global_material(materials, &furniture.material);
-                let material_child = get_global_material(materials, &furniture.material_children);
-                let mut render = furniture.render(&material, &material_child);
-                render.hash = hash;
-                furniture.rendered_data = Some(render);
+        for room in &mut self.rooms {
+            for furniture in &mut room.furniture {
+                let mut hasher = DefaultHasher::new();
+                furniture.hash(&mut hasher);
+                let hash = hasher.finish();
+                if furniture.rendered_data.is_none()
+                    || furniture.rendered_data.as_ref().unwrap().hash != hash
+                {
+                    let material = get_global_material(materials, &furniture.material);
+                    let material_child =
+                        get_global_material(materials, &furniture.material_children);
+                    let mut render = furniture.render(&material, &material_child);
+                    render.hash = hash;
+                    furniture.rendered_data = Some(render);
+                }
             }
         }
 

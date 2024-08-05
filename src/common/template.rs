@@ -1,7 +1,8 @@
 use super::{
     color::Color,
     furniture::{
-        BathroomType, Furniture, FurnitureType, KitchenType, MiscHeight, StorageType, TableType,
+        BathroomType, ElectronicType, Furniture, FurnitureType, KitchenType, MiscHeight,
+        StorageType, TableType,
     },
     layout::{GlobalMaterial, Home, LightType, Outline, Room, LAYOUT_VERSION},
     utils::Material,
@@ -45,14 +46,184 @@ pub fn default() -> Home {
                 .no_wall_top()
                 .window_width(vec2(-1.0, -1.35), 0, 1.6)
                 .window(vec2(2.1, -1.35), 0)
-                .lights_grid_offset("Lounge Downlights", 4, 2, vec2(2.0, 1.25), Vec2::ZERO),
+                .lights_grid_offset("Lounge Downlights", 4, 2, vec2(2.0, 1.25), Vec2::ZERO)
+                .furniture(vec![
+                    Furniture::new(
+                        FurnitureType::Table(TableType::Desk),
+                        vec2(-0.275, -1.875),
+                        vec2(1.6, 0.8),
+                        -90,
+                    )
+                    .material("WoodDark"),
+                    Furniture::new(
+                        FurnitureType::Electronic(ElectronicType::Display),
+                        vec2(0.2, -1.65),
+                        vec2(1.0, 0.1),
+                        -90,
+                    )
+                    .power_draw_entity("living_tv_current_consumption"),
+                    Furniture::new(
+                        FurnitureType::Electronic(ElectronicType::Computer),
+                        vec2(-0.225, -2.425),
+                        vec2(0.7, 0.4),
+                        0,
+                    )
+                    .power_draw_entity("desktop_current_consumption"),
+                    Furniture::new(
+                        FurnitureType::Radiator,
+                        vec2(-3.75, -2.65),
+                        vec2(1.4, 0.1),
+                        0,
+                    ),
+                    Furniture::new(FurnitureType::Radiator, vec2(0.95, 0.95), vec2(1.4, 0.1), 0),
+                    Furniture::new(
+                        FurnitureType::Misc(MiscHeight::Low),
+                        vec2(1.5, -0.65),
+                        vec2(0.6, 0.6),
+                        0,
+                    )
+                    .material("MetalDark"),
+                ]),
             Room::new("Kitchen", vec2(-4.2, 1.5), vec2(3.2, 3.1), "MarbleTiles")
                 .no_wall_right()
                 .no_wall_bottom()
                 .add(vec2(1.65, 0.55), vec2(0.3, 2.0))
                 .window(vec2(0.2, 1.55), 0)
                 .lights_grid_offset("Kitchen Downlights", 2, 1, vec2(2.0, 2.0), vec2(0.1, 0.0))
-                .outline(Outline::new(0.05, Color::from_rgb(200, 170, 150))),
+                .outline(Outline::new(0.05, Color::from_rgb(200, 170, 150)))
+                .furniture(vec![
+                    // Counters
+                    Furniture::new(
+                        FurnitureType::Misc(MiscHeight::Low),
+                        vec2(-5.475, 2.725),
+                        vec2(0.55, 0.55),
+                        0,
+                    )
+                    .material("Granite"),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::Drawer),
+                        vec2(-5.475, 1.35),
+                        vec2(2.2, 0.55),
+                        -90,
+                    )
+                    .material("Granite"),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::Drawer),
+                        vec2(-4.1, 2.725),
+                        vec2(2.2, 0.55),
+                        0,
+                    )
+                    .material("Granite"),
+                    Furniture::new(
+                        FurnitureType::Misc(MiscHeight::Low),
+                        vec2(-2.725, 2.725),
+                        vec2(0.55, 0.55),
+                        0,
+                    )
+                    .material("Granite"),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::Drawer),
+                        vec2(-2.725, 1.9),
+                        vec2(1.1, 0.55),
+                        90,
+                    )
+                    .material("Granite"),
+                    // Cupboards
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::CupboardHigh),
+                        vec2(-5.625, 1.35),
+                        vec2(2.2, 0.25),
+                        -90,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::CupboardHigh),
+                        vec2(-4.925, 2.875),
+                        vec2(0.55, 0.25),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::CupboardHigh),
+                        vec2(-5.425, 2.675),
+                        vec2(0.55, 0.25),
+                        -45,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::CupboardHigh),
+                        vec2(-2.575, 1.9),
+                        vec2(1.1, 0.25),
+                        90,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::CupboardHigh),
+                        vec2(-2.775, 2.675),
+                        vec2(0.55, 0.25),
+                        45,
+                    ),
+                    // Cupboard corners
+                    Furniture::new(
+                        FurnitureType::Misc(MiscHeight::High),
+                        vec2(-4.1, 2.8625),
+                        vec2(3.3, 0.2750),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Misc(MiscHeight::High),
+                        vec2(-5.625, 2.725),
+                        vec2(0.55, 0.2750),
+                        -90,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Misc(MiscHeight::High),
+                        vec2(-2.575, 2.725),
+                        vec2(0.55, 0.2750),
+                        90,
+                    ),
+                    // Kitchen
+                    Furniture::named(
+                        "Fridge",
+                        FurnitureType::Storage(StorageType::CupboardHigh),
+                        vec2(-2.725, 1.075),
+                        vec2(0.55, 0.55),
+                        90,
+                    ),
+                    Furniture::named(
+                        "Microwave",
+                        FurnitureType::Storage(StorageType::CupboardMid),
+                        vec2(-2.8, 2.65),
+                        vec2(0.5, 0.4),
+                        45,
+                    )
+                    .materials("MetalDark"),
+                    Furniture::named(
+                        "Oven",
+                        FurnitureType::Storage(StorageType::Drawer),
+                        vec2(-5.475, 1.625),
+                        vec2(0.55, 0.55),
+                        -90,
+                    )
+                    .materials("Granite")
+                    .material_children("MetalDark"),
+                    Furniture::new(
+                        FurnitureType::Kitchen(KitchenType::Hob),
+                        vec2(-5.475, 1.625),
+                        vec2(0.45, 0.45),
+                        -90,
+                    ),
+                    Furniture::named(
+                        "Extractor Vent",
+                        FurnitureType::Misc(MiscHeight::High),
+                        vec2(-5.65, 1.625),
+                        vec2(0.2, 0.2),
+                        0,
+                    )
+                    .materials("MetalDark"),
+                    Furniture::new(
+                        FurnitureType::Kitchen(KitchenType::Sink),
+                        vec2(-4.0, 2.7),
+                        vec2(0.65, 0.5),
+                        0,
+                    ),
+                ]),
             Room::new("Storage1", vec2(-1.65, 2.5), vec2(1.5, 1.1), "Carpet")
                 .door(vec2(0.75, 0.0), -90),
             Room::new("Storage2", vec2(-1.65, 1.4), vec2(1.5, 1.1), "Carpet")
@@ -62,12 +233,72 @@ pub fn default() -> Home {
                 .door(vec2(-0.25, 1.35), 90)
                 .window(vec2(0.0, -1.8), 0)
                 .lights_grid_offset("Bedroom Downlights", 2, 2, vec2(2.0, 2.5), vec2(0.0, -0.4))
-                .light_full("Bedside Light", 1.65, -1.45, LightType::Binary, 1.0, 0.025),
+                .light_full("Bedside Light", 1.65, -1.45, LightType::Binary, 1.0, 0.025)
+                .furniture(vec![
+                    Furniture::new(
+                        FurnitureType::Bed(Color::from_rgb(110, 120, 130)),
+                        vec2(4.65, -1.4),
+                        vec2(1.4, 2.1),
+                        90,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::Drawer),
+                        vec2(5.475, -2.4),
+                        vec2(0.4, 0.55),
+                        90,
+                    )
+                    .materials("WoodDark"),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::Cupboard),
+                        vec2(5.075, 0.5),
+                        vec2(1.35, 0.6),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::Drawer),
+                        vec2(2.35, -0.87),
+                        vec2(1.54, 0.8),
+                        -90,
+                    )
+                    .materials("WoodDark"),
+                    Furniture::new(
+                        FurnitureType::Radiator,
+                        vec2(3.85, -2.65),
+                        vec2(1.4, 0.1),
+                        0,
+                    ),
+                ]),
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
                 .door(vec2(0.8, -0.85), -90)
                 .window(vec2(0.0, -1.35), 0)
                 .light("Ensuite Downlight", 0.0, -0.4)
-                .light("Ensuite Shower Downlight", -0.4, 0.7),
+                .light("Ensuite Shower Downlight", -0.4, 0.7)
+                .furniture(vec![
+                    Furniture::new(
+                        FurnitureType::Bathroom(BathroomType::Shower),
+                        vec2(0.7, -0.75),
+                        vec2(0.7, 1.3),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Bathroom(BathroomType::Toilet),
+                        vec2(0.675, -2.3),
+                        vec2(0.55, 0.65),
+                        -90,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Bathroom(BathroomType::Sink),
+                        vec2(1.45, -1.325),
+                        vec2(0.45, 0.45),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Radiator,
+                        vec2(1.475, -2.65),
+                        vec2(0.7, 0.1),
+                        0,
+                    ),
+                ]),
             Room::new("Boiler Room", vec2(1.5, -0.55), vec2(0.8, 1.0), "Carpet").door_width(
                 vec2(0.0, 0.5),
                 180,
@@ -77,256 +308,57 @@ pub fn default() -> Home {
                 .subtract(vec2(-1.1, -1.4), vec2(1.0, 1.0))
                 .door(vec2(-1.1, -0.9), 180)
                 .window(vec2(1.6, 0.0), -90)
-                .lights_grid_offset("Office Downlights", 2, 1, vec2(1.75, 1.75), vec2(0.0, -0.1)),
+                .lights_grid_offset("Office Downlights", 2, 1, vec2(1.75, 1.75), vec2(0.0, -0.1))
+                .furniture(vec![
+                    Furniture::new(
+                        FurnitureType::Storage(StorageType::Cupboard),
+                        vec2(4.2, 2.7),
+                        vec2(3.1, 0.6),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Radiator,
+                        vec2(5.7, 1.95),
+                        vec2(0.75, 0.1),
+                        90,
+                    ),
+                ]),
             Room::new("Bathroom", vec2(1.4, 2.05), vec2(2.4, 2.0), "GraniteTiles")
                 .door(vec2(0.7, -1.0), 180)
                 .light_center("Bathroom Downlight")
-                .light("Bathroom Shower Downlight", 0.85, 0.55),
-        ],
-        furniture: vec![
-            // Kitchen counters
-            Furniture::new(
-                FurnitureType::Misc(MiscHeight::Low),
-                vec2(-5.475, 2.725),
-                vec2(0.55, 0.55),
-                0,
-            )
-            .material("Granite"),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Drawer),
-                vec2(-5.475, 1.35),
-                vec2(2.2, 0.55),
-                -90,
-            )
-            .material("Granite"),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Drawer),
-                vec2(-4.1, 2.725),
-                vec2(2.2, 0.55),
-                0,
-            )
-            .material("Granite"),
-            Furniture::new(
-                FurnitureType::Misc(MiscHeight::Low),
-                vec2(-2.725, 2.725),
-                vec2(0.55, 0.55),
-                0,
-            )
-            .material("Granite"),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Drawer),
-                vec2(-2.725, 1.9),
-                vec2(1.1, 0.55),
-                90,
-            )
-            .material("Granite"),
-            // Cupboards
-            Furniture::new(
-                FurnitureType::Storage(StorageType::CupboardHigh),
-                vec2(-5.625, 1.35),
-                vec2(2.2, 0.25),
-                -90,
-            ),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::CupboardHigh),
-                vec2(-4.925, 2.875),
-                vec2(0.55, 0.25),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::CupboardHigh),
-                vec2(-5.425, 2.675),
-                vec2(0.55, 0.25),
-                -45,
-            ),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::CupboardHigh),
-                vec2(-2.575, 1.9),
-                vec2(1.1, 0.25),
-                90,
-            ),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::CupboardHigh),
-                vec2(-2.775, 2.675),
-                vec2(0.55, 0.25),
-                45,
-            ),
-            // Cupboard corners
-            Furniture::new(
-                FurnitureType::Misc(MiscHeight::High),
-                vec2(-4.1, 2.8625),
-                vec2(3.3, 0.2750),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Misc(MiscHeight::High),
-                vec2(-5.625, 2.725),
-                vec2(0.55, 0.2750),
-                -90,
-            ),
-            Furniture::new(
-                FurnitureType::Misc(MiscHeight::High),
-                vec2(-2.575, 2.725),
-                vec2(0.55, 0.2750),
-                90,
-            ),
-            // Kitchen
-            Furniture::named(
-                "Fridge",
-                FurnitureType::Storage(StorageType::CupboardHigh),
-                vec2(-2.725, 1.075),
-                vec2(0.55, 0.55),
-                90,
-            ),
-            Furniture::named(
-                "Microwave",
-                FurnitureType::Storage(StorageType::CupboardMid),
-                vec2(-2.8, 2.65),
-                vec2(0.5, 0.4),
-                45,
-            )
-            .materials("MetalDark"),
-            Furniture::named(
-                "Oven",
-                FurnitureType::Storage(StorageType::Drawer),
-                vec2(-5.475, 1.625),
-                vec2(0.55, 0.55),
-                -90,
-            )
-            .materials("Granite")
-            .material_children("MetalDark"),
-            Furniture::new(
-                FurnitureType::Kitchen(KitchenType::Hob),
-                vec2(-5.475, 1.625),
-                vec2(0.45, 0.45),
-                -90,
-            ),
-            Furniture::named(
-                "Extractor Vent",
-                FurnitureType::Misc(MiscHeight::High),
-                vec2(-5.65, 1.625),
-                vec2(0.2, 0.2),
-                0,
-            )
-            .materials("MetalDark"),
-            Furniture::new(
-                FurnitureType::Kitchen(KitchenType::Sink),
-                vec2(-4.0, 2.7),
-                vec2(0.65, 0.5),
-                0,
-            ),
-            // Bedroom
-            Furniture::new(
-                FurnitureType::Bed(Color::from_rgb(110, 120, 130)),
-                vec2(4.65, -1.4),
-                vec2(1.4, 2.1),
-                90,
-            ),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Drawer),
-                vec2(5.475, -2.4),
-                vec2(0.4, 0.55),
-                90,
-            )
-            .materials("WoodDark"),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Cupboard),
-                vec2(5.075, 0.5),
-                vec2(1.35, 0.6),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Drawer),
-                vec2(2.35, -0.87),
-                vec2(1.54, 0.8),
-                -90,
-            )
-            .materials("WoodDark"),
-            Furniture::new(
-                FurnitureType::Radiator,
-                vec2(3.85, -2.65),
-                vec2(1.4, 0.1),
-                0,
-            ),
-            // Ensuite
-            Furniture::new(
-                FurnitureType::Bathroom(BathroomType::Shower),
-                vec2(0.7, -0.75),
-                vec2(0.7, 1.3),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Bathroom(BathroomType::Toilet),
-                vec2(0.675, -2.3),
-                vec2(0.55, 0.65),
-                -90,
-            ),
-            Furniture::new(
-                FurnitureType::Bathroom(BathroomType::Sink),
-                vec2(1.45, -1.325),
-                vec2(0.45, 0.45),
-                0,
-            ),
-            // Spare Room
-            Furniture::new(
-                FurnitureType::Storage(StorageType::Cupboard),
-                vec2(4.2, 2.7),
-                vec2(3.1, 0.6),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Radiator,
-                vec2(5.7, 1.95),
-                vec2(0.75, 0.1),
-                90,
-            ),
-            // Bathroom
-            Furniture::new(
-                FurnitureType::Bathroom(BathroomType::Shower),
-                vec2(2.25, 2.575),
-                vec2(0.6, 0.85),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Bathroom(BathroomType::Bath),
-                vec2(0.65, 2.05),
-                vec2(0.8, 1.9),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Bathroom(BathroomType::Toilet),
-                vec2(1.475, 2.675),
-                vec2(0.55, 0.65),
-                0,
-            ),
-            Furniture::new(
-                FurnitureType::Bathroom(BathroomType::Sink),
-                vec2(1.4, 1.325),
-                vec2(0.45, 0.45),
-                -180,
-            ),
-            // Living Room
-            Furniture::new(
-                FurnitureType::Table(TableType::Desk),
-                vec2(-0.275, -1.825),
-                vec2(1.6, 0.8),
-                -90,
-            )
-            .material("WoodDark"),
-            Furniture::new(
-                FurnitureType::Display,
-                vec2(0.2, -1.65),
-                vec2(1.0, 0.1),
-                -90,
-            ),
-            Furniture::new(
-                FurnitureType::Radiator,
-                vec2(-3.75, -2.65),
-                vec2(1.4, 0.1),
-                0,
-            ),
-            Furniture::new(FurnitureType::Radiator, vec2(0.95, 0.95), vec2(1.4, 0.1), 0),
-            Furniture::new(FurnitureType::Boiler, vec2(1.5, -0.65), vec2(0.6, 0.6), 0),
+                .light("Bathroom Shower Downlight", 0.85, 0.55)
+                .furniture(vec![
+                    Furniture::new(
+                        FurnitureType::Bathroom(BathroomType::Shower),
+                        vec2(2.25, 2.575),
+                        vec2(0.6, 0.85),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Bathroom(BathroomType::Bath),
+                        vec2(0.65, 2.05),
+                        vec2(0.8, 1.9),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Bathroom(BathroomType::Toilet),
+                        vec2(1.475, 2.675),
+                        vec2(0.55, 0.65),
+                        0,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Bathroom(BathroomType::Sink),
+                        vec2(1.4, 1.325),
+                        vec2(0.45, 0.45),
+                        -180,
+                    ),
+                    Furniture::new(
+                        FurnitureType::Radiator,
+                        vec2(2.5, 1.675),
+                        vec2(0.7, 0.1),
+                        90,
+                    ),
+                ]),
         ],
         rendered_data: None,
         light_data: None,
