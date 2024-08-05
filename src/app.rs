@@ -54,7 +54,7 @@ nestify::nest! {
         edit_mode: EditDetails,
         host: String,
 
-        #>[derive(Deserialize, Serialize)]
+        #>[derive(Deserialize, Serialize, Debug)]
         #>[serde(default)]
         stored: pub struct StoredData {
             translation: Vec2,
@@ -159,6 +159,14 @@ impl HomeFlow {
     }
 
     fn handle_pan_zoom(&mut self, response: &egui::Response, ui: &egui::Ui) {
+        if !(self.bounds.0.is_finite()
+            && self.bounds.1.is_finite()
+            && self.bounds.0.length() > 0.0
+            && self.bounds.1.length() > 0.0)
+        {
+            return;
+        }
+
         // Drag
         let pointer_button = if self.edit_mode.enabled {
             egui::PointerButton::Secondary
@@ -240,12 +248,10 @@ impl HomeFlow {
         }
 
         // Clamp translation to bounds
-        if self.bounds.0.is_finite() && self.bounds.1.is_finite() {
-            self.stored.translation = self.stored.translation.clamp(self.bounds.0, self.bounds.1);
-        }
+        self.stored.translation = self.stored.translation.clamp(self.bounds.0, self.bounds.1);
     }
 
-    fn load_layout(&mut self, ctx: &Context) {
+    fn load_layout(&mut self) {
         // Load layout from server if needed
         if !self.layout.version.is_empty() {
             return;
@@ -261,20 +267,7 @@ impl HomeFlow {
                     download_store.lock().layout = DownloadLayout::Done(res);
                 });
             }
-            DownloadLayout::InProgress => {
-                Window::new("Layout Download")
-                    .fixed_pos(egui::pos2(
-                        ctx.available_rect().center().x,
-                        ctx.available_rect().center().y,
-                    ))
-                    .pivot(Align2::CENTER_CENTER)
-                    .title_bar(false)
-                    .resizable(false)
-                    .interactable(false)
-                    .show(ctx, |ui| {
-                        ui.label("Downloading Home Layout");
-                    });
-            }
+            DownloadLayout::InProgress => {}
             DownloadLayout::Done(ref response) => {
                 if let Ok(layout) = response {
                     log::info!("Loaded layout from server");
@@ -366,12 +359,12 @@ impl eframe::App for HomeFlow {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
 
         #[cfg(target_arch = "wasm32")]
         {
-            let web_info = &frame.info().web_info;
+            let web_info = &_frame.info().web_info;
             self.host = web_info.location.host.clone();
         }
 
@@ -380,7 +373,7 @@ impl eframe::App for HomeFlow {
             style.visuals.window_shadow = egui::epaint::Shadow::NONE;
         });
 
-        self.load_layout(ctx);
+        self.load_layout();
         self.get_states();
         self.post_states();
 
