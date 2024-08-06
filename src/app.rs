@@ -441,10 +441,8 @@ impl eframe::App for HomeFlow {
                     fill: Color32::from_rgb(25, 25, 35),
                     ..Default::default()
                 })
-                .show(ctx, |ui| {
-                    let (response, _painter) =
-                        ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
-                    let canvas_center = egui_pos_to_vec2(response.rect.center());
+                .show(ctx, |_| {
+                    let canvas_center = egui_pos_to_vec2(ctx.screen_rect().center());
 
                     Window::new("Login Form".to_string())
                         .fixed_pos(vec2_to_egui_pos(vec2(canvas_center.x, canvas_center.y)))
