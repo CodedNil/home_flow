@@ -16,7 +16,7 @@ mod server;
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
         .init()
