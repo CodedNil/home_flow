@@ -15,17 +15,17 @@ use crate::{
         utils::{rotate_point, rotate_point_pivot},
     },
     server::{
-        common_api::{get_layout, get_states, post_state},
-        PostServicesPacket, StatesPacket,
+        common_api::{get_layout, get_states, login, post_state},
+        PostServicesData, StatesPacket,
     },
 };
 use anyhow::Result;
-use egui::{Align2, CentralPanel, Color32, Context, Frame, Sense, TextureHandle, Window};
+use egui::{Align2, CentralPanel, Color32, Context, Frame, Sense, TextEdit, TextureHandle, Window};
 use egui_notify::Toasts;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 static HOME_ASSISTANT_STATE_REFRESH: f64 = 1.0;
 static HOME_ASSISTANT_STATE_LOCAL_OVERRIDE: f64 = 5.0;
@@ -58,9 +58,15 @@ nestify::nest! {
         #>[derive(Deserialize, Serialize, Debug)]
         #>[serde(default)]
         stored: pub struct StoredData {
+            auth_token: String,
             translation: Vec2,
             zoom: f64, // Zoom is meter to pixels
             rotation: f64,
+        },
+
+        login_form: struct LoginForm {
+            username: String,
+            password: String,
         },
 
         #>[derive(Default)]*
@@ -84,15 +90,22 @@ nestify::nest! {
                 Waiting(f64),
                 InProgress,
             },
+            login: enum LoginState {
+                #[default]
+                None,
+                InProgress,
+                Done(Result<String>),
+            },
         }>>,
 
-        post_queue: Vec<PostServicesPacket>,
+        post_queue: Vec<PostServicesData>,
     }
 }
 
 impl Default for StoredData {
     fn default() -> Self {
         Self {
+            auth_token: String::new(),
             translation: Vec2::ZERO,
             zoom: 100.0,
             rotation: 0.0,
@@ -129,6 +142,10 @@ impl HomeFlow {
             edit_mode: EditDetails::default(),
             host: "localhost:8127".to_string(),
             stored: StoredData { rotation, ..stored },
+            login_form: LoginForm {
+                username: String::new(),
+                password: String::new(),
+            },
             network_data: Arc::new(Mutex::new(DownloadData::default())),
             post_queue: Vec::new(),
         }
@@ -257,38 +274,45 @@ impl HomeFlow {
         if !self.layout.version.is_empty() {
             return;
         }
-        let download_store = self.network_data.clone();
-        let mut download_data_guard = download_store.lock();
-        match &download_data_guard.layout {
+        let network_store = self.network_data.clone();
+        let mut network_data_guard = network_store.lock();
+        match &network_data_guard.layout {
             DownloadLayout::None => {
                 log::info!("Loading layout from server");
-                download_data_guard.layout = DownloadLayout::InProgress;
-                drop(download_data_guard);
-                get_layout(&self.host, move |res| {
-                    download_store.lock().layout = DownloadLayout::Done(res);
+                network_data_guard.layout = DownloadLayout::InProgress;
+                drop(network_data_guard);
+                get_layout(&self.host, &self.stored.auth_token, move |res| {
+                    network_store.lock().layout = DownloadLayout::Done(res);
                 });
             }
             DownloadLayout::InProgress => {}
             DownloadLayout::Done(ref response) => {
-                if let Ok(layout) = response {
-                    log::info!("Loaded layout from server");
-                    self.layout_server = layout.clone();
-                    self.layout = layout.clone();
-                } else {
-                    log::error!("Failed to fetch or parse layout from server");
+                match response {
+                    Ok(layout) => {
+                        log::info!("Loaded layout from server");
+                        self.layout_server = layout.clone();
+                        self.layout = layout.clone();
+                    }
+                    Err(e) => {
+                        // If unauthorised, clear auth token and show login screen
+                        if e.to_string().contains("status code: 401") {
+                            self.stored.auth_token.clear();
+                        }
+                        log::error!("Failed to fetch layout: {:?}", e);
+                    }
                 }
-                download_data_guard.layout = DownloadLayout::None;
+                network_data_guard.layout = DownloadLayout::None;
             }
         }
     }
 
     fn get_states(&mut self) {
-        let download_store = self.network_data.clone();
-        let mut download_data_guard = download_store.lock();
-        match &download_data_guard.hass_states {
+        let network_store = self.network_data.clone();
+        let mut network_data_guard = network_store.lock();
+        match &network_data_guard.hass_states {
             DownloadStates::None => {
-                download_data_guard.hass_states = DownloadStates::InProgress;
-                drop(download_data_guard);
+                network_data_guard.hass_states = DownloadStates::InProgress;
+                drop(network_data_guard);
 
                 // Get list of sensors to fetch
                 let mut sensors = Vec::new();
@@ -301,49 +325,57 @@ impl HomeFlow {
                     }
                 }
 
-                get_states(&self.host, &sensors, move |res| {
-                    download_store.lock().hass_states = DownloadStates::Done(res);
+                get_states(&self.host, &self.stored.auth_token, &sensors, move |res| {
+                    network_store.lock().hass_states = DownloadStates::Done(res);
                 });
             }
             DownloadStates::Waiting(time) => {
                 if self.time > *time {
-                    download_data_guard.hass_states = DownloadStates::None;
+                    network_data_guard.hass_states = DownloadStates::None;
                 }
             }
             DownloadStates::InProgress => {}
             DownloadStates::Done(ref response) => {
-                if let Ok(states) = response {
-                    // Update all data with the new state
-                    for room in &mut self.layout.rooms {
-                        for light in &mut room.lights {
-                            // Update light if it hasn't been locally edited recently
-                            if light.last_manual == 0.0
-                                || self.time
-                                    > light.last_manual + HOME_ASSISTANT_STATE_LOCAL_OVERRIDE
-                            {
-                                for light_packet in &states.lights {
-                                    if light.entity_id == light_packet.entity_id {
-                                        light.state = light_packet.state;
+                match response {
+                    Ok(states) => {
+                        // Update all data with the new state
+                        for room in &mut self.layout.rooms {
+                            for light in &mut room.lights {
+                                // Update light if it hasn't been locally edited recently
+                                if light.last_manual == 0.0
+                                    || self.time
+                                        > light.last_manual + HOME_ASSISTANT_STATE_LOCAL_OVERRIDE
+                                {
+                                    for light_packet in &states.lights {
+                                        if light.entity_id == light_packet.entity_id {
+                                            light.state = light_packet.state;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        for furniture in &mut room.furniture {
-                            for sensor in &mut furniture.wanted_sensors() {
-                                for sensor_packet in &states.sensors {
-                                    if sensor == &sensor_packet.entity_id {
-                                        furniture
-                                            .hass_data
-                                            .insert(sensor.clone(), sensor_packet.state.clone());
+                            for furniture in &mut room.furniture {
+                                for sensor in &mut furniture.wanted_sensors() {
+                                    for sensor_packet in &states.sensors {
+                                        if sensor == &sensor_packet.entity_id {
+                                            furniture.hass_data.insert(
+                                                sensor.clone(),
+                                                sensor_packet.state.clone(),
+                                            );
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                } else {
-                    log::error!("Failed to fetch or parse states from server");
+                    Err(e) => {
+                        // If unauthorised, clear auth token and show login screen
+                        if e.to_string().contains("status code: 401") {
+                            self.stored.auth_token.clear();
+                        }
+                        log::error!("Failed to fetch states: {:?}", e);
+                    }
                 }
-                download_data_guard.hass_states =
+                network_data_guard.hass_states =
                     DownloadStates::Waiting(self.time + HOME_ASSISTANT_STATE_REFRESH);
             }
         }
@@ -353,22 +385,27 @@ impl HomeFlow {
         if self.post_queue.is_empty() {
             return;
         }
-        let download_store = self.network_data.clone();
-        let mut download_data_guard = download_store.lock();
-        match &download_data_guard.hass_post {
+        let network_store = self.network_data.clone();
+        let mut network_data_guard = network_store.lock();
+        match &network_data_guard.hass_post {
             UploadStates::None => {
-                download_data_guard.hass_post = UploadStates::InProgress;
-                drop(download_data_guard);
+                network_data_guard.hass_post = UploadStates::InProgress;
+                drop(network_data_guard);
                 let next_post = self.time;
-                post_state(&self.host, &self.post_queue, move |_| {
-                    download_store.lock().hass_post =
-                        UploadStates::Waiting(next_post + HOME_ASSISTANT_STATE_POST_EVERY);
-                });
+                post_state(
+                    &self.host,
+                    &self.stored.auth_token,
+                    &self.post_queue,
+                    move |_| {
+                        network_store.lock().hass_post =
+                            UploadStates::Waiting(next_post + HOME_ASSISTANT_STATE_POST_EVERY);
+                    },
+                );
                 self.post_queue.clear();
             }
             UploadStates::Waiting(time) => {
                 if self.time > *time {
-                    download_data_guard.hass_post = UploadStates::None;
+                    network_data_guard.hass_post = UploadStates::None;
                 }
             }
             UploadStates::InProgress => {}
@@ -397,7 +434,104 @@ impl eframe::App for HomeFlow {
             style.visuals.window_shadow = egui::epaint::Shadow::NONE;
         });
 
+        // If no auth token, show login screen
+        if self.stored.auth_token.is_empty() {
+            CentralPanel::default()
+                .frame(Frame {
+                    fill: Color32::from_rgb(25, 25, 35),
+                    ..Default::default()
+                })
+                .show(ctx, |ui| {
+                    let (response, _painter) =
+                        ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
+                    let canvas_center = egui_pos_to_vec2(response.rect.center());
+
+                    Window::new("Login Form".to_string())
+                        .fixed_pos(vec2_to_egui_pos(vec2(canvas_center.x, canvas_center.y)))
+                        .fixed_size([300.0, 0.0])
+                        .pivot(Align2::CENTER_CENTER)
+                        .title_bar(false)
+                        .resizable(false)
+                        .show(ctx, |ui| {
+                            ui.vertical_centered(|ui| {
+                                let network_store = self.network_data.clone();
+                                let mut network_data_guard = network_store.lock();
+                                match &network_data_guard.login {
+                                    LoginState::None => {
+                                        ui.horizontal(|ui| {
+                                            ui.label("Username:");
+                                            TextEdit::singleline(&mut self.login_form.username)
+                                                .show(ui);
+                                        });
+                                        ui.horizontal(|ui| {
+                                            ui.label("Password:");
+                                            TextEdit::singleline(&mut self.login_form.password)
+                                                .password(true)
+                                                .show(ui);
+                                        });
+                                        if ui.button("Login").clicked() {
+                                            network_data_guard.login = LoginState::InProgress;
+                                            drop(network_data_guard);
+                                            login(
+                                                &self.host,
+                                                &self.login_form.username,
+                                                &self.login_form.password,
+                                                move |res| {
+                                                    network_store.lock().login =
+                                                        LoginState::Done(res);
+                                                },
+                                            );
+                                        }
+                                    }
+                                    LoginState::InProgress => {
+                                        ui.label("Logging in...");
+                                        ui.add(egui::Spinner::new());
+                                    }
+                                    LoginState::Done(ref response) => {
+                                        match response {
+                                            Ok(response) => {
+                                                if response.contains('|') {
+                                                    // Split token on | to get message and token separately
+                                                    let split: Vec<&str> =
+                                                        response.split('|').collect();
+                                                    let message = split[0];
+                                                    let token = split[1];
+
+                                                    let toasts_store = self.toasts.clone();
+                                                    toasts_store
+                                                        .lock()
+                                                        .info(message)
+                                                        .set_duration(Some(Duration::from_secs(3)));
+
+                                                    self.stored.auth_token = token.to_string();
+                                                } else {
+                                                    // If no | is found, treat the entire response as the token
+                                                    self.stored.auth_token.clone_from(response);
+                                                }
+                                            }
+                                            Err(e) => {
+                                                let toasts_store = self.toasts.clone();
+                                                toasts_store
+                                                    .lock()
+                                                    .error(format!("Failed to login: {e}"))
+                                                    .set_duration(Some(Duration::from_secs(3)));
+                                            }
+                                        }
+                                        network_data_guard.login = LoginState::None;
+                                    }
+                                }
+                            });
+                        });
+
+                    self.toasts.lock().show(ctx);
+                });
+            return;
+        }
+
         self.load_layout();
+        if self.layout.version.is_empty() {
+            return;
+        }
         self.get_states();
         self.post_states();
 

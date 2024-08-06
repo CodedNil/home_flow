@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::HomeFlow;
 use crate::{
     common::{layout::LightType, utils::Lerp},
-    server::PostServicesPacket,
+    server::PostServicesData,
 };
 use egui::{pos2, Color32, Painter, Pos2, Response, Stroke};
 
@@ -150,7 +150,7 @@ impl HomeFlow {
                         // Remove existing post packets for this light, and add a new one
                         self.post_queue.retain(|x| x.entity_id != light.entity_id);
                         if matches!(light_drag.light_type, LightType::Binary) {
-                            self.post_queue.push(PostServicesPacket {
+                            self.post_queue.push(PostServicesData {
                                 entity_id: format!("light.{}", light.entity_id),
                                 domain: "light".to_string(),
                                 service: if new_state > 150 {
@@ -170,7 +170,7 @@ impl HomeFlow {
                                     .insert("brightness".to_string(), serde_json::json!(new_state));
                             }
 
-                            self.post_queue.push(PostServicesPacket {
+                            self.post_queue.push(PostServicesData {
                                 entity_id: format!("light.{}", light.entity_id),
                                 domain: "light".to_string(),
                                 service,

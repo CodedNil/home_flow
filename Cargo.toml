@@ -64,10 +64,13 @@ tower-http = { version = "0.5.2", features = [
     "compression-deflate",
     "compression-gzip",
 ] }
-time = "0.3.36"
+time = { version = "0.3.36", features = ["serde"] }
 geo-clipper = "0.8.0"
 dotenv = "0.15.0"
 reqwest = { version = "0.12.5", features = ["default-tls", "json"] }
+argon2 = "0.5.3"
+sled = "0.34.7"
+rand = "0.8.5"
 
 [features]
 default = ["gui"]

@@ -1,5 +1,6 @@
 /target
 /dist
-home_layout.ron
-.env
 /backups
+/database
+.env
+home_layout.ron
