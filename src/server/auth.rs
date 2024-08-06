@@ -36,7 +36,7 @@ pub async fn login_server(packet: Bytes) -> impl IntoResponse {
             Ok(token) => (StatusCode::OK, token),
             Err(e) => {
                 log::error!("Failed to login: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, String::new())
+                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
             }
         },
         Err(e) => {

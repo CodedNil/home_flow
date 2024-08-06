@@ -513,7 +513,7 @@ impl eframe::App for HomeFlow {
                                                 let toasts_store = self.toasts.clone();
                                                 toasts_store
                                                     .lock()
-                                                    .error(format!("Failed to login: {e}"))
+                                                    .error(e.to_string())
                                                     .set_duration(Some(Duration::from_secs(3)));
                                             }
                                         }

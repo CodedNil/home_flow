@@ -16,13 +16,17 @@ pub fn get_layout(host: &str, token: &str, on_done: impl 'static + Send + FnOnce
         ),
         Box::new(move |res: std::result::Result<ehttp::Response, String>| {
             on_done(match res {
-                Ok(res) => match bincode::deserialize(&res.bytes) {
-                    Ok(home) => Ok(home),
-                    Err(_) => Err(anyhow::anyhow!(
-                        "Failed to load layout, status code: {}",
-                        res.status
-                    )),
-                },
+                Ok(res) => {
+                    if res.status == 200 {
+                        bincode::deserialize(&res.bytes)
+                            .map_or_else(|_| Err(anyhow::anyhow!("Failed to load layout")), Ok)
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "Failed to load layout, status code: {}",
+                            res.status
+                        ))
+                    }
+                }
                 Err(e) => Err(anyhow::anyhow!("Network error loading layout: {}", e)),
             });
         }),
@@ -67,13 +71,17 @@ pub fn get_states(
         ),
         Box::new(move |res: std::result::Result<ehttp::Response, String>| {
             on_done(match res {
-                Ok(res) => match bincode::deserialize(&res.bytes) {
-                    Ok(states) => Ok(states),
-                    Err(_) => Err(anyhow::anyhow!(
-                        "Failed to load states, status code: {}",
-                        res.status
-                    )),
-                },
+                Ok(res) => {
+                    if res.status == 200 {
+                        bincode::deserialize(&res.bytes)
+                            .map_or_else(|_| Err(anyhow::anyhow!("Failed to load states")), Ok)
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "Failed to load states, status code: {}",
+                            res.status
+                        ))
+                    }
+                }
                 Err(e) => Err(anyhow::anyhow!("Network error loading states: {}", e)),
             });
         }),
@@ -118,10 +126,18 @@ pub fn login(
         ),
         Box::new(move |res: std::result::Result<ehttp::Response, String>| {
             on_done(match res {
-                Ok(res) => res
-                    .text()
-                    .map(std::string::ToString::to_string)
-                    .ok_or_else(|| anyhow::anyhow!("Failed to extract text from response")),
+                Ok(res) => {
+                    if res.status == 200 {
+                        res.text()
+                            .map(std::string::ToString::to_string)
+                            .ok_or_else(|| anyhow::anyhow!("Failed to extract text from response"))
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "Login failed: {}",
+                            res.text().unwrap_or_default()
+                        ))
+                    }
+                }
                 Err(e) => Err(anyhow::anyhow!("Failed to login: {}", e)),
             });
         }),
