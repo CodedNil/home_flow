@@ -15,3 +15,9 @@ serve-release:
 
 serve-fast:
     ./target/server/release/home_flow.exe
+
+release:
+    git pull
+    trunk build --release
+    cargo build --release --no-default-features --target-dir target/server
+    sudo systemctl restart home_flow
