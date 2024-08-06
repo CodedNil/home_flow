@@ -41,7 +41,7 @@ impl HomeFlow {
                 let points = light.get_points(room);
                 for point in points {
                     let mouse_dist = self.mouse_pos_world.distance(point) as f32;
-                    if mouse_dist < 0.2 {
+                    if mouse_dist < (if self.is_mobile { 1.0 } else { 0.3 }) {
                         let mut clone = light.clone();
                         clone.pos = point;
                         light_hovered = Some(clone);
