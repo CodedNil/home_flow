@@ -80,10 +80,10 @@ pub fn default() -> Home {
                     .add_datas(vec![
                         ("calib_point1", DataPoint::Vec2(vec2(0.0, 0.0))),
                         ("calib_world1", DataPoint::Vec2(vec2(-5.8, -2.5))),
-                        ("calib_point2", DataPoint::Vec2(vec2(2900.0, 3900.0))),
+                        ("calib_point2", DataPoint::Vec2(vec2(2950.0, 3800.0))),
                         ("calib_world2", DataPoint::Vec2(vec2(-0.8, -1.8))),
-                        ("calib_point3", DataPoint::Vec2(vec2(-2400.0, 3000.0))),
-                        ("calib_world3", DataPoint::Vec2(vec2(-4.1, 1.4))),
+                        ("calib_point3", DataPoint::Vec2(vec2(-3000.0, 3000.0))),
+                        ("calib_world3", DataPoint::Vec2(vec2(-5.1, 2.3))),
                     ]),
                     Furniture::new(
                         "Desk",
