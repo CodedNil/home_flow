@@ -555,7 +555,57 @@ impl HomeFlow {
         }
 
         // Render sensors
+        self.render_presence_sensors(painter);
         for room in &self.layout.rooms {
+            // Render circles for rooms sensors at room center
+            let mut sensors = Vec::new();
+            for sensor in &room.sensors {
+                for (data_key, data_value) in &room.hass_data {
+                    // Match to rooms sensors
+                    if data_key == &sensor.entity_id {
+                        sensors.push((sensor, data_value));
+                    }
+                }
+            }
+            for (index, (sensor, value)) in sensors.iter().enumerate() {
+                let sensor_draw_scale = 0.2 * self.stored.zoom as f32;
+
+                let offset = if sensors.len() == 1 {
+                    Vec2::ZERO
+                } else {
+                    vec2((index as f64 - (sensors.len() as f64 / 2.0)) * 0.75, 0.0)
+                };
+                let pos = room.pos + room.sensors_offset + offset;
+                painter.circle(
+                    self.world_to_screen_pos(pos),
+                    sensor_draw_scale,
+                    Color32::WHITE.gamma_multiply(0.7),
+                    Stroke::new(sensor_draw_scale * 0.1, Color32::WHITE),
+                );
+                painter.text(
+                    self.world_to_screen_pos(pos + vec2(0.0, 0.1)),
+                    egui::Align2::CENTER_CENTER,
+                    sensor.display_name.to_string(),
+                    FontId::proportional(sensor_draw_scale * 0.35),
+                    Color32::BLACK,
+                );
+                painter.text(
+                    self.world_to_screen_pos(pos),
+                    egui::Align2::CENTER_CENTER,
+                    value,
+                    FontId::proportional(sensor_draw_scale * 0.5),
+                    Color32::BLACK,
+                );
+                painter.text(
+                    self.world_to_screen_pos(pos - vec2(0.0, 0.1)),
+                    egui::Align2::CENTER_CENTER,
+                    sensor.unit.to_string(),
+                    FontId::proportional(sensor_draw_scale * 0.35),
+                    Color32::BLACK,
+                );
+            }
+
+            // Render furniture sensors
             for furniture in &room.furniture {
                 let (min_opacity, max_opacity) = (0.05, 0.75);
                 let (min_distance, max_distance) = (0.2, 1.0);
@@ -592,7 +642,5 @@ impl HomeFlow {
                 }
             }
         }
-
-        self.render_presence_sensors(painter);
     }
 }

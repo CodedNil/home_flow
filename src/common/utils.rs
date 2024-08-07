@@ -3,12 +3,15 @@ use super::{
     furniture::{self, Furniture, FurnitureType},
     layout::{
         Action, GlobalMaterial, Home, Light, LightType, MultiLight, Opening, OpeningType,
-        Operation, Outline, Room, Shape, TileOptions, Walls,
+        Operation, Outline, Room, Sensor, Shape, TileOptions, Walls,
     },
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
@@ -97,8 +100,11 @@ impl Room {
             openings: Vec::new(),
             lights: Vec::new(),
             furniture: Vec::new(),
+            sensors: Vec::new(),
+            sensors_offset: Vec2::ZERO,
             outline: None,
             rendered_data: None,
+            hass_data: HashMap::new(),
         }
     }
 
@@ -247,6 +253,16 @@ impl Room {
         self
     }
 
+    pub fn add_sensors(mut self, sensors: &[Sensor]) -> Self {
+        self.sensors = sensors.to_vec();
+        self
+    }
+
+    pub const fn sensor_offset(mut self, offset: Vec2) -> Self {
+        self.sensors_offset = offset;
+        self
+    }
+
     pub fn operation(mut self, operation: Operation) -> Self {
         self.operations.push(operation);
         self
@@ -281,6 +297,21 @@ impl Hash for Room {
         self.openings.hash(state);
         self.outline.hash(state);
         self.furniture.hash(state);
+    }
+}
+
+impl Sensor {
+    pub fn new(entity_id: &str, display_name: &str, unit: &str) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            entity_id: entity_id.to_owned(),
+            display_name: display_name.to_owned(),
+            unit: unit.to_owned(),
+        }
+    }
+
+    pub fn default() -> Self {
+        Self::new("sensor_id", "TMP", "°C")
     }
 }
 

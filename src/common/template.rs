@@ -4,7 +4,7 @@ use super::{
         BathroomType, DataPoint, ElectronicType, Furniture, FurnitureType, KitchenType,
         RenderOrder, StorageType, TableType,
     },
-    layout::{GlobalMaterial, Home, LightType, Outline, Room, LAYOUT_VERSION},
+    layout::{GlobalMaterial, Home, LightType, Outline, Room, Sensor, LAYOUT_VERSION},
     utils::Material,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -172,6 +172,12 @@ pub fn default() -> Home {
                         0,
                     )
                     .material("MetalDark"),
+                ])
+                .add_sensors(&[
+                    Sensor::new("ultimatesensor_mini_scd41_temperature", "TMP", "°C"),
+                    Sensor::new("ultimatesensor_mini_scd41_humidity", "HUM", "%"),
+                    Sensor::new("ultimatesensor_mini_scd41_co2", "CO2", "ppm"),
+                    Sensor::new("ultimatesensor_mini_voc_index", "VOC", "idx"),
                 ]),
             Room::new("Kitchen", vec2(-4.2, 1.5), vec2(3.2, 3.1), "MarbleTiles")
                 .no_wall_right()
@@ -321,7 +327,9 @@ pub fn default() -> Home {
                         vec2(1.4, 0.1),
                         0,
                     ),
-                ]),
+                ])
+                .add_sensors(&[Sensor::new("tower_fan_temperature", "TMP", "°C")])
+                .sensor_offset(vec2(0.0, -0.4)),
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
                 .door(vec2(0.8, -0.85), -90)
                 .window(vec2(0.0, -1.35), 0)

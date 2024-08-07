@@ -3,7 +3,7 @@ use crate::common::{
     furniture::{DataPoint, ElectronicType, FurnitureType},
     utils::rotate_point_i32,
 };
-use egui::{Color32, Painter};
+use egui::{Color32, Painter, Stroke};
 use glam::{dvec2 as vec2, dvec3 as vec3, DMat3, DVec2 as Vec2};
 
 impl HomeFlow {
@@ -131,15 +131,14 @@ impl HomeFlow {
 
         // Render presence points
         for point in presence_points {
-            painter.circle_filled(
+            painter.circle(
                 self.world_to_screen_pos(point),
                 0.1 * self.stored.zoom as f32,
-                Color32::from_rgb(0, 200, 100).gamma_multiply(0.7),
-            );
-            painter.circle_filled(
-                self.world_to_screen_pos(point),
-                0.08 * self.stored.zoom as f32,
                 Color32::from_rgb(0, 240, 140).gamma_multiply(0.5),
+                Stroke::new(
+                    0.02 * self.stored.zoom as f32,
+                    Color32::from_rgb(0, 200, 100).gamma_multiply(0.7),
+                ),
             );
         }
     }

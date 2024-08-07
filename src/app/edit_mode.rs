@@ -11,7 +11,7 @@ use crate::{
         furniture::{ChairType, Furniture, FurnitureType},
         layout::{
             Action, GlobalMaterial, Home, Light, MultiLight, Opening, Operation, Outline, Room,
-            TileOptions,
+            Sensor, TileOptions,
         },
         utils::Material,
     },
@@ -740,7 +740,7 @@ fn room_edit_widgets(
         for (index, light) in room.lights.iter_mut().enumerate() {
             egui::Frame::fill(
                 egui::Frame::central_panel(ui.style()),
-                Color32::from_rgb(150, 150, 50),
+                Color32::from_rgb(100, 80, 20),
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -953,6 +953,62 @@ fn room_edit_widgets(
                     room.furniture.insert(index + 1, new_furniture);
                 }
                 AlterObject::None => {}
+            }
+        }
+    });
+
+    edit_vec2(ui, "Sensors Offset", &mut room.sensors_offset, 0.1);
+    CollapsingState::load_with_default_open(
+        ui.ctx(),
+        ui.make_persistent_id("sensors_collapsing_header"),
+        false,
+    )
+    .show_header(ui, |ui| {
+        ui.horizontal(|ui| {
+            labelled_widget(ui, "Sensors", |ui| {
+                if ui.add(Button::new("Add")).clicked() {
+                    room.sensors.push(Sensor::default());
+                }
+            });
+        });
+    })
+    .body(|ui| {
+        let num_objects = room.sensors.len();
+        let mut alterations = vec![AlterObject::None; num_objects];
+        for (index, sensor) in room.sensors.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                TextEdit::singleline(&mut sensor.entity_id)
+                    .min_size(egui::vec2(100.0, 0.0))
+                    .show(ui);
+                TextEdit::singleline(&mut sensor.display_name)
+                    .min_size(egui::vec2(50.0, 0.0))
+                    .show(ui);
+                TextEdit::singleline(&mut sensor.unit)
+                    .min_size(egui::vec2(50.0, 0.0))
+                    .show(ui);
+                if ui.button("Delete").clicked() {
+                    alterations[index] = AlterObject::Delete;
+                }
+                if index > 0 && ui.button("^").clicked() {
+                    alterations[index] = AlterObject::MoveUp;
+                }
+                if num_objects > 0 && index < num_objects - 1 && ui.button("v").clicked() {
+                    alterations[index] = AlterObject::MoveDown;
+                }
+            });
+        }
+        for (index, alteration) in alterations.into_iter().enumerate().rev() {
+            match alteration {
+                AlterObject::Delete => {
+                    room.sensors.remove(index);
+                }
+                AlterObject::MoveUp => {
+                    room.sensors.swap(index, index - 1);
+                }
+                AlterObject::MoveDown => {
+                    room.sensors.swap(index, index + 1);
+                }
+                _ => {}
             }
         }
     });

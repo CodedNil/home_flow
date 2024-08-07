@@ -9,11 +9,11 @@ use geo_types::MultiPolygon;
 use glam::DVec2 as Vec2;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::hash::Hash;
+use std::{collections::HashMap, hash::Hash};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
-pub const LAYOUT_VERSION: &str = "0.4";
+pub const LAYOUT_VERSION: &str = "0.5";
 
 nestify::nest! {
     #[derive(Serialize, Deserialize, Clone)]*
@@ -115,8 +115,18 @@ nestify::nest! {
 
             pub furniture: Vec<Furniture>,
 
+            pub sensors: Vec<pub struct Sensor {
+                pub id: Uuid,
+                pub entity_id: String,
+                pub display_name: String,
+                pub unit: String,
+            }>,
+            pub sensors_offset: Vec2,
+
             #[serde(skip)]
             pub rendered_data: Option<RoomRender>,
+            #[serde(skip)]
+            pub hass_data: HashMap<String, String>,
         }>,
 
         #[serde(skip)]

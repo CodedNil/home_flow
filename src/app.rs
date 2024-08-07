@@ -317,6 +317,9 @@ impl HomeFlow {
                 // Get list of sensors to fetch
                 let mut sensors = Vec::new();
                 for room in &self.layout.rooms {
+                    for sensor in &room.sensors {
+                        sensors.push(sensor.entity_id.clone());
+                    }
                     for furniture in &room.furniture {
                         let wanted = furniture.wanted_sensors();
                         if !wanted.is_empty() {
@@ -340,6 +343,16 @@ impl HomeFlow {
                     Ok(states) => {
                         // Update all data with the new state
                         for room in &mut self.layout.rooms {
+                            for sensor in &room.sensors {
+                                for sensor_packet in &states.sensors {
+                                    if sensor.entity_id == sensor_packet.entity_id {
+                                        room.hass_data.insert(
+                                            sensor.entity_id.clone(),
+                                            sensor_packet.state.clone(),
+                                        );
+                                    }
+                                }
+                            }
                             for light in &mut room.lights {
                                 // Update light if it hasn't been locally edited recently
                                 if light.last_manual == 0.0
