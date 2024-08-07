@@ -570,12 +570,12 @@ impl HomeFlow {
             for (index, (sensor, value)) in sensors.iter().enumerate() {
                 let sensor_draw_scale = 0.2 * self.stored.zoom as f32;
 
-                let offset = if sensors.len() == 1 {
-                    Vec2::ZERO
-                } else {
-                    vec2((index as f64 - (sensors.len() as f64 / 2.0)) * 0.75, 0.0)
-                };
-                let pos = room.pos + room.sensors_offset + offset;
+                let pos = room.pos
+                    + room.sensors_offset
+                    + vec2(
+                        (index as f64 - ((sensors.len() - 1) as f64 / 2.0)) * 0.75,
+                        0.0,
+                    );
                 painter.circle(
                     self.world_to_screen_pos(pos),
                     sensor_draw_scale,
