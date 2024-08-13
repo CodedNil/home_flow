@@ -1,13 +1,13 @@
 use super::{
     color::Color,
     furniture::{
-        BathroomType, DataPoint, ElectronicType, Furniture, FurnitureType, KitchenType,
-        RenderOrder, StorageType, TableType,
+        BathroomType, ElectronicType, Furniture, FurnitureType, KitchenType, RenderOrder,
+        StorageType, TableType,
     },
-    layout::{GlobalMaterial, Home, LightType, Outline, Room, Sensor, LAYOUT_VERSION},
+    layout::{DataPoint, GlobalMaterial, Home, LightType, Outline, Room, Sensor, LAYOUT_VERSION},
     utils::Material,
 };
-use glam::{dvec2 as vec2, DVec2 as Vec2};
+use glam::dvec2 as vec2;
 
 pub fn default() -> Home {
     Home {
@@ -53,7 +53,20 @@ pub fn default() -> Home {
                 .no_wall_top()
                 .window_width(vec2(-1.15, -1.35), 0, 1.4)
                 .window(vec2(1.75, -1.35), 0)
-                .lights_grid_offset("Lounge Downlights", 4, 2, vec2(2.0, 1.25), Vec2::ZERO)
+                .lights_grid_offset(
+                    "Lounge Downlights Left",
+                    2,
+                    2,
+                    vec2(4.75, 1.25),
+                    vec2(1.35, 0.0),
+                )
+                .lights_grid_offset(
+                    "Lounge Downlights Right",
+                    2,
+                    2,
+                    vec2(4.75, 1.25),
+                    vec2(-1.35, 0.0),
+                )
                 .furniture(vec![
                     Furniture::new(
                         "Lounge Radiator",

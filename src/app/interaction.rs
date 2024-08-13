@@ -2,8 +2,11 @@ use std::collections::HashMap;
 
 use super::HomeFlow;
 use crate::{
-    common::{layout::LightType, utils::Lerp},
-    server::PostServicesData,
+    common::{
+        layout::{DataPoint, LightType},
+        utils::Lerp,
+    },
+    server::PostActionsData,
 };
 use egui::{pos2, Color32, Painter, Pos2, Response, Stroke};
 
@@ -148,12 +151,13 @@ impl HomeFlow {
                         light.last_manual = self.time;
 
                         // Remove existing post packets for this light, and add a new one
-                        self.post_queue.retain(|x| x.entity_id != light.entity_id);
+                        let entity_id = format!("light.{}", light.entity_id);
+                        self.post_queue.retain(|x| x.entity_id != entity_id);
                         if matches!(light_drag.light_type, LightType::Binary) {
-                            self.post_queue.push(PostServicesData {
-                                entity_id: format!("light.{}", light.entity_id),
+                            self.post_queue.push(PostActionsData {
+                                entity_id,
                                 domain: "light".to_string(),
-                                service: if new_state > 150 {
+                                action: if new_state > 150 {
                                     "turn_on"
                                 } else {
                                     "turn_off"
@@ -162,18 +166,20 @@ impl HomeFlow {
                                 additional_data: HashMap::new(),
                             });
                         } else {
-                            let service =
+                            let action =
                                 if new_state > 0 { "turn_on" } else { "turn_off" }.to_string();
                             let mut additional_data = HashMap::new();
                             if new_state > 0 {
-                                additional_data
-                                    .insert("brightness".to_string(), serde_json::json!(new_state));
+                                additional_data.insert(
+                                    "brightness_pct".to_string(),
+                                    DataPoint::Int((f64::from(new_state) * 100.0 / 255.0) as u8),
+                                );
                             }
 
-                            self.post_queue.push(PostServicesData {
-                                entity_id: format!("light.{}", light.entity_id),
+                            self.post_queue.push(PostActionsData {
+                                entity_id,
                                 domain: "light".to_string(),
-                                service,
+                                action,
                                 additional_data,
                             });
                         }

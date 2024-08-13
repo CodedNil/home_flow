@@ -1,6 +1,6 @@
 use super::{
     auth::{login_server, verify_token},
-    home_assistant::{get_states_server, post_services_server},
+    home_assistant::{get_states_server, post_actions_server},
     TokenPacket,
 };
 use crate::{
@@ -19,7 +19,7 @@ pub fn setup_routes(app: Router) -> Router {
     app.route("/load_layout", post(load_layout_server))
         .route("/save_layout", post(save_layout_server))
         .route("/get_states", post(get_states_server))
-        .route("/post_services", post(post_services_server))
+        .route("/post_actions", post(post_actions_server))
         .route("/login", post(login_server))
 }
 

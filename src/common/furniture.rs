@@ -1,6 +1,6 @@
 use super::{
     color::Color,
-    layout::{GlobalMaterial, Shape, Triangles},
+    layout::{DataPoint, GlobalMaterial, Shape, Triangles},
     shape::{polygons_to_shadows, triangulate_polygon, ShadowsData},
     utils::{hash_vec2, Material},
 };
@@ -98,13 +98,6 @@ nestify::nest! {
         #[serde(skip)]
         pub hass_data: HashMap<String, String>,
     }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub enum DataPoint {
-    String(String),
-    Number(f64),
-    Vec2(Vec2),
 }
 
 const WOOD: FurnMaterial = FurnMaterial::new(Material::Wood, Color::from_rgb(190, 120, 80));

@@ -15,8 +15,8 @@ use crate::{
         utils::{rotate_point, rotate_point_pivot},
     },
     server::{
-        common_api::{get_layout, get_states, login, post_state},
-        PostServicesData, StatesPacket,
+        common_api::{get_layout, get_states, login, post_actions},
+        PostActionsData, StatesPacket,
     },
 };
 use anyhow::Result;
@@ -98,7 +98,7 @@ nestify::nest! {
             },
         }>>,
 
-        post_queue: Vec<PostServicesData>,
+        post_queue: Vec<PostActionsData>,
     }
 }
 
@@ -405,7 +405,7 @@ impl HomeFlow {
                 network_data_guard.hass_post = UploadStates::InProgress;
                 drop(network_data_guard);
                 let next_post = self.time;
-                post_state(
+                post_actions(
                     &self.host,
                     &self.stored.auth_token,
                     &self.post_queue,

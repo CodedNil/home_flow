@@ -1,7 +1,8 @@
-use super::PostServicesData;
+use crate::common::layout::DataPoint;
+
+use super::PostActionsData;
 use super::{
-    auth::verify_token, GetStatesPacket, LightPacket, PostServicesPacket, SensorPacket,
-    StatesPacket,
+    auth::verify_token, GetStatesPacket, LightPacket, PostActionsPacket, SensorPacket, StatesPacket,
 };
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
@@ -51,11 +52,11 @@ pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
     }
 }
 
-pub async fn post_services_server(body: Bytes) -> impl IntoResponse {
-    let packet: PostServicesPacket = match bincode::deserialize(&body) {
+pub async fn post_actions_server(body: Bytes) -> impl IntoResponse {
+    let packet: PostActionsPacket = match bincode::deserialize(&body) {
         Ok(packet) => packet,
         Err(e) => {
-            log::error!("Failed to deserialize post_services_server packet: {:?}", e);
+            log::error!("Failed to deserialize post_actions_server packet: {:?}", e);
             return StatusCode::BAD_REQUEST.into_response();
         }
     };
@@ -63,7 +64,7 @@ pub async fn post_services_server(body: Bytes) -> impl IntoResponse {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
-    match post_services_impl(packet.data).await {
+    match post_actions_impl(packet.data).await {
         Ok(()) => StatusCode::OK.into_response(),
         Err(e) => {
             log::error!("Failed to post state: {:?}", e);
@@ -100,10 +101,16 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<StatesPacket> {
     for state_raw in &states_raw {
         let entity_id = state_raw.entity_id.split('.').nth(1).unwrap();
         if state_raw.entity_id.starts_with("light.") {
-            let state_value = match state_raw.state.as_str() {
+            let mut state_value = match state_raw.state.as_str() {
                 "on" => 255,
                 _ => 0,
             };
+            // Check if attributes has brightness
+            if let Some(brightness) = state_raw.attributes.get("brightness") {
+                if let Some(brightness) = brightness.as_u64() {
+                    state_value = brightness as u8;
+                }
+            }
 
             let state = LightPacket {
                 entity_id: entity_id.to_string(),
@@ -126,7 +133,7 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<StatesPacket> {
     })
 }
 
-async fn post_services_impl(data: Vec<PostServicesData>) -> Result<()> {
+async fn post_actions_impl(data: Vec<PostActionsData>) -> Result<()> {
     let client = reqwest::Client::new();
     let mut errors = Vec::new();
 
@@ -136,7 +143,17 @@ async fn post_services_impl(data: Vec<PostServicesData>) -> Result<()> {
         let mut data = HashMap::new();
         data.insert("entity_id".to_string(), json!(param.entity_id));
         for (key, value) in param.additional_data {
-            data.insert(key, value);
+            data.insert(
+                key,
+                match value {
+                    DataPoint::String(s) => serde_json::Value::String(s),
+                    DataPoint::Float(f) => {
+                        serde_json::Value::Number(serde_json::Number::from_f64(f).unwrap())
+                    }
+                    DataPoint::Int(i) => serde_json::Value::Number(serde_json::Number::from(i)),
+                    DataPoint::Vec2(v) => serde_json::json!([v.x, v.y]),
+                },
+            );
         }
 
         // Send the request
@@ -145,7 +162,7 @@ async fn post_services_impl(data: Vec<PostServicesData>) -> Result<()> {
                 "{}/api/services/{}/{}",
                 &get_env_variable("HASS_URL"),
                 param.domain,
-                param.service
+                param.action
             ))
             .header(
                 AUTHORIZATION,
@@ -157,7 +174,7 @@ async fn post_services_impl(data: Vec<PostServicesData>) -> Result<()> {
             .await;
 
         if let Err(e) = response {
-            errors.push(anyhow!("Failed to post services: {}", e));
+            errors.push(anyhow!("Failed to post actions: {}", e));
         }
     }
 
@@ -165,7 +182,7 @@ async fn post_services_impl(data: Vec<PostServicesData>) -> Result<()> {
         Ok(())
     } else {
         Err(anyhow!(
-            "Errors occurred while posting services: {:?}",
+            "Errors occurred while posting actions: {:?}",
             errors
         ))
     }

@@ -1,6 +1,7 @@
 use super::HomeFlow;
 use crate::common::{
-    furniture::{DataPoint, ElectronicType, FurnitureType},
+    furniture::{ElectronicType, FurnitureType},
+    layout::DataPoint,
     utils::rotate_point_i32,
 };
 use egui::{Color32, Painter, Stroke};

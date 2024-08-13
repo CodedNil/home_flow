@@ -1,5 +1,5 @@
 use super::{
-    GetStatesPacket, LoginPacket, PostServicesData, PostServicesPacket, SaveLayoutPacket,
+    GetStatesPacket, LoginPacket, PostActionsData, PostActionsPacket, SaveLayoutPacket,
     StatesPacket, TokenPacket,
 };
 use crate::common::layout::Home;
@@ -88,18 +88,18 @@ pub fn get_states(
     );
 }
 
-pub fn post_state(
+pub fn post_actions(
     host: &str,
     token: &str,
-    packets: &[PostServicesData],
+    data: &[PostActionsData],
     on_done: impl 'static + Send + FnOnce(Result<()>),
 ) {
     ehttp::fetch(
         ehttp::Request::post(
-            &format!("http://{host}/post_services"),
-            bincode::serialize(&PostServicesPacket {
+            &format!("http://{host}/post_actions"),
+            bincode::serialize(&PostActionsPacket {
                 token: token.to_string(),
-                data: packets.to_vec(),
+                data: data.to_vec(),
             })
             .unwrap(),
         ),

@@ -1,7 +1,6 @@
+use crate::common::layout::{DataPoint, Home};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-use crate::common::layout::Home;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod auth;
@@ -32,14 +31,14 @@ pub struct GetStatesPacket {
 }
 
 nestify::nest! {
-    #[derive(Serialize, Deserialize, Clone)]*
-    pub struct PostServicesPacket {
+    #[derive(Debug, Serialize, Deserialize, Clone)]*
+    pub struct PostActionsPacket {
         pub token: String,
-        pub data: Vec<pub struct PostServicesData {
+        pub data: Vec<pub struct PostActionsData {
             pub entity_id: String,
             pub domain: String,
-            pub service: String,
-            pub additional_data: HashMap<String, serde_json::Value>,
+            pub action: String,
+            pub additional_data: HashMap<String, DataPoint>,
         }>,
     }
 }
