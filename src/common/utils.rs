@@ -190,29 +190,18 @@ impl Room {
         self
     }
 
-    pub fn lights_grid_offset(
-        mut self,
-        name: &str,
-        cols: u8,
-        rows: u8,
-        padding: Vec2,
-        off: Vec2,
-    ) -> Self {
+    pub fn lights_grid(mut self, name: &str, cols: u8, rows: u8, padding: Vec2, off: Vec2) -> Self {
         self.lights
             .push(Light::multi(name, off, padding, rows, cols));
         self
-    }
-
-    pub fn lights_grid(self, name: &str, cols: u8, rows: u8, padding: f64) -> Self {
-        self.lights_grid_offset(name, cols, rows, vec2(padding, padding), vec2(0.0, 0.0))
     }
 
     pub fn light_center(self, name: &str) -> Self {
         self.light(name, 0.0, 0.0)
     }
 
-    pub fn furniture(mut self, furniture: Vec<Furniture>) -> Self {
-        self.furniture.extend(furniture);
+    pub fn furniture(mut self, furniture: Furniture) -> Self {
+        self.furniture.push(furniture);
         self
     }
 
@@ -224,14 +213,10 @@ impl Room {
         locations: Vec<(Vec2, Vec2, i32)>,
     ) -> Self {
         for (pos, size, rotation) in locations {
-            self.furniture.push(Furniture::new_ordered(
-                name,
-                furniture_type,
-                render_order,
-                pos,
-                size,
-                rotation,
-            ));
+            self.furniture.push(
+                Furniture::new(name, furniture_type, pos, size, rotation)
+                    .render_order(render_order),
+            );
         }
         self
     }
@@ -246,8 +231,8 @@ impl Room {
     ) -> Self {
         for (pos, size, rotation) in locations {
             self.furniture.push(
-                Furniture::new_ordered(name, furniture_type, render_order, pos, size, rotation)
-                    .material(material),
+                Furniture::new_materials(name, furniture_type, pos, size, rotation, material)
+                    .render_order(render_order),
             );
         }
         self

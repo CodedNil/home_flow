@@ -153,7 +153,7 @@ impl HomeFlow {
             }
         }
         let mut furniture_sorted = furnitures_hovered.clone();
-        furniture_sorted.sort_by_key(|f| f.render_order());
+        furniture_sorted.sort_by_key(|f| f.get_render_order());
         let top_hover = furniture_sorted.last().map(|f| f.id);
 
         for room in &mut self.layout.rooms {
@@ -230,13 +230,13 @@ impl HomeFlow {
                     (room.pos + furniture.pos, f64::from(furniture.rotation)),
                 );
                 furniture_map
-                    .entry(furniture.render_order())
+                    .entry(furniture.get_render_order())
                     .or_insert_with(Vec::new)
                     .push(furniture);
                 for child in &rendered_data.children {
                     handle_furniture_child(room.pos, furniture, child);
                     furniture_map
-                        .entry(child.render_order())
+                        .entry(child.get_render_order())
                         .or_insert_with(Vec::new)
                         .push(child);
                 }

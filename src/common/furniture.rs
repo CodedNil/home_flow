@@ -131,31 +131,20 @@ impl Furniture {
         }
     }
 
-    pub fn new_ordered(
+    pub fn new_materials(
         name: &str,
         furniture_type: FurnitureType,
-        render_order: RenderOrder,
         pos: Vec2,
         size: Vec2,
         rotation: i32,
+        material: &str,
     ) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            name: name.to_owned(),
-            furniture_type,
-            render_order,
-            material: "Wood".to_owned(),
-            material_children: "Wood".to_owned(),
-            pos,
-            size,
-            rotation,
-            power_draw_entity: String::new(),
-            misc_sensors: Vec::new(),
-            misc_data: HashMap::new(),
-            hover_amount: 0.0,
-            rendered_data: None,
-            hass_data: HashMap::new(),
-        }
+        Self::new(name, furniture_type, pos, size, rotation).materials(material)
+    }
+
+    pub const fn render_order(mut self, render_order: RenderOrder) -> Self {
+        self.render_order = render_order;
+        self
     }
 
     pub fn materials(mut self, material: &str) -> Self {
@@ -179,27 +168,15 @@ impl Furniture {
         self
     }
 
-    pub fn add_sensor(mut self, entity: &str) -> Self {
-        self.misc_sensors.push(entity.to_owned());
+    pub fn add_sensors(mut self, entities: &[&str]) -> Self {
+        self.misc_sensors
+            .extend(entities.iter().map(std::string::ToString::to_string));
         self
     }
 
-    pub fn add_sensors(mut self, entities: Vec<&str>) -> Self {
-        for entity in entities {
-            self.misc_sensors.push(entity.to_owned());
-        }
-        self
-    }
-
-    pub fn add_data(mut self, key: &str, value: DataPoint) -> Self {
-        self.misc_data.insert(key.to_owned(), value);
-        self
-    }
-
-    pub fn add_datas(mut self, data: Vec<(&str, DataPoint)>) -> Self {
-        for (key, value) in data {
-            self.misc_data.insert(key.to_owned(), value);
-        }
+    pub fn add_data(mut self, data: Vec<(&str, DataPoint)>) -> Self {
+        self.misc_data
+            .extend(data.into_iter().map(|(key, value)| (key.to_owned(), value)));
         self
     }
 
@@ -213,7 +190,7 @@ impl Furniture {
         )
     }
 
-    pub const fn render_order(&self) -> u8 {
+    pub const fn get_render_order(&self) -> u8 {
         let render_order = match self.render_order {
             RenderOrder::Default => match self.furniture_type {
                 FurnitureType::Chair(_) => RenderOrder::Low,
@@ -250,7 +227,7 @@ impl Furniture {
     }
 
     pub fn height_shadow(&self) -> f64 {
-        ((f64::from(self.render_order()) / 6.0) + 0.5) / 1.5
+        ((f64::from(self.get_render_order()) / 6.0) + 0.5) / 1.5
     }
 
     pub const fn can_hover(&self) -> bool {
@@ -416,18 +393,18 @@ impl Furniture {
             let x_pos = (i as f64 - (num_drawers - 1) as f64 * 0.5) * drawer_width;
             let side = i % 2 == 0;
             children.push(
-                Self::new_ordered(
+                Self::new_materials(
                     "Child Drawer",
                     FurnitureType::AnimatedPiece(match sub_type {
                         StorageType::Drawer => AnimatedPieceType::Drawer,
                         StorageType::Cupboard => AnimatedPieceType::Door(side),
                     }),
-                    self.render_order,
                     vec2(x_pos, 0.0),
                     vec2(drawer_width - 0.025, self.size.y),
                     0,
+                    &self.material_children,
                 )
-                .material(&self.material_children),
+                .render_order(self.render_order),
             );
         }
         children
