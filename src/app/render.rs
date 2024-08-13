@@ -8,7 +8,8 @@ use crate::common::{
 };
 use egui::{
     epaint::{CircleShape, PathStroke, TessellationOptions, Tessellator, Vertex},
-    Color32, ColorImage, FontId, Mesh, Painter, Shape as EShape, Stroke, TextureId, TextureOptions,
+    vec2 as evec2, Color32, ColorImage, FontId, Mesh, Painter, Shape as EShape, Stroke, TextureId,
+    TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::collections::HashMap;
@@ -583,7 +584,7 @@ impl HomeFlow {
                     Stroke::new(sensor_draw_scale * 0.1, Color32::WHITE),
                 );
                 painter.text(
-                    self.world_to_screen_pos(pos + vec2(0.0, 0.1)),
+                    self.world_to_screen_pos(pos) - (evec2(0.0, 0.1) * self.stored.zoom as f32),
                     egui::Align2::CENTER_CENTER,
                     sensor.display_name.to_string(),
                     FontId::proportional(sensor_draw_scale * 0.35),
@@ -597,7 +598,7 @@ impl HomeFlow {
                     Color32::BLACK,
                 );
                 painter.text(
-                    self.world_to_screen_pos(pos - vec2(0.0, 0.1)),
+                    self.world_to_screen_pos(pos) + (evec2(0.0, 0.1) * self.stored.zoom as f32),
                     egui::Align2::CENTER_CENTER,
                     sensor.unit.to_string(),
                     FontId::proportional(sensor_draw_scale * 0.35),
