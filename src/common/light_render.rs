@@ -12,8 +12,8 @@ use std::{
 use uuid::Uuid;
 
 const PIXELS_PER_METER: f64 = 30.0;
-const LIGHT_SAMPLES: u8 = 8; // Number of samples within the light's radius for anti-aliasing
-const MAX_LIGHTS_PER_FRAME: u32 = 1;
+const LIGHT_SAMPLES: u8 = 12; // Number of samples within the light's radius for anti-aliasing
+const MAX_LIGHTS_PER_FRAME: u32 = 4;
 
 #[derive(Clone)]
 pub struct LightData {
@@ -107,7 +107,7 @@ pub fn combine_lighting(
     }
 }
 
-pub type LightsData = (u64, Vec<u8>);
+pub type LightsData = (u64, Vec<u16>);
 
 pub fn render_lighting(
     bounds_min: Vec2,
@@ -159,7 +159,7 @@ fn render_light(
     all_walls: &[Line],
     light: &Light,
     points: &[Vec2],
-) -> Vec<u8> {
+) -> Vec<u16> {
     // Create a vec of walls that this light can see
     let mut walls_for_light = Vec::with_capacity(points.len());
     for point in points {
@@ -213,7 +213,7 @@ fn render_light(
         for (light_index, light_pos) in points.iter().enumerate() {
             // Do more samples the closer we are to the light
             let dynamic_samples = ((f64::from(LIGHT_SAMPLES)
-                * (1.0 - world.distance(*light_pos) / (light.intensity * 4.0)))
+                * (1.0 - world.distance(*light_pos) / (light.intensity * 10.0)))
                 .round() as u8)
                 .max(1);
 
@@ -247,15 +247,12 @@ fn render_light(
                 }
 
                 // Average the light intensity from all samples
-                total_light_intensity += sampled_light_intensity / f64::from(dynamic_samples) / 4.0;
-                if total_light_intensity > 1.0 {
-                    total_light_intensity = 1.0;
-                    break;
-                }
+                total_light_intensity +=
+                    sampled_light_intensity * 255.0 / f64::from(dynamic_samples) / 4.0;
             }
         }
 
-        *pixel = (total_light_intensity * 255.0) as u8;
+        *pixel = total_light_intensity as u16;
     });
 
     data_buffer
