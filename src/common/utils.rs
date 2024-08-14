@@ -158,6 +158,10 @@ impl Room {
         self.opening(Opening::new(OpeningType::Door, pos, rotation).width(width))
     }
 
+    pub fn door_flipped(self, pos: Vec2, rotation: i32) -> Self {
+        self.opening(Opening::new(OpeningType::Door, pos, rotation).flip())
+    }
+
     pub fn light(mut self, name: &str, x: f64, y: f64) -> Self {
         self.lights.push(Light::new(name, vec2(x, y)));
         self
@@ -308,6 +312,7 @@ impl Opening {
             pos,
             rotation,
             width: 0.8,
+            flipped: false,
             open_amount: 0.0,
         }
     }
@@ -318,6 +323,11 @@ impl Opening {
 
     pub const fn width(mut self, width: f64) -> Self {
         self.width = width;
+        self
+    }
+
+    pub const fn flip(mut self) -> Self {
+        self.flipped = !self.flipped;
         self
     }
 }

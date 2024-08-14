@@ -78,6 +78,7 @@ nestify::nest! {
                 pub pos: Vec2,
                 pub rotation: i32,
                 pub width: f64,
+                pub flipped: bool,
 
                 #[serde(skip)]
                 pub open_amount: f64,

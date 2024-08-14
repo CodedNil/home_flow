@@ -436,8 +436,13 @@ impl HomeFlow {
                     f64::from(-opening.rotation).to_radians().cos(),
                     f64::from(-opening.rotation).to_radians().sin(),
                 );
-                let hinge_pos = room.pos + opening.pos + rot_dir * opening.width / 2.0;
-                let end_pos = room.pos + opening.pos - rot_dir * opening.width / 2.0;
+                let hinge_pos_initial = room.pos + opening.pos + rot_dir * opening.width / 2.0;
+                let end_pos_initial = room.pos + opening.pos - rot_dir * opening.width / 2.0;
+                let (hinge_pos, end_pos) = if opening.flipped {
+                    (end_pos_initial, hinge_pos_initial)
+                } else {
+                    (hinge_pos_initial, end_pos_initial)
+                };
                 let points = [
                     self.world_to_screen_pos(hinge_pos),
                     self.world_to_screen_pos(end_pos),
@@ -453,8 +458,10 @@ impl HomeFlow {
                         stroke: PathStroke::new(depth * 0.75, Color32::from_rgb(80, 80, 80)),
                     });
                     // Render the door
-                    let end_pos_door =
-                        rotate_point_pivot(end_pos, hinge_pos, opening.open_amount.max(0.0) * 40.0);
+                    let open_amount = opening.open_amount.max(0.0)
+                        * 40.0
+                        * if opening.flipped { -1.0 } else { 1.0 };
+                    let end_pos_door = rotate_point_pivot(end_pos, hinge_pos, open_amount);
                     let points = [points[0], self.world_to_screen_pos(end_pos_door)];
                     painter.circle_filled(points[0], depth * 0.5, color);
                     painter.add(EShape::LineSegment { points, stroke });

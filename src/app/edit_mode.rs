@@ -10,8 +10,8 @@ use crate::{
         color::Color,
         furniture::{ChairType, Furniture, FurnitureType},
         layout::{
-            Action, GlobalMaterial, Home, Light, MultiLight, Opening, Operation, Outline, Room,
-            Sensor, TileOptions,
+            Action, GlobalMaterial, Home, Light, MultiLight, Opening, OpeningType, Operation,
+            Outline, Room, Sensor, TileOptions,
         },
         utils::Material,
     },
@@ -693,6 +693,11 @@ fn room_edit_widgets(
                             .suffix("m"),
                     );
                 });
+                if opening.opening_type == OpeningType::Door {
+                    labelled_widget(ui, "Flipped", |ui| {
+                        ui.checkbox(&mut opening.flipped, "");
+                    });
+                }
                 if ui.button("Delete").clicked() {
                     alterations[index] = AlterObject::Delete;
                 }

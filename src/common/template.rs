@@ -39,7 +39,7 @@ pub fn default() -> Home {
                 .no_wall_right()
                 .no_wall_bottom()
                 .add_material(vec2(-0.85, 1.55), vec2(1.1, 2.0), "Wood")
-                .door(vec2(-0.85, 2.55), 0)
+                .door_flipped(vec2(-0.85, 2.55), 0)
                 .lights_grid("Hall Downlights", 3, 1, vec2(3.0, 1.75), vec2(0.8, 0.0))
                 .light("Hall Downlights", -0.85, 1.55)
                 .furniture(Furniture::new(
@@ -309,7 +309,7 @@ pub fn default() -> Home {
                 .door(vec2(0.75, 0.0), -90),
             Room::new("Bedroom", vec2(3.85, -0.95), vec2(3.9, 3.6), "Carpet")
                 .subtract(vec2(-1.1, 1.4), vec2(1.7, 1.0))
-                .door(vec2(-0.25, 1.35), 90)
+                .door(vec2(-0.25, 1.35), -90)
                 .window(vec2(0.0, -1.8), 0)
                 .lights_grid("Bedroom Downlights", 2, 2, vec2(2.0, 2.5), vec2(0.0, -0.4))
                 .light_full("Bedside Light", 1.65, -1.45, LightType::Binary, 1.0, 0.025)
@@ -353,7 +353,7 @@ pub fn default() -> Home {
                 .add_sensors(&[Sensor::new("tower_fan_temperature", "TMP", "°C")])
                 .sensor_offset(vec2(0.0, -0.4)),
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
-                .door(vec2(0.8, -0.85), -90)
+                .door(vec2(0.8, -0.85), 90)
                 .window(vec2(0.0, -1.35), 0)
                 .light("Ensuite Downlight", 0.0, -0.4)
                 .light("Ensuite Shower Downlight", -0.4, 0.7)
@@ -415,7 +415,7 @@ pub fn default() -> Home {
                     90,
                 )),
             Room::new("Bathroom", vec2(1.4, 2.05), vec2(2.4, 2.0), "GraniteTiles")
-                .door(vec2(0.7, -1.0), 180)
+                .door_flipped(vec2(0.7, -1.0), 180)
                 .light_center("Bathroom Downlight")
                 .light("Bathroom Shower Downlight", 0.85, 0.55)
                 .furniture(Furniture::new(
