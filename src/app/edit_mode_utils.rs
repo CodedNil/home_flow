@@ -81,6 +81,20 @@ impl HomeFlow {
                         break;
                     }
                 }
+                for obj in room.zones.iter().rev() {
+                    if obj.contains(room.pos, self.mouse_pos_world) {
+                        hovered_data = Some(HoverDetails {
+                            id: obj.id,
+                            object_type: ObjectType::Zone,
+                            can_drag: true,
+                            pos: room.pos + obj.pos,
+                            size: obj.size,
+                            rotation: obj.rotation,
+                            manipulation_type: ManipulationType::Move,
+                        });
+                        break;
+                    }
+                }
                 for obj in room.openings.iter().rev() {
                     if (self.mouse_pos_world - (room.pos + obj.pos)).length() < 0.2 {
                         hovered_data = Some(HoverDetails {
@@ -133,12 +147,15 @@ impl HomeFlow {
             self.edit_mode.drag_data = None;
         }
 
-        // If room or operation or furniture, check if at the edge of bounds to resize
+        // If room/operation/zone/furniture, check if at the edge of bounds to resize
         if let Some(data) = &mut hovered_data {
             if self.edit_mode.resize_enabled
                 && matches!(
                     data.object_type,
-                    ObjectType::Room | ObjectType::Operation | ObjectType::Furniture
+                    ObjectType::Room
+                        | ObjectType::Operation
+                        | ObjectType::Zone
+                        | ObjectType::Furniture
                 )
             {
                 // Local mouse pos is -1 to 1 in x and y
@@ -187,9 +204,11 @@ impl HomeFlow {
         let mut new_rotation = 0.0;
 
         let snap_amount = match drag_data.object_type {
-            ObjectType::Room | ObjectType::Operation | ObjectType::Opening | ObjectType::Light => {
-                10.0
-            }
+            ObjectType::Room
+            | ObjectType::Operation
+            | ObjectType::Zone
+            | ObjectType::Opening
+            | ObjectType::Light => 10.0,
             ObjectType::Furniture => 40.0,
         };
         if drag_data.object_type == ObjectType::Opening {
@@ -253,7 +272,7 @@ impl HomeFlow {
         } else if snap
             && matches!(
                 drag_data.object_type,
-                ObjectType::Room | ObjectType::Operation
+                ObjectType::Room | ObjectType::Operation | ObjectType::Zone
             )
         {
             // Snap to other rooms

@@ -53,7 +53,7 @@ pub async fn server_loop() {
 
         let states = get_states_impl(sensors).await.unwrap();
         *HA_STATE.lock().await = Some(states);
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
     }
 }
 
@@ -114,6 +114,9 @@ struct HassState {
     last_changed: String,
     attributes: HashMap<String, serde_json::Value>,
 }
+
+static LAST_OCCUPANCY: LazyLock<Mutex<HashMap<String, (bool, u8)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
     let client = reqwest::Client::new();
@@ -251,6 +254,72 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
     }
     // Merge close points
     presence_points = merge_close_points(&presence_points, 0.1);
+
+    // Calculate which zones are occupied
+    let mut zone_occupancy: HashMap<String, (bool, u8)> = HashMap::new();
+    for room in &layout.rooms {
+        let mut occupied = false;
+        let mut targets = 0;
+        for point in &presence_points {
+            if room.contains(*point) {
+                occupied = true;
+                targets += 1;
+            }
+        }
+        zone_occupancy.insert(
+            room.name.to_lowercase().replace(' ', "_"),
+            (occupied, targets),
+        );
+        for zone in &room.zones {
+            let mut zone_occupancy_entry = (false, 0);
+            for point in &presence_points {
+                if zone.contains(room.pos, *point) {
+                    zone_occupancy_entry.0 = true;
+                    zone_occupancy_entry.1 += 1;
+                }
+            }
+            zone_occupancy
+                .entry(zone.name.to_lowercase().replace(' ', "_"))
+                .and_modify(|e| {
+                    e.0 |= zone_occupancy_entry.0; // Set occupied to true if any are occupied
+                    e.1 += zone_occupancy_entry.1; // Sum up all targets
+                })
+                .or_insert(zone_occupancy_entry);
+        }
+    }
+    // Compare to LAST_OCCUPANCY and for differences, post actions
+    let mut last_occupancy = LAST_OCCUPANCY.lock().await;
+    let mut post_data = Vec::new();
+    for (zone_name, (occupied, targets)) in &zone_occupancy {
+        let is_different = match last_occupancy.get(zone_name) {
+            Some((last_occupied, last_targets)) => {
+                *last_occupied != *occupied || *last_targets != *targets
+            }
+            None => true,
+        };
+        if is_different {
+            last_occupancy.insert(zone_name.clone(), (*occupied, *targets));
+
+            post_data.push(PostActionsData {
+                domain: "input_boolean".to_string(),
+                action: if *occupied { "turn_on" } else { "turn_off" }.to_string(),
+                entity_id: format!("input_boolean.{zone_name}_occupancy"),
+                additional_data: HashMap::new(),
+            });
+            post_data.push(PostActionsData {
+                domain: "input_number".to_string(),
+                action: "set_value".to_string(),
+                entity_id: format!("input_number.{zone_name}_targets"),
+                additional_data: vec![("value".to_string(), DataPoint::Int(*targets))]
+                    .into_iter()
+                    .collect(),
+            });
+        }
+    }
+    drop(last_occupancy);
+    if !post_data.is_empty() {
+        post_actions_impl(post_data).await?;
+    }
 
     Ok(HAState {
         lights: light_states,

@@ -11,7 +11,7 @@ use crate::{
         furniture::{ChairType, Furniture, FurnitureType},
         layout::{
             Action, GlobalMaterial, Home, Light, MultiLight, Opening, OpeningType, Operation,
-            Outline, Room, Sensor, TileOptions,
+            Outline, Room, Sensor, TileOptions, Zone,
         },
         utils::Material,
     },
@@ -61,6 +61,7 @@ pub struct HoverDetails {
 pub enum ObjectType {
     Room,
     Operation,
+    Zone,
     Opening,
     Light,
     Furniture,
@@ -306,6 +307,18 @@ impl HomeFlow {
                                 apply_standard_transform(
                                     &mut operation.pos,
                                     &mut operation.size,
+                                    drag_data,
+                                    delta,
+                                    new_pos,
+                                    room.pos,
+                                );
+                            }
+                        }
+                        for zone in &mut room.zones {
+                            if zone.id == drag_data.id {
+                                apply_standard_transform(
+                                    &mut zone.pos,
+                                    &mut zone.size,
                                     drag_data,
                                     delta,
                                     new_pos,
@@ -652,6 +665,66 @@ fn room_edit_widgets(
                     }
                     AlterObject::MoveDown => {
                         room.operations.swap(index, index + 1);
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+    let persist_id = ui.make_persistent_id("zones_collapsing_header");
+    CollapsingState::load_with_default_open(ui.ctx(), persist_id, false)
+        .show_header(ui, |ui| {
+            ui.horizontal(|ui| {
+                labelled_widget(ui, "Zones", |ui| {
+                    if ui.add(Button::new("Add")).clicked() {
+                        room.zones.push(Zone::default());
+                    }
+                });
+            });
+        })
+        .body(|ui| {
+            let num_objects = room.zones.len();
+            let mut alterations = vec![AlterObject::None; num_objects];
+            for (index, zone) in room.zones.iter_mut().enumerate() {
+                egui::Frame::fill(
+                    egui::Frame::central_panel(ui.style()),
+                    Color32::from_rgb(160, 90, 50).gamma_multiply(0.15),
+                )
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        TextEdit::singleline(&mut zone.name)
+                            .min_size(egui::vec2(100.0, 0.0))
+                            .show(ui);
+                        combo_box_for_enum(ui, format!("Shape {index}"), &mut zone.shape, "");
+
+                        if ui.button("Delete").clicked() {
+                            alterations[index] = AlterObject::Delete;
+                        }
+                        if index > 0 && ui.button("^").clicked() {
+                            alterations[index] = AlterObject::MoveUp;
+                        }
+                        if index < num_objects - 1 && ui.button("v").clicked() {
+                            alterations[index] = AlterObject::MoveDown;
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        edit_vec2(ui, "Pos", &mut zone.pos, 0.1);
+                        edit_vec2(ui, "Size", &mut zone.size, 0.1);
+                        edit_rotation(ui, &mut zone.rotation);
+                    });
+                });
+            }
+            for (index, alteration) in alterations.into_iter().enumerate().rev() {
+                match alteration {
+                    AlterObject::Delete => {
+                        room.zones.remove(index);
+                    }
+                    AlterObject::MoveUp => {
+                        room.zones.swap(index, index - 1);
+                    }
+                    AlterObject::MoveDown => {
+                        room.zones.swap(index, index + 1);
                     }
                     _ => {}
                 }

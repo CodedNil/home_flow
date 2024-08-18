@@ -2,7 +2,7 @@ use super::{
     color::Color,
     layout::{
         Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
-        Triangles, Walls,
+        Triangles, Walls, Zone,
     },
     light_render::render_lighting,
     utils::{rotate_point_i32, rotate_point_pivot_i32, Material},
@@ -526,6 +526,18 @@ impl Operation {
 
     pub fn polygons(&self, room_pos: Vec2) -> MultiPolygon {
         self.polygon(room_pos).into()
+    }
+}
+
+impl Zone {
+    pub fn contains(&self, room_pos: Vec2, point: Vec2) -> bool {
+        self.shape
+            .contains(point, room_pos + self.pos, self.size, self.rotation)
+    }
+
+    pub fn vertices(&self, room_pos: Vec2) -> Vec<Vec2> {
+        self.shape
+            .vertices(room_pos + self.pos, self.size, self.rotation)
     }
 }
 

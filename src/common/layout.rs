@@ -60,6 +60,15 @@ nestify::nest! {
                 pub rotation: i32,
             }>,
 
+            pub zones: Vec<pub struct Zone {
+                pub id: Uuid,
+                pub name: String,
+                pub shape: Shape,
+                pub pos: Vec2,
+                pub size: Vec2,
+                pub rotation: i32,
+            }>,
+
             #>[derive(Copy, Hash, PartialEq, Eq)]
             pub walls: pub struct Walls {
                 pub left: bool,

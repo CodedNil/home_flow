@@ -4,7 +4,10 @@ use super::{
         BathroomType, ElectronicType, Furniture, FurnitureType, KitchenType, RenderOrder,
         StorageType, TableType,
     },
-    layout::{DataPoint, GlobalMaterial, Home, LightType, Outline, Room, Sensor, LAYOUT_VERSION},
+    layout::{
+        Action, DataPoint, GlobalMaterial, Home, LightType, Operation, Outline, Room, Sensor,
+        Shape, Zone, LAYOUT_VERSION,
+    },
     utils::Material,
 };
 use glam::dvec2 as vec2;
@@ -34,14 +37,14 @@ pub fn default() -> Home {
             .tiles(0.4, 0.02, Color::from_rgba(60, 60, 60, 200)),
         ],
         rooms: vec![
-            Room::new("Hall", vec2(0.5, 0.5), vec2(6.2, 1.10), "Carpet")
+            Room::new("Hall", vec2(1.35, 0.5), vec2(4.5, 1.10), "Carpet") // + 0.85
                 .no_wall_left()
                 .no_wall_right()
                 .no_wall_bottom()
-                .add_material(vec2(-0.85, 1.55), vec2(1.1, 2.0), "Wood")
-                .door_flipped(vec2(-0.85, 2.55), 0)
-                .lights_grid("Hall Downlights", 3, 1, vec2(3.0, 1.75), vec2(0.8, 0.0))
-                .light("Hall Downlights", -0.85, 1.55)
+                .add_material(vec2(-1.7, 1.55), vec2(1.1, 2.0), "Wood")
+                .door_flipped(vec2(-1.7, 2.55), 0)
+                .lights_grid("Hall Downlights", 3, 1, vec2(1.15, 1.75), vec2(0.0, 0.0))
+                .light("Hall Downlights", -1.7, 1.55)
                 .furniture(Furniture::new(
                     "Hall Radiator",
                     FurnitureType::Radiator,
@@ -51,21 +54,47 @@ pub fn default() -> Home {
                 )),
             Room::new("Lounge", vec2(-2.75, -1.4), vec2(6.1, 2.7), "Carpet")
                 .no_wall_top()
+                .no_wall_right()
+                .operation(Operation::new(
+                    Action::SubtractWall,
+                    Shape::Rectangle,
+                    vec2(-2.2, 1.35),
+                    vec2(1.6, 0.3),
+                ))
+                .add(vec2(0.85, 1.8), vec2(2.0, 0.9))
                 .window_width(vec2(-1.15, -1.35), 0, 1.4)
                 .window(vec2(1.75, -1.35), 0)
+                .zone(Zone::new(
+                    "Lounge Left",
+                    Shape::Rectangle,
+                    vec2(1.525, 0.0),
+                    vec2(3.05, 2.7),
+                ))
+                .zone(Zone::new(
+                    "Lounge Left",
+                    Shape::Rectangle,
+                    vec2(0.85, 1.8),
+                    vec2(2.0, 0.9),
+                ))
+                .zone(Zone::new(
+                    "Lounge Right",
+                    Shape::Rectangle,
+                    vec2(-1.525, 0.0),
+                    vec2(3.05, 2.7),
+                ))
                 .lights_grid(
                     "Lounge Left Downlights",
                     2,
                     2,
-                    vec2(4.75, 1.25),
-                    vec2(1.35, 0.0),
+                    vec2(4.55, 0.8),
+                    vec2(1.57, 0.0),
                 )
                 .lights_grid(
                     "Lounge Right Downlights",
                     2,
                     2,
-                    vec2(4.75, 1.25),
-                    vec2(-1.35, 0.0),
+                    vec2(4.55, 0.8),
+                    vec2(-1.57, 0.0),
                 )
                 .furniture(Furniture::new(
                     "Lounge Radiator",
@@ -202,7 +231,8 @@ pub fn default() -> Home {
             Room::new("Kitchen", vec2(-4.2, 1.5), vec2(3.2, 3.1), "MarbleTiles")
                 .no_wall_right()
                 .no_wall_bottom()
-                .add(vec2(1.65, 0.55), vec2(0.3, 2.0))
+                .add(vec2(1.65, 0.45), vec2(0.3, 2.2))
+                .subtract(vec2(1.55, -1.15), vec2(0.5, 1.0))
                 .window_width(vec2(0.3, 1.55), 0, 1.4)
                 .lights_grid("Kitchen Downlights", 2, 1, vec2(2.0, 2.0), vec2(0.1, 0.0))
                 .outline(Outline::new(0.05, Color::from_rgb(200, 170, 150)))

@@ -3,7 +3,7 @@ use super::{
     furniture::{self, Furniture, FurnitureType},
     layout::{
         Action, GlobalMaterial, Home, Light, LightType, MultiLight, Opening, OpeningType,
-        Operation, Outline, Room, Sensor, Shape, TileOptions, Walls,
+        Operation, Outline, Room, Sensor, Shape, TileOptions, Walls, Zone,
     },
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -97,6 +97,7 @@ impl Room {
             size,
             walls: Walls::WALL,
             operations: Vec::new(),
+            zones: Vec::new(),
             openings: Vec::new(),
             lights: Vec::new(),
             furniture: Vec::new(),
@@ -274,6 +275,11 @@ impl Room {
             pos,
             size,
         ))
+    }
+
+    pub fn zone(mut self, zone: Zone) -> Self {
+        self.zones.push(zone);
+        self
     }
 }
 impl Hash for Room {
@@ -463,6 +469,31 @@ impl Hash for Operation {
         self.action.hash(state);
         self.shape.hash(state);
         self.material.hash(state);
+        hash_vec2(self.pos, state);
+        hash_vec2(self.size, state);
+        self.rotation.hash(state);
+    }
+}
+
+impl Zone {
+    pub fn new(name: &str, shape: Shape, pos: Vec2, size: Vec2) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: name.to_owned(),
+            shape,
+            pos,
+            size,
+            rotation: 0,
+        }
+    }
+
+    pub fn default() -> Self {
+        Self::new("Zone", Shape::Rectangle, Vec2::ZERO, vec2(1.0, 1.0))
+    }
+}
+impl Hash for Zone {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.shape.hash(state);
         hash_vec2(self.pos, state);
         hash_vec2(self.size, state);
         self.rotation.hash(state);

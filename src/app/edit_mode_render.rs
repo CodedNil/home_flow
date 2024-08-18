@@ -48,7 +48,7 @@ impl HomeFlow {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
-                    ui.label("Drag to move room or operation");
+                    ui.label("Drag to move objects");
                     ui.label("Click to select room, escape to deselect");
                     ui.label("Shift to disable snap");
                     if ui.button("Add Room").clicked() {
@@ -109,6 +109,19 @@ impl HomeFlow {
                     }
                     .gamma_multiply(0.6),
                 );
+                self.closed_dashed_line_with_offset(
+                    painter,
+                    &vertices,
+                    stroke,
+                    35.0,
+                    self.time * 50.0,
+                );
+            }
+
+            // Render zones
+            for zone in &room.zones {
+                let vertices = zone.vertices(room.pos);
+                let stroke = Stroke::new(3.0, Color32::from_rgb(160, 90, 50).gamma_multiply(0.6));
                 self.closed_dashed_line_with_offset(
                     painter,
                     &vertices,
