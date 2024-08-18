@@ -9,9 +9,9 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse, routing::post, Router};
-use std::path::Path;
+use std::{path::Path, sync::LazyLock};
 use time::{format_description, OffsetDateTime};
-use tokio::{fs, sync::OnceCell};
+use tokio::{fs, sync::Mutex};
 
 const LAYOUT_PATH: &str = "home_layout.ron";
 
@@ -23,17 +23,14 @@ pub fn setup_routes(app: Router) -> Router {
         .route("/login", post(login_server))
 }
 
-static HOME: OnceCell<Home> = OnceCell::const_new();
+pub static HOME: LazyLock<Mutex<Home>> = LazyLock::new(|| Mutex::new(template::default()));
 
 pub async fn start_server() {
-    // Load layout into memory
-    HOME.get_or_init(|| async {
-        fs::read_to_string(LAYOUT_PATH).await.map_or_else(
-            |_| template::default(),
-            |contents| ron::from_str::<Home>(&contents).unwrap_or_else(|_| template::default()),
-        )
-    })
-    .await;
+    *HOME.lock().await = fs::read_to_string(LAYOUT_PATH)
+        .await
+        .ok()
+        .and_then(|data| ron::from_str::<Home>(&data).ok())
+        .unwrap_or_else(template::default);
 
     super::home_assistant::server_loop().await;
 }
@@ -51,19 +48,14 @@ async fn load_layout_server(body: Bytes) -> impl IntoResponse {
     }
 
     // Load layout from memory and serialize
-    HOME.get().map_or_else(
-        || {
-            log::error!("Layout not found in memory");
+    let home = HOME.lock().await;
+    match bincode::serialize(&*home) {
+        Ok(serialized) => (StatusCode::OK, serialized),
+        Err(e) => {
+            log::error!("Failed to serialize layout: {:?}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, Vec::new())
-        },
-        |layout| match bincode::serialize(layout) {
-            Ok(serialized) => (StatusCode::OK, serialized),
-            Err(e) => {
-                log::error!("Failed to serialize layout: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, Vec::new())
-            }
-        },
-    )
+        }
+    }
 }
 
 async fn save_layout_server(body: Bytes) -> impl IntoResponse {
@@ -86,10 +78,7 @@ async fn save_layout_server(body: Bytes) -> impl IntoResponse {
     }
 
     // Update the in-memory layout
-    if HOME.set(packet.home).is_err() {
-        log::error!("Failed to update in-memory layout");
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    }
+    *HOME.lock().await = packet.home;
 
     StatusCode::OK.into_response()
 }

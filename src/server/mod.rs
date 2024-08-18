@@ -41,12 +41,6 @@ pub struct SaveLayoutPacket {
     pub home: Home,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct GetStatesPacket {
-    pub token: String,
-    pub sensors: Vec<String>,
-}
-
 nestify::nest! {
     #[derive(Debug, Serialize, Deserialize, Clone)]*
     pub struct PostActionsPacket {

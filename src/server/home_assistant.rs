@@ -1,9 +1,15 @@
-use super::{auth::verify_token, GetStatesPacket, PostActionsPacket};
-use super::{HAState, LightPacket, PostActionsData, SensorPacket};
+use super::TokenPacket;
+use super::{
+    auth::verify_token, routing::HOME, HAState, LightPacket, PostActionsData, PostActionsPacket,
+    SensorPacket,
+};
+use crate::common::furniture::{ElectronicType, FurnitureType};
 use crate::common::layout::DataPoint;
+use crate::common::utils::rotate_point_i32;
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
 use axum::{http::StatusCode, response::IntoResponse};
+use glam::{dvec2 as vec2, dvec3 as vec3, DMat3, DVec2 as Vec2};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Deserialize;
 use serde_json::json;
@@ -29,14 +35,30 @@ static HA_STATE: LazyLock<Mutex<Option<HAState>>> = LazyLock::new(|| Mutex::new(
 /// Every X seconds, get the states from Home Assistant
 pub async fn server_loop() {
     loop {
-        let states = get_states_impl(Vec::new()).await.unwrap();
+        // Get list of sensors to fetch
+        let layout = HOME.lock().await;
+        let mut sensors = Vec::new();
+        for room in &layout.rooms {
+            for sensor in &room.sensors {
+                sensors.push(sensor.entity_id.clone());
+            }
+            for furniture in &room.furniture {
+                let wanted = furniture.wanted_sensors();
+                if !wanted.is_empty() {
+                    sensors.extend(wanted);
+                }
+            }
+        }
+        drop(layout);
+
+        let states = get_states_impl(sensors).await.unwrap();
         *HA_STATE.lock().await = Some(states);
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
 }
 
 pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
-    let packet: GetStatesPacket = match bincode::deserialize(&body) {
+    let packet: TokenPacket = match bincode::deserialize(&body) {
         Ok(packet) => packet,
         Err(e) => {
             log::error!("Failed to deserialize get_states_server packet: {:?}", e);
@@ -138,10 +160,102 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
         }
     }
 
+    let layout = HOME.lock().await.clone();
+
+    let mut presence_points = Vec::new();
+    for room in &layout.rooms {
+        for furniture in &room.furniture {
+            if furniture.furniture_type
+                == FurnitureType::Electronic(ElectronicType::UltimateSensorMini)
+            {
+                // Read targets from the sensor
+                let mut targets: Vec<Vec2> = Vec::new();
+                for i in 1..=5 {
+                    for entity_id in &furniture.misc_sensors {
+                        if entity_id.ends_with(&format!("target_{i}_x"))
+                            || entity_id.ends_with(&format!("target_{i}_y"))
+                        {
+                            let is_x = entity_id.ends_with("_x");
+                            let value = states_raw
+                                .iter()
+                                .find(|state| state.entity_id == format!("sensor.{entity_id}"))
+                                .and_then(|state| state.state.parse::<f64>().ok())
+                                .unwrap_or(0.0);
+
+                            // If target x already exists, override the x or y, else add a new target
+                            if targets.len() >= i {
+                                let target = *targets.get(i - 1).unwrap();
+                                if is_x {
+                                    targets[i - 1] = vec2(value, target.y);
+                                } else {
+                                    targets[i - 1] = vec2(target.x, value);
+                                }
+                            } else {
+                                targets.push(if is_x {
+                                    vec2(value, 0.0)
+                                } else {
+                                    vec2(0.0, value)
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Filter out zero targets
+                targets.retain(|&v| v != Vec2::ZERO);
+
+                // Check if sensor has reference points
+                if let (
+                    Some(DataPoint::Vec2(reference_point1)),
+                    Some(DataPoint::Vec2(reference_world1)),
+                    Some(DataPoint::Vec2(reference_point2)),
+                    Some(DataPoint::Vec2(reference_world2)),
+                    Some(DataPoint::Vec2(reference_point3)),
+                    Some(DataPoint::Vec2(reference_world3)),
+                ) = (
+                    furniture.misc_data.get("calib_point1"),
+                    furniture.misc_data.get("calib_world1"),
+                    furniture.misc_data.get("calib_point2"),
+                    furniture.misc_data.get("calib_world2"),
+                    furniture.misc_data.get("calib_point3"),
+                    furniture.misc_data.get("calib_world3"),
+                ) {
+                    let (a, b, c, d, tx, ty) = solve_affine_transformation(
+                        reference_point1,
+                        reference_point2,
+                        reference_point3,
+                        reference_world1,
+                        reference_world2,
+                        reference_world3,
+                    );
+
+                    // Transform live sensor point to real-world position
+                    for target in &targets {
+                        let real_world_pos = vec2(
+                            a * target.x + b * target.y + tx,
+                            c * target.x + d * target.y + ty,
+                        );
+                        presence_points.push(real_world_pos);
+                    }
+                } else {
+                    // Transform live sensor point to real-world position
+                    for target in &targets {
+                        let real_world_pos = room.pos
+                            + furniture.pos
+                            + rotate_point_i32(*target / 1000.0, -furniture.rotation);
+                        presence_points.push(real_world_pos);
+                    }
+                };
+            }
+        }
+    }
+    // Merge close points
+    presence_points = merge_close_points(&presence_points, 0.1);
+
     Ok(HAState {
         lights: light_states,
         sensors: sensor_states,
-        presence_points: Vec::new(),
+        presence_points,
     })
 }
 
@@ -198,4 +312,68 @@ async fn post_actions_impl(data: Vec<PostActionsData>) -> Result<()> {
             errors
         ))
     }
+}
+
+fn merge_close_points(points: &[Vec2], radius: f64) -> Vec<Vec2> {
+    let mut merged_points = Vec::new();
+    let mut used = vec![false; points.len()];
+
+    for (i, &point) in points.iter().enumerate() {
+        if used[i] {
+            continue;
+        }
+
+        let mut cluster = Vec::new();
+
+        for (j, &other_point) in points.iter().enumerate().skip(i) {
+            if !used[j] && (point - other_point).length() <= radius {
+                cluster.push(other_point);
+                used[j] = true;
+            }
+        }
+
+        let centroid = cluster.iter().copied().sum::<Vec2>() / cluster.len() as f64;
+        merged_points.push(centroid);
+    }
+
+    merged_points
+}
+
+fn solve_affine_transformation(
+    p1: &Vec2,
+    p2: &Vec2,
+    p3: &Vec2,
+    w1: &Vec2,
+    w2: &Vec2,
+    w3: &Vec2,
+) -> (f64, f64, f64, f64, f64, f64) {
+    // Create matrix for sensor points
+    let sensor_matrix = DMat3::from_cols(
+        vec3(p1.x, p1.y, 1.0),
+        vec3(p2.x, p2.y, 1.0),
+        vec3(p3.x, p3.y, 1.0),
+    );
+
+    // Create matrix for world points
+    let world_matrix = DMat3::from_cols(
+        vec3(w1.x, w1.y, 1.0),
+        vec3(w2.x, w2.y, 1.0),
+        vec3(w3.x, w3.y, 1.0),
+    );
+
+    // Inverse the sensor matrix
+    let sensor_matrix_inv = sensor_matrix.inverse();
+
+    // Calculate the transformation matrix
+    let transformation_matrix = world_matrix * sensor_matrix_inv;
+
+    // Extract transformation parameters
+    let a = transformation_matrix.x_axis.x;
+    let b = transformation_matrix.y_axis.x;
+    let tx = transformation_matrix.z_axis.x;
+    let c = transformation_matrix.x_axis.y;
+    let d = transformation_matrix.y_axis.y;
+    let ty = transformation_matrix.z_axis.y;
+
+    (a, b, c, d, tx, ty)
 }

@@ -50,6 +50,7 @@ nestify::nest! {
         rotate_speed: f64,
         rotate_target: f64,
         interaction_state: IState,
+        presence_points: Vec<Vec2>,
 
         toasts: Arc<Mutex<Toasts>>,
         edit_mode: EditDetails,
@@ -137,6 +138,7 @@ impl HomeFlow {
             rotate_speed: 0.0,
             rotate_target: rotation,
             interaction_state: IState::default(),
+            presence_points: Vec::new(),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
             edit_mode: EditDetails::default(),
@@ -314,21 +316,7 @@ impl HomeFlow {
                 network_data_guard.hass_states = DownloadStates::InProgress;
                 drop(network_data_guard);
 
-                // Get list of sensors to fetch
-                let mut sensors = Vec::new();
-                for room in &self.layout.rooms {
-                    for sensor in &room.sensors {
-                        sensors.push(sensor.entity_id.clone());
-                    }
-                    for furniture in &room.furniture {
-                        let wanted = furniture.wanted_sensors();
-                        if !wanted.is_empty() {
-                            sensors.extend(wanted);
-                        }
-                    }
-                }
-
-                get_states(&self.host, &self.stored.auth_token, &sensors, move |res| {
+                get_states(&self.host, &self.stored.auth_token, move |res| {
                     network_store.lock().hass_states = DownloadStates::Done(res);
                 });
             }
@@ -379,6 +367,7 @@ impl HomeFlow {
                                 }
                             }
                         }
+                        self.presence_points.clone_from(&states.presence_points);
                     }
                     Err(e) => {
                         // If unauthorised, clear auth token and show login screen

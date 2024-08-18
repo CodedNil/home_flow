@@ -1,6 +1,5 @@
 use super::{
-    GetStatesPacket, HAState, LoginPacket, PostActionsData, PostActionsPacket, SaveLayoutPacket,
-    TokenPacket,
+    HAState, LoginPacket, PostActionsData, PostActionsPacket, SaveLayoutPacket, TokenPacket,
 };
 use crate::common::layout::Home;
 use anyhow::Result;
@@ -54,18 +53,12 @@ pub fn save_layout(
     );
 }
 
-pub fn get_states(
-    host: &str,
-    token: &str,
-    sensors: &[String],
-    on_done: impl 'static + Send + FnOnce(Result<HAState>),
-) {
+pub fn get_states(host: &str, token: &str, on_done: impl 'static + Send + FnOnce(Result<HAState>)) {
     ehttp::fetch(
         ehttp::Request::post(
             &format!("http://{host}/get_states"),
-            bincode::serialize(&GetStatesPacket {
+            bincode::serialize(&TokenPacket {
                 token: token.to_string(),
-                sensors: sensors.to_vec(),
             })
             .unwrap(),
         ),
