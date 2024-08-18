@@ -1,6 +1,6 @@
 use super::{
-    GetStatesPacket, LoginPacket, PostActionsData, PostActionsPacket, SaveLayoutPacket,
-    StatesPacket, TokenPacket,
+    GetStatesPacket, HAState, LoginPacket, PostActionsData, PostActionsPacket, SaveLayoutPacket,
+    TokenPacket,
 };
 use crate::common::layout::Home;
 use anyhow::Result;
@@ -58,7 +58,7 @@ pub fn get_states(
     host: &str,
     token: &str,
     sensors: &[String],
-    on_done: impl 'static + Send + FnOnce(Result<StatesPacket>),
+    on_done: impl 'static + Send + FnOnce(Result<HAState>),
 ) {
     ehttp::fetch(
         ehttp::Request::post(

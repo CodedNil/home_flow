@@ -1,9 +1,6 @@
+use super::{auth::verify_token, GetStatesPacket, PostActionsPacket};
+use super::{HAState, LightPacket, PostActionsData, SensorPacket};
 use crate::common::layout::DataPoint;
-
-use super::PostActionsData;
-use super::{
-    auth::verify_token, GetStatesPacket, LightPacket, PostActionsPacket, SensorPacket, StatesPacket,
-};
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
 use axum::{http::StatusCode, response::IntoResponse};
@@ -12,6 +9,8 @@ use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
 use std::env;
+use std::sync::LazyLock;
+use tokio::sync::Mutex;
 
 fn get_env_variable(key: &str) -> String {
     match env::var(key) {
@@ -22,6 +21,17 @@ fn get_env_variable(key: &str) -> String {
                 panic!("Environment variable {key} contains invalid data: {oss:?}")
             }
         },
+    }
+}
+
+static HA_STATE: LazyLock<Mutex<Option<HAState>>> = LazyLock::new(|| Mutex::new(None));
+
+/// Every X seconds, get the states from Home Assistant
+pub async fn server_loop() {
+    loop {
+        let states = get_states_impl(Vec::new()).await.unwrap();
+        *HA_STATE.lock().await = Some(states);
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
 }
 
@@ -37,19 +47,20 @@ pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
         return (StatusCode::UNAUTHORIZED, Vec::new());
     }
 
-    match get_states_impl(packet.sensors).await {
-        Ok(states) => match bincode::serialize(&states) {
+    let ha_state = HA_STATE.lock().await;
+    ha_state.as_ref().map_or_else(
+        || {
+            log::error!("State not found in memory");
+            (StatusCode::INTERNAL_SERVER_ERROR, Vec::new())
+        },
+        |states| match bincode::serialize(states) {
             Ok(serialized) => (StatusCode::OK, serialized),
             Err(e) => {
                 log::error!("Failed to serialize states: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
+                (StatusCode::INTERNAL_SERVER_ERROR, Vec::new())
             }
         },
-        Err(e) => {
-            log::error!("Failed to get states: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Vec::<u8>::new())
-        }
-    }
+    )
 }
 
 pub async fn post_actions_server(body: Bytes) -> impl IntoResponse {
@@ -82,7 +93,7 @@ struct HassState {
     attributes: HashMap<String, serde_json::Value>,
 }
 
-async fn get_states_impl(sensors: Vec<String>) -> Result<StatesPacket> {
+async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
     let client = reqwest::Client::new();
     let states_raw = client
         .get(&format!("{}/api/states", get_env_variable("HASS_URL")))
@@ -127,9 +138,10 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<StatesPacket> {
         }
     }
 
-    Ok(StatesPacket {
+    Ok(HAState {
         lights: light_states,
         sensors: sensor_states,
+        presence_points: Vec::new(),
     })
 }
 

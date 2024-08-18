@@ -54,14 +54,14 @@ pub fn default() -> Home {
                 .window_width(vec2(-1.15, -1.35), 0, 1.4)
                 .window(vec2(1.75, -1.35), 0)
                 .lights_grid(
-                    "Lounge Downlights Left",
+                    "Lounge Left Downlights",
                     2,
                     2,
                     vec2(4.75, 1.25),
                     vec2(1.35, 0.0),
                 )
                 .lights_grid(
-                    "Lounge Downlights Right",
+                    "Lounge Right Downlights",
                     2,
                     2,
                     vec2(4.75, 1.25),

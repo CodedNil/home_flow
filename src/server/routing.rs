@@ -11,7 +11,7 @@ use anyhow::{anyhow, Result};
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse, routing::post, Router};
 use std::path::Path;
 use time::{format_description, OffsetDateTime};
-use tokio::fs;
+use tokio::{fs, sync::OnceCell};
 
 const LAYOUT_PATH: &str = "home_layout.ron";
 
@@ -21,6 +21,21 @@ pub fn setup_routes(app: Router) -> Router {
         .route("/get_states", post(get_states_server))
         .route("/post_actions", post(post_actions_server))
         .route("/login", post(login_server))
+}
+
+static HOME: OnceCell<Home> = OnceCell::const_new();
+
+pub async fn start_server() {
+    // Load layout into memory
+    HOME.get_or_init(|| async {
+        fs::read_to_string(LAYOUT_PATH).await.map_or_else(
+            |_| template::default(),
+            |contents| ron::from_str::<Home>(&contents).unwrap_or_else(|_| template::default()),
+        )
+    })
+    .await;
+
+    super::home_assistant::server_loop().await;
 }
 
 async fn load_layout_server(body: Bytes) -> impl IntoResponse {
@@ -35,17 +50,20 @@ async fn load_layout_server(body: Bytes) -> impl IntoResponse {
         return (StatusCode::UNAUTHORIZED, Vec::new());
     }
 
-    // Load layout and serialize
-    match bincode::serialize(&fs::read_to_string(LAYOUT_PATH).await.map_or_else(
-        |_| template::default(),
-        |contents| ron::from_str::<Home>(&contents).unwrap_or_else(|_| template::default()),
-    )) {
-        Ok(serialized) => (StatusCode::OK, serialized),
-        Err(e) => {
-            log::error!("Failed to serialize layout: {:?}", e);
+    // Load layout from memory and serialize
+    HOME.get().map_or_else(
+        || {
+            log::error!("Layout not found in memory");
             (StatusCode::INTERNAL_SERVER_ERROR, Vec::new())
-        }
-    }
+        },
+        |layout| match bincode::serialize(layout) {
+            Ok(serialized) => (StatusCode::OK, serialized),
+            Err(e) => {
+                log::error!("Failed to serialize layout: {:?}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, Vec::new())
+            }
+        },
+    )
 }
 
 async fn save_layout_server(body: Bytes) -> impl IntoResponse {
@@ -62,13 +80,18 @@ async fn save_layout_server(body: Bytes) -> impl IntoResponse {
 
     // Save layout to file
     log::info!("Saving layout");
-    match save_layout_impl(&packet.home).await {
-        Ok(()) => StatusCode::OK.into_response(),
-        Err(e) => {
-            log::error!("Failed to save layout: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
+    if let Err(e) = save_layout_impl(&packet.home).await {
+        log::error!("Failed to save layout: {:?}", e);
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
+
+    // Update the in-memory layout
+    if HOME.set(packet.home).is_err() {
+        log::error!("Failed to update in-memory layout");
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+
+    StatusCode::OK.into_response()
 }
 
 async fn save_layout_impl(home: &Home) -> Result<()> {

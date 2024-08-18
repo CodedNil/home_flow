@@ -1,4 +1,5 @@
 use crate::common::layout::{DataPoint, Home};
+use glam::DVec2;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -11,6 +12,22 @@ pub mod routing;
 
 #[cfg(feature = "gui")]
 pub mod common_api;
+
+// Packet for communication between the server to the client
+nestify::nest! {
+    #[derive(Debug, Serialize, Deserialize, Default, Clone)]*
+    pub struct HAState {
+        pub lights: Vec<pub struct LightPacket {
+            pub entity_id: String,
+            pub state: u8,
+        }>,
+        pub sensors: Vec<pub struct SensorPacket {
+            pub entity_id: String,
+            pub state: String,
+        }>,
+        pub presence_points: Vec<DVec2>,
+    }
+}
 
 // Packets for communication between the client to the server
 #[derive(Serialize, Deserialize)]
@@ -47,19 +64,4 @@ nestify::nest! {
 struct LoginPacket {
     username: String,
     password: String,
-}
-
-// Packet for communication between the server to the client
-nestify::nest! {
-    #[derive(Debug, Deserialize, Serialize, Default, Clone)]*
-    pub struct StatesPacket {
-        pub lights: Vec<pub struct LightPacket {
-            pub entity_id: String,
-            pub state: u8,
-        }>,
-        pub sensors: Vec<pub struct SensorPacket {
-            pub entity_id: String,
-            pub state: String,
-        }>,
-    }
 }

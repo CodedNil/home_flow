@@ -16,7 +16,7 @@ use crate::{
     },
     server::{
         common_api::{get_layout, get_states, login, post_actions},
-        PostActionsData, StatesPacket,
+        HAState, PostActionsData,
     },
 };
 use anyhow::Result;
@@ -82,7 +82,7 @@ nestify::nest! {
                 None,
                 Waiting(f64),
                 InProgress,
-                Done(Result<StatesPacket>),
+                Done(Result<HAState>),
             },
             hass_post: enum UploadStates {
                 #[default]

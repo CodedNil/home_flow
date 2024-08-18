@@ -32,15 +32,19 @@ async fn main() {
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8127));
     println!("Listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+
+    tokio::spawn(async move {
+        server::routing::start_server().await;
+    });
+
     #[cfg(not(feature = "gui"))]
     axum::serve(listener, app).await.unwrap();
-    #[cfg(feature = "gui")]
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
-    });
 
     #[cfg(feature = "gui")]
     {
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
         let native_options = eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
                 .with_inner_size([400.0, 300.0])
