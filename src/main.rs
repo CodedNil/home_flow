@@ -4,7 +4,8 @@
     clippy::suboptimal_flops,
     clippy::cast_sign_loss,
     clippy::too_many_lines,
-    clippy::cognitive_complexity
+    clippy::cognitive_complexity,
+    clippy::type_complexity
 )]
 
 #[cfg(feature = "gui")]

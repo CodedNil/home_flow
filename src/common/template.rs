@@ -120,11 +120,11 @@ pub fn default() -> Home {
                         "ultimatesensor_mini_target_3_y",
                     ])
                     .add_data(vec![
-                        ("calib_point1", DataPoint::Vec2(vec2(0.0, 0.0))),
-                        ("calib_world1", DataPoint::Vec2(vec2(-5.8, -2.5))),
-                        ("calib_point2", DataPoint::Vec2(vec2(2950.0, 3800.0))),
+                        ("calib_point1", DataPoint::Vec2(vec2(270.0, 5345.0))),
+                        ("calib_world1", DataPoint::Vec2(vec2(-1.0, 0.7))),
+                        ("calib_point2", DataPoint::Vec2(vec2(3203.0, 3816.0))),
                         ("calib_world2", DataPoint::Vec2(vec2(-0.8, -1.8))),
-                        ("calib_point3", DataPoint::Vec2(vec2(-3000.0, 3000.0))),
+                        ("calib_point3", DataPoint::Vec2(vec2(-3228.0, 3354.0))),
                         ("calib_world3", DataPoint::Vec2(vec2(-5.1, 2.3))),
                     ]),
                 )

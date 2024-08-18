@@ -17,6 +17,9 @@ use std::collections::HashMap;
 use std::env;
 use std::sync::LazyLock;
 use tokio::sync::Mutex;
+use tokio::time::Instant;
+
+static CALIBRATION_DURATION: f64 = 30.0;
 
 fn get_env_variable(key: &str) -> String {
     match env::var(key) {
@@ -117,6 +120,8 @@ struct HassState {
 
 static LAST_OCCUPANCY: LazyLock<Mutex<HashMap<String, (bool, u8)>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+static PRESENCE_CALIBRATION: LazyLock<Mutex<Option<(Instant, Vec<Vec2>)>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
     let client = reqwest::Client::new();
@@ -163,9 +168,25 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
         }
     }
 
+    // Begin calibration if needed
+    let calibration = PRESENCE_CALIBRATION.lock().await.clone();
+    let presence_calibration = states_raw
+        .iter()
+        .find(|state| state.entity_id == "input_boolean.presence_calibration")
+        .map_or_else(|| false, |state| state.state == "on");
+    if calibration.is_none() && presence_calibration {
+        *PRESENCE_CALIBRATION.lock().await = Some((Instant::now(), Vec::new()));
+        log::info!("Presence calibration started");
+    }
+    // If calibration becomes false, end it
+    if calibration.is_some() && !presence_calibration {
+        *PRESENCE_CALIBRATION.lock().await = None;
+    }
+
     let layout = HOME.lock().await.clone();
 
     let mut presence_points = Vec::new();
+    let mut presence_points_raw = Vec::new();
     for room in &layout.rooms {
         for furniture in &room.furniture {
             if furniture.furniture_type
@@ -206,6 +227,9 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
 
                 // Filter out zero targets
                 targets.retain(|&v| v != Vec2::ZERO);
+                if calibration.is_some() {
+                    presence_points_raw.extend(targets.clone());
+                }
 
                 // Check if sensor has reference points
                 if let (
@@ -254,6 +278,53 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
     }
     // Merge close points
     presence_points = merge_close_points(&presence_points, 0.1);
+
+    // If calibrating, add raw points to data if they are not already present
+    {
+        let mut calibration = PRESENCE_CALIBRATION.lock().await;
+        let num_calib_points = calibration.as_ref().map_or(0, |(_, points)| points.len());
+        if let Some((start_time, calibration_points)) = calibration.as_mut() {
+            if start_time.elapsed().as_secs_f64() > CALIBRATION_DURATION {
+                // Get average of all points
+                let mut sum = Vec2::ZERO;
+                for point in calibration_points {
+                    sum += *point;
+                }
+                let average = (sum / num_calib_points as f64).round();
+                log::info!("Calibration ended, average point: {:?}", average);
+                // Set input_boolean.presence_calibration to false and input_text.presence_calibration_output to the average point
+                post_actions_impl(vec![
+                    PostActionsData {
+                        domain: "input_boolean".to_string(),
+                        action: "turn_off".to_string(),
+                        entity_id: "input_boolean.presence_calibration".to_string(),
+                        additional_data: HashMap::new(),
+                    },
+                    PostActionsData {
+                        domain: "input_text".to_string(),
+                        action: "set_value".to_string(),
+                        entity_id: "input_text.presence_calibration_output".to_string(),
+                        additional_data: vec![(
+                            "value".to_string(),
+                            DataPoint::String(format!("{},{}", average.x, average.y)),
+                        )]
+                        .into_iter()
+                        .collect(),
+                    },
+                ])
+                .await
+                .unwrap();
+                *calibration = None;
+                drop(calibration);
+            } else {
+                for point in presence_points_raw {
+                    if !calibration_points.contains(&point) {
+                        calibration_points.push(point);
+                    }
+                }
+            }
+        }
+    }
 
     // Calculate which zones are occupied
     let mut zone_occupancy: HashMap<String, (bool, u8)> = HashMap::new();

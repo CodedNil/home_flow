@@ -2,7 +2,6 @@ mod edit_mode;
 mod edit_mode_render;
 mod edit_mode_utils;
 mod interaction;
-mod presence_sensor;
 mod render;
 
 use self::{
