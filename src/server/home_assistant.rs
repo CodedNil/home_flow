@@ -422,17 +422,16 @@ async fn get_states_impl(
         }
 
         // Update the occupancy if necessary
-        if *last_occupied != *occupied {
+        if *last_occupied != *occupied
+            && (*occupied || last_time.elapsed().as_secs_f64() > OCCUPANCY_DURATION)
+        {
             *last_occupied = *occupied;
-
-            if *occupied || last_time.elapsed().as_secs_f64() > OCCUPANCY_DURATION {
-                post_data.push(PostActionsData {
-                    domain: "input_boolean".to_string(),
-                    action: if *occupied { "turn_on" } else { "turn_off" }.to_string(),
-                    entity_id: format!("input_boolean.{zone_name}_occupancy"),
-                    additional_data: HashMap::new(),
-                });
-            }
+            post_data.push(PostActionsData {
+                domain: "input_boolean".to_string(),
+                action: if *occupied { "turn_on" } else { "turn_off" }.to_string(),
+                entity_id: format!("input_boolean.{zone_name}_occupancy"),
+                additional_data: HashMap::new(),
+            });
         }
 
         // Update targets if necessary
