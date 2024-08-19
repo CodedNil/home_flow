@@ -19,6 +19,7 @@ use std::sync::LazyLock;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
+static LOOP_INTERVAL_MS: u64 = 500;
 static CALIBRATION_DURATION: f64 = 30.0;
 
 fn get_env_variable(key: &str) -> String {
@@ -56,7 +57,7 @@ pub async fn server_loop() {
 
         let states = get_states_impl(sensors).await.unwrap();
         *HA_STATE.lock().await = Some(states);
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(LOOP_INTERVAL_MS)).await;
     }
 }
 
@@ -317,11 +318,7 @@ async fn get_states_impl(sensors: Vec<String>) -> Result<HAState> {
                 *calibration = None;
                 drop(calibration);
             } else {
-                for point in presence_points_raw {
-                    if !calibration_points.contains(&point) {
-                        calibration_points.push(point);
-                    }
-                }
+                calibration_points.extend(presence_points_raw);
             }
         }
     }
