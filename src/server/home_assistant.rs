@@ -59,10 +59,9 @@ pub async fn server_loop() {
         }
         drop(layout);
 
-        let states = get_states_impl(&client, &url, &token, sensors)
-            .await
-            .unwrap();
-        *HA_STATE.lock().await = Some(states);
+        if let Ok(states) = get_states_impl(&client, &url, &token, sensors).await {
+            *HA_STATE.lock().await = Some(states);
+        }
         tokio::time::sleep(tokio::time::Duration::from_millis(LOOP_INTERVAL_MS)).await;
     }
 }
