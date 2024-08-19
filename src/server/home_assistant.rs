@@ -300,7 +300,7 @@ async fn get_states_impl(
         merged_points
     };
 
-    // If calibrating, add raw points to data if they are not already present
+    // If calibrating, add raw points to data
     {
         let mut calibration = PRESENCE_CALIBRATION.lock().await;
         if let Some((start_time, calibration_points)) = calibration.as_mut() {
