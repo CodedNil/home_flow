@@ -17,11 +17,13 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::env;
 use std::sync::LazyLock;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
 static LOOP_INTERVAL_MS: u64 = 200;
 static CALIBRATION_DURATION: f64 = 30.0;
+static OCCUPANCY_DURATION: f64 = 3.0;
 
 fn get_env_variable(key: &str) -> String {
     match env::var(key) {
@@ -115,18 +117,22 @@ pub async fn post_actions_server(body: Bytes) -> impl IntoResponse {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct HassState {
     entity_id: String,
     state: String,
+    #[allow(dead_code)]
     last_changed: String,
     attributes: HashMap<String, serde_json::Value>,
 }
 
-static LAST_OCCUPANCY: LazyLock<Mutex<HashMap<String, (bool, u8)>>> =
+// Room name -> (Occupied, Targets, Last Occupied)
+type OccupancyData = HashMap<String, (bool, u8, Instant)>;
+
+static LAST_OCCUPANCY: LazyLock<Mutex<OccupancyData>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
-static PRESENCE_CALIBRATION: LazyLock<Mutex<Option<(Instant, Vec<Vec2>)>>> =
+type PresenceCalibration = (Instant, Vec<Vec2>);
+static PRESENCE_CALIBRATION: LazyLock<Mutex<Option<PresenceCalibration>>> =
     LazyLock::new(|| Mutex::new(None));
 
 async fn get_states_impl(
@@ -395,22 +401,43 @@ async fn get_states_impl(
     // Compare to LAST_OCCUPANCY and for differences, post actions
     let mut last_occupancy = LAST_OCCUPANCY.lock().await;
     let mut post_data = Vec::new();
-    for (zone_name, (occupied, targets)) in &zone_occupancy {
-        let is_different = match last_occupancy.get(zone_name) {
-            Some((last_occupied, last_targets)) => {
-                *last_occupied != *occupied || *last_targets != *targets
-            }
-            None => true,
-        };
-        if is_different {
-            last_occupancy.insert(zone_name.clone(), (*occupied, *targets));
 
-            post_data.push(PostActionsData {
-                domain: "input_boolean".to_string(),
-                action: if *occupied { "turn_on" } else { "turn_off" }.to_string(),
-                entity_id: format!("input_boolean.{zone_name}_occupancy"),
-                additional_data: HashMap::new(),
+    for (zone_name, (occupied, targets)) in &zone_occupancy {
+        let (last_occupied, last_targets, last_time) =
+            last_occupancy.entry(zone_name.clone()).or_insert_with(|| {
+                (
+                    *occupied,
+                    *targets,
+                    if *occupied {
+                        Instant::now()
+                    } else {
+                        Instant::now() - Duration::from_secs(3600)
+                    },
+                )
             });
+
+        // Update the time if occupied
+        if *occupied {
+            *last_time = Instant::now();
+        }
+
+        // Update the occupancy if necessary
+        if *last_occupied != *occupied {
+            *last_occupied = *occupied;
+
+            if *occupied || last_time.elapsed().as_secs_f64() > OCCUPANCY_DURATION {
+                post_data.push(PostActionsData {
+                    domain: "input_boolean".to_string(),
+                    action: if *occupied { "turn_on" } else { "turn_off" }.to_string(),
+                    entity_id: format!("input_boolean.{zone_name}_occupancy"),
+                    additional_data: HashMap::new(),
+                });
+            }
+        }
+
+        // Update targets if necessary
+        if *last_targets != *targets {
+            *last_targets = *targets;
             post_data.push(PostActionsData {
                 domain: "input_number".to_string(),
                 action: "set_value".to_string(),
