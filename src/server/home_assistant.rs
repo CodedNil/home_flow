@@ -9,7 +9,8 @@ use crate::common::utils::rotate_point_i32;
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
 use axum::{http::StatusCode, response::IntoResponse};
-use glam::{dvec2 as vec2, DMat3, DVec2 as Vec2};
+use glam::{dvec2 as vec2, DVec2 as Vec2};
+use nalgebra::DMatrix;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Deserialize;
 use serde_json::json;
@@ -200,10 +201,10 @@ async fn get_states_impl(
                 == FurnitureType::Electronic(ElectronicType::UltimateSensorMini)
             {
                 // Read targets from the sensor
-                let targets = (1..=5)
+                let targets = (1..)
                     .map(|i| {
-                        let mut x = 0.0;
-                        let mut y = 0.0;
+                        let mut x = f64::NAN;
+                        let mut y = f64::NAN;
 
                         for id in &furniture.misc_sensors {
                             if let Some(value) = states_raw
@@ -219,8 +220,14 @@ async fn get_states_impl(
                             }
                         }
 
-                        vec2(x, y)
+                        if x.is_nan() || y.is_nan() {
+                            None
+                        } else {
+                            Some(vec2(x, y))
+                        }
                     })
+                    .take_while(Option::is_some)
+                    .flatten()
                     .filter(|&v| v != Vec2::ZERO)
                     .collect::<Vec<_>>();
 
@@ -228,38 +235,56 @@ async fn get_states_impl(
                     presence_points_raw.extend(targets.clone());
                 }
 
-                // Check if sensor has reference points
-                if let (
-                    Some(DataPoint::Vec2(rp1)),
-                    Some(DataPoint::Vec2(rw1)),
-                    Some(DataPoint::Vec2(rp2)),
-                    Some(DataPoint::Vec2(rw2)),
-                    Some(DataPoint::Vec2(rp3)),
-                    Some(DataPoint::Vec2(rw3)),
-                ) = (
-                    furniture.misc_data.get("calib_point1"),
-                    furniture.misc_data.get("calib_world1"),
-                    furniture.misc_data.get("calib_point2"),
-                    furniture.misc_data.get("calib_world2"),
-                    furniture.misc_data.get("calib_point3"),
-                    furniture.misc_data.get("calib_world3"),
-                ) {
-                    // Solve affine transformation matrix
-                    let (a, b, c, d, tx, ty) = {
-                        let sensor_matrix =
-                            DMat3::from_cols(rp1.extend(1.0), rp2.extend(1.0), rp3.extend(1.0));
-                        let world_matrix =
-                            DMat3::from_cols(rw1.extend(1.0), rw2.extend(1.0), rw3.extend(1.0));
-                        let transformation_matrix = world_matrix * sensor_matrix.inverse();
-                        (
-                            transformation_matrix.x_axis.x,
-                            transformation_matrix.y_axis.x,
-                            transformation_matrix.x_axis.y,
-                            transformation_matrix.y_axis.y,
-                            transformation_matrix.z_axis.x,
-                            transformation_matrix.z_axis.y,
-                        )
-                    };
+                // Collect calibration points if available
+                let calibration_data = (1..)
+                    .map(|i| {
+                        furniture
+                            .misc_data
+                            .get(&format!("calib_{i}"))
+                            .and_then(|data| {
+                                if let DataPoint::Vec4((wx, wy, sx, sy)) = data {
+                                    Some((vec2(*wx, *wy), vec2(*sx, *sy)))
+                                } else {
+                                    None
+                                }
+                            })
+                    })
+                    .take_while(Option::is_some)
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                if calibration_data.len() >= 3 {
+                    // Create matrices for sensor and world points
+                    let mut sensor_matrix = DMatrix::zeros(calibration_data.len(), 3);
+                    let mut world_matrix_x = DMatrix::zeros(calibration_data.len(), 1);
+                    let mut world_matrix_y = DMatrix::zeros(calibration_data.len(), 1);
+
+                    for (i, &(world, sensor)) in calibration_data.iter().enumerate() {
+                        sensor_matrix[(i, 0)] = sensor.x;
+                        sensor_matrix[(i, 1)] = sensor.y;
+                        sensor_matrix[(i, 2)] = 1.0; // Homogeneous coordinate
+
+                        world_matrix_x[(i, 0)] = world.x;
+                        world_matrix_y[(i, 0)] = world.y;
+                    }
+
+                    // Solve for the transformation matrix using the least squares method
+                    let sensor_matrix_pseudo_inverse = (sensor_matrix.transpose() * &sensor_matrix)
+                        .try_inverse()
+                        .unwrap()
+                        * sensor_matrix.transpose();
+
+                    let transform_x = sensor_matrix_pseudo_inverse.clone() * world_matrix_x;
+                    let transform_y = sensor_matrix_pseudo_inverse * world_matrix_y;
+
+                    let a = transform_x[(0, 0)];
+                    let b = transform_x[(1, 0)];
+                    let tx = transform_x[(2, 0)];
+
+                    let c = transform_y[(0, 0)];
+                    let d = transform_y[(1, 0)];
+                    let ty = transform_y[(2, 0)];
+
                     presence_points.extend(targets.iter().map(|target| {
                         vec2(
                             a * target.x + b * target.y + tx,
@@ -301,48 +326,46 @@ async fn get_states_impl(
     };
 
     // If calibrating, add raw points to data
-    {
-        let mut calibration = PRESENCE_CALIBRATION.lock().await;
-        if let Some((start_time, calibration_points)) = calibration.as_mut() {
-            if start_time.elapsed().as_secs_f64() > CALIBRATION_DURATION {
-                let average = (calibration_points.iter().copied().sum::<Vec2>()
-                    / calibration_points.len() as f64)
-                    .round();
-                log::info!("Calibration ended, average point: {:?}", average);
+    let mut calibration = PRESENCE_CALIBRATION.lock().await;
+    if let Some((start_time, calibration_points)) = calibration.as_mut() {
+        if start_time.elapsed().as_secs_f64() > CALIBRATION_DURATION {
+            let average = (calibration_points.iter().copied().sum::<Vec2>()
+                / calibration_points.len() as f64)
+                .round();
+            log::info!("Calibration ended, average point: {:?}", average);
 
-                // Set input_boolean.presence_calibration to false and input_text.presence_calibration_output to the average point
-                post_actions_impl(vec![
-                    PostActionsData {
-                        domain: "input_boolean".to_string(),
-                        action: "turn_off".to_string(),
-                        entity_id: "input_boolean.presence_calibration".to_string(),
-                        additional_data: HashMap::new(),
-                    },
-                    PostActionsData {
-                        domain: "input_text".to_string(),
-                        action: "set_value".to_string(),
-                        entity_id: "input_text.presence_calibration_output".to_string(),
-                        additional_data: vec![(
-                            "value".to_string(),
-                            DataPoint::String(format!("{},{}", average.x, average.y)),
-                        )]
-                        .into_iter()
-                        .collect(),
-                    },
-                ])
-                .await
-                .unwrap();
+            // Set input_boolean.presence_calibration to false and input_text.presence_calibration_output to the average point
+            post_actions_impl(vec![
+                PostActionsData {
+                    domain: "input_boolean".to_string(),
+                    action: "turn_off".to_string(),
+                    entity_id: "input_boolean.presence_calibration".to_string(),
+                    additional_data: HashMap::new(),
+                },
+                PostActionsData {
+                    domain: "input_text".to_string(),
+                    action: "set_value".to_string(),
+                    entity_id: "input_text.presence_calibration_output".to_string(),
+                    additional_data: vec![(
+                        "value".to_string(),
+                        DataPoint::String(format!("{},{}", average.x, average.y)),
+                    )]
+                    .into_iter()
+                    .collect(),
+                },
+            ])
+            .await
+            .unwrap();
 
-                *calibration = None;
-                drop(calibration);
-            } else {
-                calibration_points.extend(presence_points_raw);
-            }
+            *calibration = None;
+        } else {
+            calibration_points.extend(presence_points_raw);
         }
     }
+    drop(calibration);
 
     // Calculate zone occupancy
-    let mut zone_occupancy: HashMap<String, (bool, u8)> = HashMap::new();
+    let mut zone_occupancy = HashMap::new();
     for room in &layout.rooms {
         let room_occupancy = presence_points
             .iter()
@@ -431,6 +454,7 @@ async fn post_actions_impl(data: Vec<PostActionsData>) -> Result<()> {
                     }
                     DataPoint::Int(i) => serde_json::Value::Number(serde_json::Number::from(i)),
                     DataPoint::Vec2(v) => serde_json::json!([v.x, v.y]),
+                    DataPoint::Vec4((a, b, c, d)) => serde_json::json!([a, b, c, d]),
                 },
             );
         }

@@ -16,6 +16,7 @@ parking_lot = "0.12.3"
 indexmap = "2.4.0"
 itertools = "0.13.0"
 glam = { version = "0.28.0", features = ["serde"] }
+nalgebra = "0.33.0"
 nestify = "0.3.3"
 strum = "0.26.3"
 strum_macros = "0.26.4"

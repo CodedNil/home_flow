@@ -120,12 +120,11 @@ pub fn default() -> Home {
                         "ultimatesensor_mini_target_3_y",
                     ])
                     .add_data(vec![
-                        ("calib_point1", DataPoint::Vec2(vec2(270.0, 5345.0))),
-                        ("calib_world1", DataPoint::Vec2(vec2(-1.0, 0.7))),
-                        ("calib_point2", DataPoint::Vec2(vec2(3203.0, 3816.0))),
-                        ("calib_world2", DataPoint::Vec2(vec2(-0.8, -1.8))),
-                        ("calib_point3", DataPoint::Vec2(vec2(-3228.0, 3354.0))),
-                        ("calib_world3", DataPoint::Vec2(vec2(-5.1, 2.3))),
+                        ("calib_1", DataPoint::Vec4((-5.5, -2.4, 194.0, 584.0))), // Sensor Corner
+                        ("calib_2", DataPoint::Vec4((-1.0, 0.7, 270.0, 5345.0))), // Hall Corner
+                        ("calib_3", DataPoint::Vec4((-0.8, -1.8, 3203.0, 3816.0))), // Desk
+                        ("calib_4", DataPoint::Vec4((-5.1, 2.3, -3228.0, 3354.0))), // Kitchen Corner
+                        ("calib_5", DataPoint::Vec4((-2.9, 0.0, -192.0, 3753.0))),  // Kitchen Edge
                     ]),
                 )
                 .furniture(Furniture::new_materials(

@@ -168,10 +168,13 @@ pub struct Triangles {
     pub vertices: Vec<Vec2>,
 }
 
+pub type Vec4 = (f64, f64, f64, f64);
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum DataPoint {
     String(String),
     Float(f64),
     Int(u8),
     Vec2(Vec2),
+    Vec4(Vec4),
 }
