@@ -21,3 +21,8 @@ release:
     trunk build --release
     cargo build --release --no-default-features --target-dir target/server
     sudo systemctl restart home_flow
+
+release-server:
+    git pull
+    cargo build --release --no-default-features --target-dir target/server
+    sudo systemctl restart home_flow
