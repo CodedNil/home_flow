@@ -1,11 +1,9 @@
-use super::{
-    auth::{login_server, verify_token},
-    home_assistant::{get_states_server, post_actions_server},
-    TokenPacket,
-};
 use crate::{
-    common::{layout::Home, template},
-    server::SaveLayoutPacket,
+    common::{layout::Home, template, SaveLayoutPacket, TokenPacket},
+    server::{
+        auth::{login_server, verify_token},
+        home_assistant::{get_states_server, post_actions_server},
+    },
 };
 use anyhow::{anyhow, Result};
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse, routing::post, Router};

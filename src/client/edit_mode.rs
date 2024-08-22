@@ -1,11 +1,12 @@
-use super::{
-    edit_mode_utils::{
-        apply_standard_transform, combo_box_for_enum, combo_box_for_materials, edit_option,
-        edit_rotation, edit_vec2, labelled_widget,
-    },
-    vec2_to_egui_pos, HomeFlow,
-};
 use crate::{
+    client::{
+        edit_mode_utils::{
+            apply_standard_transform, combo_box_for_enum, combo_box_for_materials, edit_option,
+            edit_rotation, edit_vec2, labelled_widget,
+        },
+        networking::save_layout,
+        vec2_to_egui_pos, HomeFlow,
+    },
     common::{
         color::Color,
         furniture::{ChairType, Furniture, FurnitureType},
@@ -15,7 +16,6 @@ use crate::{
         },
         utils::Material,
     },
-    server::common_api::save_layout,
 };
 use egui::{
     collapsing_header::CollapsingState, Align2, Button, Color32, Context, CursorIcon, DragValue,

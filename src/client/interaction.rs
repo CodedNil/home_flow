@@ -1,14 +1,13 @@
-use std::collections::HashMap;
-
-use super::HomeFlow;
 use crate::{
+    client::HomeFlow,
     common::{
         layout::{DataPoint, LightType},
         utils::Lerp,
+        PostActionsData,
     },
-    server::PostActionsData,
 };
 use egui::{pos2, Color32, Painter, Pos2, Response, Stroke};
+use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct IState {

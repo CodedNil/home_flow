@@ -1,3 +1,4 @@
+use crate::common::LoginPacket;
 use anyhow::{anyhow, Result};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -7,8 +8,6 @@ use axum::{body::Bytes, http::StatusCode, response::IntoResponse};
 use rand::{distributions, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
-
-use super::LoginPacket;
 
 const MIN_PASSWORD_LENGTH: usize = 6;
 const TOKEN_LENGTH: usize = 20;

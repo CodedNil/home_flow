@@ -1,4 +1,4 @@
-use super::{
+use crate::common::{
     color::Color,
     furniture::{self, Furniture, FurnitureType},
     layout::{

@@ -1,7 +1,7 @@
-use super::{
-    HAState, LoginPacket, PostActionsData, PostActionsPacket, SaveLayoutPacket, TokenPacket,
+use crate::common::{
+    layout::Home, HAState, LoginPacket, PostActionsData, PostActionsPacket, SaveLayoutPacket,
+    TokenPacket,
 };
-use crate::common::layout::Home;
 use anyhow::Result;
 
 pub fn get_layout(host: &str, token: &str, on_done: impl 'static + Send + FnOnce(Result<Home>)) {

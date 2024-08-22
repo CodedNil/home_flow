@@ -1,11 +1,13 @@
-use super::{
-    edit_mode::{DragData, HoverDetails, ManipulationType, ObjectType},
-    HomeFlow,
-};
-use crate::common::{
-    layout::GlobalMaterial,
-    shape::point_to_vec2,
-    utils::{rotate_point_i32, rotate_point_pivot_i32, RoundFactor},
+use crate::{
+    client::{
+        edit_mode::{DragData, HoverDetails, ManipulationType, ObjectType},
+        HomeFlow,
+    },
+    common::{
+        layout::GlobalMaterial,
+        shape::point_to_vec2,
+        utils::{rotate_point_i32, rotate_point_pivot_i32, RoundFactor},
+    },
 };
 use egui::{ComboBox, DragValue, Key, Ui};
 use glam::{dvec2 as vec2, DVec2 as Vec2};

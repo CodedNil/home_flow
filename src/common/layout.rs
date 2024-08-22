@@ -1,4 +1,4 @@
-use super::{
+use crate::common::{
     color::Color,
     furniture::Furniture,
     light_render::{LightData, LightsData},

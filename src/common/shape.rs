@@ -1,13 +1,14 @@
-use super::{
+use crate::common::{
     color::Color,
     layout::{
         Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
         Triangles, Walls, Zone,
     },
+    light_render::combine_lighting,
     light_render::render_lighting,
+    utils::hash_vec2,
     utils::{rotate_point_i32, rotate_point_pivot_i32, Material},
 };
-use crate::common::{light_render::combine_lighting, utils::hash_vec2};
 use geo::{
     triangulate_spade::SpadeTriangulationConfig, BoundingRect, CoordsIter, LinesIter,
     TriangulateEarcut, TriangulateSpade,
@@ -34,7 +35,7 @@ impl Home {
         }
 
         #[cfg(target_arch = "wasm32")]
-        if !crate::common::clipper_wasm::is_clipper_loaded() {
+        if !crate::client::clipper_wasm::is_clipper_loaded() {
             return;
         }
 
@@ -596,7 +597,7 @@ fn offset_polygon(polygon: &Polygon, offset_size: f64, join_type: JoinType) -> M
     #[cfg(target_arch = "wasm32")]
     {
         let join_round = join_type == JoinType::Round;
-        crate::common::clipper_wasm::offset_polygon_wasm(polygon, offset_size, join_round).unwrap()
+        crate::client::clipper_wasm::offset_polygon_wasm(polygon, offset_size, join_round).unwrap()
     }
     #[cfg(not(target_arch = "wasm32"))]
     {

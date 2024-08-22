@@ -1,10 +1,12 @@
-use super::{vec2_to_egui_pos, HomeFlow};
-use crate::common::{
-    color::Color,
-    furniture::{AnimatedPieceType, Furniture, FurnitureType},
-    layout::{OpeningType, Shape},
-    shape::{point_to_vec2, WALL_WIDTH},
-    utils::{rotate_point, rotate_point_i32, rotate_point_pivot, Lerp, Material},
+use crate::{
+    client::{vec2_to_egui_pos, HomeFlow},
+    common::{
+        color::Color,
+        furniture::{AnimatedPieceType, Furniture, FurnitureType},
+        layout::{OpeningType, Shape},
+        shape::{point_to_vec2, WALL_WIDTH},
+        utils::{rotate_point, rotate_point_i32, rotate_point_pivot, Lerp, Material},
+    },
 };
 use egui::{
     epaint::{CircleShape, PathStroke, TessellationOptions, Tessellator, Vertex},

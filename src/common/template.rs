@@ -1,4 +1,4 @@
-use super::{
+use crate::common::{
     color::Color,
     furniture::{
         BathroomType, ElectronicType, Furniture, FurnitureType, KitchenType, RenderOrder,

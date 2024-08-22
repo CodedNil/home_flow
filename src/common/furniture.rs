@@ -1,4 +1,4 @@
-use super::{
+use crate::common::{
     color::Color,
     layout::{DataPoint, GlobalMaterial, Shape, Triangles},
     shape::{polygons_to_shadows, triangulate_polygon, ShadowsData},

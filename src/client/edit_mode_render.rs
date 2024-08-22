@@ -1,8 +1,10 @@
-use super::{edit_mode::EditResponse, vec2_to_egui_pos, HomeFlow};
-use crate::common::{
-    layout::{Action, OpeningType, Room, Shape},
-    shape::point_to_vec2,
-    utils::RoundFactor,
+use crate::{
+    client::{edit_mode::EditResponse, vec2_to_egui_pos, HomeFlow},
+    common::{
+        layout::{Action, OpeningType, Room, Shape},
+        shape::point_to_vec2,
+        utils::RoundFactor,
+    },
 };
 use egui::{Align2, Color32, Context, Painter, Shape as EShape, Stroke, Window};
 use glam::{dvec2 as vec2, DVec2 as Vec2};

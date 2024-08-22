@@ -1,7 +1,10 @@
+#[cfg(target_arch = "wasm32")]
+pub mod clipper_wasm;
 mod edit_mode;
 mod edit_mode_render;
 mod edit_mode_utils;
 mod interaction;
+mod networking;
 mod render;
 
 use self::{
@@ -9,12 +12,10 @@ use self::{
     interaction::IState,
 };
 use crate::{
+    client::networking::{get_layout, get_states, login, post_actions},
     common::{
         layout::Home,
         utils::{rotate_point, rotate_point_pivot},
-    },
-    server::{
-        common_api::{get_layout, get_states, login, post_actions},
         HAState, PostActionsData,
     },
 };

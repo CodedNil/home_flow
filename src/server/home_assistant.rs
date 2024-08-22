@@ -1,25 +1,21 @@
-use super::TokenPacket;
-use super::{
-    auth::verify_token, routing::HOME, HAState, LightPacket, PostActionsData, PostActionsPacket,
-    SensorPacket,
+use crate::{
+    common::{
+        furniture::{ElectronicType, FurnitureType},
+        layout::DataPoint,
+        utils::rotate_point_i32,
+        HAState, LightPacket, PostActionsData, PostActionsPacket, SensorPacket, TokenPacket,
+    },
+    server::{auth::verify_token, routing::HOME},
 };
-use crate::common::furniture::{ElectronicType, FurnitureType};
-use crate::common::layout::DataPoint;
-use crate::common::utils::rotate_point_i32;
 use anyhow::{anyhow, Result};
-use axum::body::Bytes;
-use axum::{http::StatusCode, response::IntoResponse};
+use axum::{body::Bytes, http::StatusCode, response::IntoResponse};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use nalgebra::DMatrix;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::HashMap;
-use std::env;
-use std::sync::LazyLock;
-use std::time::Duration;
-use tokio::sync::Mutex;
-use tokio::time::Instant;
+use std::{collections::HashMap, env, sync::LazyLock, time::Duration};
+use tokio::{sync::Mutex, time::Instant};
 
 static LOOP_INTERVAL_MS: u64 = 200;
 static CALIBRATION_DURATION: f64 = 30.0;

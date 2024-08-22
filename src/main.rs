@@ -7,10 +7,12 @@
     clippy::cognitive_complexity
 )]
 
-#[cfg(feature = "gui")]
-mod app;
-
 mod common;
+
+#[cfg(feature = "gui")]
+mod client;
+
+#[cfg(not(target_arch = "wasm32"))]
 mod server;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -60,7 +62,7 @@ async fn main() {
         let _ = eframe::run_native(
             "HomeFlow",
             native_options,
-            Box::new(|cc| Ok(Box::new(app::HomeFlow::new(cc)))),
+            Box::new(|cc| Ok(Box::new(client::HomeFlow::new(cc)))),
         );
     }
 }
@@ -76,7 +78,7 @@ fn main() {
             .start(
                 "homeflow_canvas",
                 web_options,
-                Box::new(|cc| Ok(Box::new(app::HomeFlow::new(cc)))),
+                Box::new(|cc| Ok(Box::new(client::HomeFlow::new(cc)))),
             )
             .await
             .expect("failed to start eframe");

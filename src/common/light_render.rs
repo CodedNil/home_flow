@@ -1,4 +1,4 @@
-use super::{
+use crate::common::{
     layout::{Light, Room, Walls},
     shape::Line,
     utils::hash_vec2,

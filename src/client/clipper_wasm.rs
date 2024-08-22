@@ -1,10 +1,9 @@
+use crate::common::shape::{CLIPPER_PRECISION, EMPTY_MULTI_POLYGON};
 use anyhow::{anyhow, Result};
 use geo_types::{Coord, LineString, MultiPolygon, Polygon};
 use glam::DVec2 as Vec2;
 use js_sys::Array;
 use wasm_bindgen::prelude::*;
-
-use super::shape::{CLIPPER_PRECISION, EMPTY_MULTI_POLYGON};
 
 #[wasm_bindgen]
 extern "C" {
