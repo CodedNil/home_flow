@@ -51,7 +51,17 @@ pub fn default() -> Home {
                     vec2(0.45, 0.45),
                     vec2(1.4, 0.1),
                     0,
-                )),
+                ))
+                .furniture(
+                    Furniture::new(
+                        "Vallhorn Motion Sensor",
+                        FurnitureType::Electronic(ElectronicType::MotionSensor),
+                        vec2(-1.2, 1.6),
+                        vec2(0.1, 0.1),
+                        -90,
+                    )
+                    .add_sensors(&["binary_sensor.vallhorn_motion_sensor_hall_occupancy"]),
+                ),
             Room::new("Lounge", vec2(-2.75, -1.4), vec2(6.1, 2.7), "Carpet")
                 .no_wall_top()
                 .no_wall_right()
@@ -226,6 +236,11 @@ pub fn default() -> Home {
                     Sensor::new("ultimatesensor_mini_scd41_humidity", "HUM", "%"),
                     Sensor::new("ultimatesensor_mini_scd41_co2", "CO2", "ppm"),
                     Sensor::new("ultimatesensor_mini_voc_index", "VOC", "idx"),
+                    Sensor::new(
+                        "ultimatesensor_mini_pm_2_5_m_weight_concentration",
+                        "PM",
+                        "µg/m³",
+                    ),
                 ]),
             Room::new("Kitchen", vec2(-4.2, 1.5), vec2(3.2, 3.1), "MarbleTiles")
                 .no_wall_right()
@@ -331,7 +346,12 @@ pub fn default() -> Home {
                     vec2(0.2, 1.2),
                     vec2(0.65, 0.5),
                     0,
-                )),
+                ))
+                .add_sensors(&[
+                    Sensor::new("vindstyrka_air_sensor_kitchen_temperature", "TMP", "°C"),
+                    Sensor::new("vindstyrka_air_sensor_kitchen_humidity", "HUM", "%"),
+                    Sensor::new("vindstyrka_air_sensor_kitchen_pm2_5", "PM", "µg/m³"),
+                ]),
             Room::new("Storage1", vec2(-1.65, 2.5), vec2(1.5, 1.1), "Carpet")
                 .door(vec2(0.75, 0.0), -90),
             Room::new("Storage2", vec2(-1.65, 1.4), vec2(1.5, 1.1), "Carpet")

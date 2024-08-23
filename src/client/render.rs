@@ -647,7 +647,9 @@ impl HomeFlow {
                 painter.text(
                     self.world_to_screen_pos(pos),
                     egui::Align2::CENTER_CENTER,
-                    value,
+                    value
+                        .parse::<f64>()
+                        .map_or_else(|_| (*value).to_string(), |value| value.round().to_string()),
                     FontId::proportional(sensor_draw_scale * 0.5),
                     Color32::BLACK,
                 );

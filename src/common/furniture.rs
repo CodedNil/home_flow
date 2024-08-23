@@ -58,6 +58,7 @@ nestify::nest! {
                 Display,
                 Computer,
                 UltimateSensorMini, // https://ultimatesensor.nl/en/mini
+                MotionSensor,
             }),
             Radiator,
             #[default]
@@ -668,7 +669,7 @@ impl Furniture {
             ElectronicType::Computer => {
                 vec![(METAL_DARK, self.full_shape())]
             }
-            ElectronicType::UltimateSensorMini => {
+            _ => {
                 vec![(
                     FurnMaterial::new(Material::Empty, Color::from_rgb(255, 255, 255)),
                     self.full_shape(),

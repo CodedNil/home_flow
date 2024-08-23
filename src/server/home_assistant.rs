@@ -19,7 +19,7 @@ use tokio::{sync::Mutex, time::Instant};
 
 static LOOP_INTERVAL_MS: u64 = 200;
 static CALIBRATION_DURATION: f64 = 30.0;
-static OCCUPANCY_DURATION: f64 = 3.0;
+static OCCUPANCY_DURATION: f64 = 6.0;
 
 fn get_env_variable(key: &str) -> String {
     match env::var(key) {
@@ -198,107 +198,126 @@ async fn get_states_impl(
     let mut presence_points_raw = Vec::new();
     for room in &layout.rooms {
         for furniture in &room.furniture {
-            if furniture.furniture_type
-                == FurnitureType::Electronic(ElectronicType::UltimateSensorMini)
-            {
-                // Read targets from the sensor
-                let targets = (1..)
-                    .map(|i| {
-                        let mut x = f64::NAN;
-                        let mut y = f64::NAN;
+            match furniture.furniture_type {
+                FurnitureType::Electronic(ElectronicType::UltimateSensorMini) => {
+                    // Read targets from the sensor
+                    let targets = (1..)
+                        .map(|i| {
+                            let mut x = f64::NAN;
+                            let mut y = f64::NAN;
 
-                        for id in &furniture.misc_sensors {
-                            if let Some(value) = states_raw
-                                .iter()
-                                .find(|state| state.entity_id == format!("sensor.{id}"))
-                                .and_then(|state| state.state.parse::<f64>().ok())
-                            {
-                                if id.ends_with(&format!("target_{i}_x")) {
-                                    x = value;
-                                } else if id.ends_with(&format!("target_{i}_y")) {
-                                    y = value;
+                            for id in &furniture.misc_sensors {
+                                if let Some(value) = states_raw
+                                    .iter()
+                                    .find(|state| state.entity_id == format!("sensor.{id}"))
+                                    .and_then(|state| state.state.parse::<f64>().ok())
+                                {
+                                    if id.ends_with(&format!("target_{i}_x")) {
+                                        x = value;
+                                    } else if id.ends_with(&format!("target_{i}_y")) {
+                                        y = value;
+                                    }
                                 }
                             }
-                        }
 
-                        if x.is_nan() || y.is_nan() {
-                            None
-                        } else {
-                            Some(vec2(x, y))
-                        }
-                    })
-                    .take_while(Option::is_some)
-                    .flatten()
-                    .filter(|&v| v != Vec2::ZERO)
-                    .collect::<Vec<_>>();
+                            if x.is_nan() || y.is_nan() {
+                                None
+                            } else {
+                                Some(vec2(x, y))
+                            }
+                        })
+                        .take_while(Option::is_some)
+                        .flatten()
+                        .filter(|&v| v != Vec2::ZERO)
+                        .collect::<Vec<_>>();
 
-                if is_calibrating {
-                    presence_points_raw.extend(targets.clone());
-                }
-
-                // Collect calibration points if available
-                let calibration_data = (1..)
-                    .map(|i| {
-                        furniture
-                            .misc_data
-                            .get(&format!("calib_{i}"))
-                            .and_then(|data| {
-                                if let DataPoint::Vec4((wx, wy, sx, sy)) = data {
-                                    Some((vec2(*wx, *wy), vec2(*sx, *sy)))
-                                } else {
-                                    None
-                                }
-                            })
-                    })
-                    .take_while(Option::is_some)
-                    .flatten()
-                    .collect::<Vec<_>>();
-
-                if calibration_data.len() >= 3 {
-                    // Create matrices for sensor and world points
-                    let mut sensor_matrix = DMatrix::zeros(calibration_data.len(), 3);
-                    let mut world_matrix_x = DMatrix::zeros(calibration_data.len(), 1);
-                    let mut world_matrix_y = DMatrix::zeros(calibration_data.len(), 1);
-
-                    for (i, &(world, sensor)) in calibration_data.iter().enumerate() {
-                        sensor_matrix[(i, 0)] = sensor.x;
-                        sensor_matrix[(i, 1)] = sensor.y;
-                        sensor_matrix[(i, 2)] = 1.0; // Homogeneous coordinate
-
-                        world_matrix_x[(i, 0)] = world.x;
-                        world_matrix_y[(i, 0)] = world.y;
+                    if is_calibrating {
+                        presence_points_raw.extend(targets.clone());
                     }
 
-                    // Solve for the transformation matrix using the least squares method
-                    let sensor_matrix_pseudo_inverse = (sensor_matrix.transpose() * &sensor_matrix)
-                        .try_inverse()
-                        .unwrap()
-                        * sensor_matrix.transpose();
+                    // Collect calibration points if available
+                    let calibration_data = (1..)
+                        .map(|i| {
+                            furniture
+                                .misc_data
+                                .get(&format!("calib_{i}"))
+                                .and_then(|data| {
+                                    if let DataPoint::Vec4((wx, wy, sx, sy)) = data {
+                                        Some((vec2(*wx, *wy), vec2(*sx, *sy)))
+                                    } else {
+                                        None
+                                    }
+                                })
+                        })
+                        .take_while(Option::is_some)
+                        .flatten()
+                        .collect::<Vec<_>>();
 
-                    let transform_x = sensor_matrix_pseudo_inverse.clone() * world_matrix_x;
-                    let transform_y = sensor_matrix_pseudo_inverse * world_matrix_y;
+                    if calibration_data.len() >= 3 {
+                        // Create matrices for sensor and world points
+                        let mut sensor_matrix = DMatrix::zeros(calibration_data.len(), 3);
+                        let mut world_matrix_x = DMatrix::zeros(calibration_data.len(), 1);
+                        let mut world_matrix_y = DMatrix::zeros(calibration_data.len(), 1);
 
-                    let a = transform_x[(0, 0)];
-                    let b = transform_x[(1, 0)];
-                    let tx = transform_x[(2, 0)];
+                        for (i, &(world, sensor)) in calibration_data.iter().enumerate() {
+                            sensor_matrix[(i, 0)] = sensor.x;
+                            sensor_matrix[(i, 1)] = sensor.y;
+                            sensor_matrix[(i, 2)] = 1.0; // Homogeneous coordinate
 
-                    let c = transform_y[(0, 0)];
-                    let d = transform_y[(1, 0)];
-                    let ty = transform_y[(2, 0)];
+                            world_matrix_x[(i, 0)] = world.x;
+                            world_matrix_y[(i, 0)] = world.y;
+                        }
 
-                    presence_points.extend(targets.iter().map(|target| {
-                        vec2(
-                            a * target.x + b * target.y + tx,
-                            c * target.x + d * target.y + ty,
-                        )
-                    }));
-                } else {
-                    presence_points.extend(targets.iter().map(|target| {
-                        room.pos
-                            + furniture.pos
-                            + rotate_point_i32(*target / 1000.0, -furniture.rotation)
-                    }));
-                };
+                        // Solve for the transformation matrix using the least squares method
+                        let sensor_matrix_pseudo_inverse = (sensor_matrix.transpose()
+                            * &sensor_matrix)
+                            .try_inverse()
+                            .unwrap()
+                            * sensor_matrix.transpose();
+
+                        let transform_x = sensor_matrix_pseudo_inverse.clone() * world_matrix_x;
+                        let transform_y = sensor_matrix_pseudo_inverse * world_matrix_y;
+
+                        let a = transform_x[(0, 0)];
+                        let b = transform_x[(1, 0)];
+                        let tx = transform_x[(2, 0)];
+
+                        let c = transform_y[(0, 0)];
+                        let d = transform_y[(1, 0)];
+                        let ty = transform_y[(2, 0)];
+
+                        presence_points.extend(targets.iter().map(|target| {
+                            vec2(
+                                a * target.x + b * target.y + tx,
+                                c * target.x + d * target.y + ty,
+                            )
+                        }));
+                    } else {
+                        presence_points.extend(targets.iter().map(|target| {
+                            room.pos
+                                + furniture.pos
+                                + rotate_point_i32(*target / 1000.0, -furniture.rotation)
+                        }));
+                    };
+                }
+                FurnitureType::Electronic(ElectronicType::MotionSensor) => {
+                    // If sensed, add a presence point in front of the sensor
+                    if furniture.misc_sensors.iter().any(|id| {
+                        states_raw
+                            .iter()
+                            .find(|state| state.entity_id == format!("sensor.{id}"))
+                            .map_or(false, |state| {
+                                id.ends_with("occupancy") && state.state == "Detected"
+                            })
+                    }) {
+                        presence_points.push(
+                            room.pos
+                                + furniture.pos
+                                + rotate_point_i32(vec2(0.0, 0.5), -furniture.rotation),
+                        );
+                    }
+                }
+                _ => {}
             }
         }
     }
