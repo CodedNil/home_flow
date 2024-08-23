@@ -351,7 +351,8 @@ pub fn default() -> Home {
                     Sensor::new("vindstyrka_air_sensor_kitchen_temperature", "TMP", "°C"),
                     Sensor::new("vindstyrka_air_sensor_kitchen_humidity", "HUM", "%"),
                     Sensor::new("vindstyrka_air_sensor_kitchen_pm2_5", "PM", "µg/m³"),
-                ]),
+                ])
+                .sensor_offset(vec2(0.1, -0.5)),
             Room::new("Storage1", vec2(-1.65, 2.5), vec2(1.5, 1.1), "Carpet")
                 .door(vec2(0.75, 0.0), -90),
             Room::new("Storage2", vec2(-1.65, 1.4), vec2(1.5, 1.1), "Carpet")
