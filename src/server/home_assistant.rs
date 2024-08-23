@@ -305,10 +305,8 @@ async fn get_states_impl(
                     if furniture.misc_sensors.iter().any(|id| {
                         states_raw
                             .iter()
-                            .find(|state| state.entity_id == format!("sensor.{id}"))
-                            .map_or(false, |state| {
-                                id.ends_with("occupancy") && state.state == "Detected"
-                            })
+                            .find(|state| state.entity_id == format!("binary_sensor.{id}"))
+                            .map_or(false, |state| state.state == "on")
                     }) {
                         presence_points.push(
                             room.pos

@@ -60,7 +60,7 @@ pub fn default() -> Home {
                         vec2(0.1, 0.1),
                         -90,
                     )
-                    .add_sensors(&["binary_sensor.vallhorn_motion_sensor_hall_occupancy"]),
+                    .add_sensors(&["vallhorn_motion_sensor_hall_occupancy"]),
                 ),
             Room::new("Lounge", vec2(-2.75, -1.4), vec2(6.1, 2.7), "Carpet")
                 .no_wall_top()
