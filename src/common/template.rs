@@ -60,7 +60,7 @@ pub fn default() -> Home {
                         vec2(0.02, 0.02),
                         -90,
                     )
-                    .add_sensors(&["binary_sensor.vallhorn_motion_sensor_hall_occupancy"]),
+                    .add_sensors(&["binary_sensor.hall_vallhorn_motion_sensor_occupancy"]),
                 )
                 .furniture(
                     Furniture::new(
