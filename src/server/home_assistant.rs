@@ -19,7 +19,7 @@ use tokio::{sync::Mutex, time::Instant};
 
 static LOOP_INTERVAL_MS: u64 = 200;
 static CALIBRATION_DURATION: f64 = 30.0;
-static OCCUPANCY_DURATION: f64 = 6.0;
+static OCCUPANCY_DURATION: f64 = 30.0;
 
 fn get_env_variable(key: &str) -> String {
     match env::var(key) {
@@ -209,7 +209,7 @@ async fn get_states_impl(
                             for id in &furniture.misc_sensors {
                                 if let Some(value) = states_raw
                                     .iter()
-                                    .find(|state| state.entity_id == format!("sensor.{id}"))
+                                    .find(|state| state.entity_id == *id)
                                     .and_then(|state| state.state.parse::<f64>().ok())
                                 {
                                     if id.ends_with(&format!("target_{i}_x")) {
@@ -305,7 +305,7 @@ async fn get_states_impl(
                     if furniture.misc_sensors.iter().any(|id| {
                         states_raw
                             .iter()
-                            .find(|state| state.entity_id == format!("binary_sensor.{id}"))
+                            .find(|state| state.entity_id == *id)
                             .map_or(false, |state| state.state == "on")
                     }) {
                         presence_points.push(

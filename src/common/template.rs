@@ -56,11 +56,21 @@ pub fn default() -> Home {
                     Furniture::new(
                         "Vallhorn Motion Sensor",
                         FurnitureType::Electronic(ElectronicType::MotionSensor),
-                        vec2(-1.2, 1.6),
-                        vec2(0.1, 0.1),
+                        vec2(-1.15, 1.6),
+                        vec2(0.02, 0.02),
                         -90,
                     )
-                    .add_sensors(&["vallhorn_motion_sensor_hall_occupancy"]),
+                    .add_sensors(&["binary_sensor.vallhorn_motion_sensor_hall_occupancy"]),
+                )
+                .furniture(
+                    Furniture::new(
+                        "Parasoll Door Sensor",
+                        FurnitureType::Electronic(ElectronicType::MotionSensor),
+                        vec2(-1.7, 2.55),
+                        vec2(0.02, 0.02),
+                        180,
+                    )
+                    .add_sensors(&["binary_sensor.hall_parasoll_door_sensor_opening"]),
                 ),
             Room::new("Lounge", vec2(-2.75, -1.4), vec2(6.1, 2.7), "Carpet")
                 .no_wall_top()
@@ -122,12 +132,12 @@ pub fn default() -> Home {
                         45,
                     )
                     .add_sensors(&[
-                        "ultimatesensor_mini_target_1_x",
-                        "ultimatesensor_mini_target_1_y",
-                        "ultimatesensor_mini_target_2_x",
-                        "ultimatesensor_mini_target_2_y",
-                        "ultimatesensor_mini_target_3_x",
-                        "ultimatesensor_mini_target_3_y",
+                        "sensor.ultimatesensor_mini_target_1_x",
+                        "sensor.ultimatesensor_mini_target_1_y",
+                        "sensor.ultimatesensor_mini_target_2_x",
+                        "sensor.ultimatesensor_mini_target_2_y",
+                        "sensor.ultimatesensor_mini_target_3_x",
+                        "sensor.ultimatesensor_mini_target_3_y",
                     ])
                     .add_data(vec![
                         ("calib_1", DataPoint::Vec4((-5.5, -2.4, 194.0, 584.0))), // Sensor Corner
