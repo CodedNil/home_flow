@@ -57,8 +57,11 @@ nestify::nest! {
                 #[default]
                 Display,
                 Computer,
+            }),
+            Sensor(pub enum SensorType {
+                #[default]
                 UltimateSensorMini, // https://ultimatesensor.nl/en/mini
-                MotionSensor,
+                PresenceBoolean, // If the boolean is true, a presence point is added
             }),
             Radiator,
             #[default]
@@ -279,7 +282,10 @@ impl Furniture {
             triangles.push((*material, material_triangles));
         }
 
-        let has_shadow = !matches!(self.furniture_type, FurnitureType::AnimatedPiece(_));
+        let has_shadow = !matches!(
+            self.furniture_type,
+            FurnitureType::AnimatedPiece(_) | FurnitureType::Sensor(_)
+        );
         let shadow_triangles = if has_shadow {
             // Use simple shape for shadow unless complex is needed
             let use_simple = match self.furniture_type {
@@ -320,6 +326,7 @@ impl Furniture {
             FurnitureType::Bathroom(sub_type) => self.bathroom_render(sub_type),
             FurnitureType::Radiator => self.radiator_render(),
             FurnitureType::Electronic(sub_type) => self.electronic_render(sub_type),
+            FurnitureType::Sensor(_) => vec![],
             FurnitureType::AnimatedPiece(sub_type) => self.animated_render(material, sub_type),
             FurnitureType::Misc => vec![(material, self.full_shape())],
         }
@@ -668,12 +675,6 @@ impl Furniture {
             }
             ElectronicType::Computer => {
                 vec![(METAL_DARK, self.full_shape())]
-            }
-            _ => {
-                vec![(
-                    FurnMaterial::new(Material::Empty, Color::from_rgb(255, 255, 255)),
-                    self.full_shape(),
-                )]
             }
         }
     }

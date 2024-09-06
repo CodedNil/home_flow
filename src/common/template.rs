@@ -2,7 +2,7 @@ use crate::common::{
     color::Color,
     furniture::{
         BathroomType, ElectronicType, Furniture, FurnitureType, KitchenType, RenderOrder,
-        StorageType, TableType,
+        SensorType, StorageType, TableType,
     },
     layout::{
         Action, DataPoint, GlobalMaterial, Home, LightType, Operation, Outline, Room, Sensor,
@@ -55,9 +55,9 @@ pub fn default() -> Home {
                 .furniture(
                     Furniture::new(
                         "Vallhorn Motion Sensor",
-                        FurnitureType::Electronic(ElectronicType::MotionSensor),
-                        vec2(-1.15, 1.6),
-                        vec2(0.02, 0.02),
+                        FurnitureType::Sensor(SensorType::PresenceBoolean),
+                        vec2(-1.7, 1.6),
+                        vec2(0.2, 0.2),
                         -90,
                     )
                     .add_sensors(&["binary_sensor.hall_vallhorn_motion_sensor_occupancy"]),
@@ -65,10 +65,10 @@ pub fn default() -> Home {
                 .furniture(
                     Furniture::new(
                         "Parasoll Door Sensor",
-                        FurnitureType::Electronic(ElectronicType::MotionSensor),
-                        vec2(-1.7, 2.55),
-                        vec2(0.02, 0.02),
-                        180,
+                        FurnitureType::Sensor(SensorType::PresenceBoolean),
+                        vec2(-1.7, 2.0),
+                        vec2(0.2, 0.2),
+                        0,
                     )
                     .add_sensors(&["binary_sensor.hall_parasoll_door_sensor_opening"]),
                 ),
@@ -126,7 +126,7 @@ pub fn default() -> Home {
                 .furniture(
                     Furniture::new(
                         "Ultimate Mini",
-                        FurnitureType::Electronic(ElectronicType::UltimateSensorMini),
+                        FurnitureType::Sensor(SensorType::UltimateSensorMini),
                         vec2(-2.975, -1.125),
                         vec2(0.1, 0.1),
                         45,
@@ -175,20 +175,6 @@ pub fn default() -> Home {
                     )
                     .power_draw_entity("desktop_current_consumption"),
                 )
-                .furniture(Furniture::new(
-                    "Router",
-                    FurnitureType::Electronic(ElectronicType::Computer),
-                    vec2(2.325, -1.1),
-                    vec2(0.07, 0.3),
-                    0,
-                ))
-                .furniture(Furniture::new(
-                    "Raspberry Pi",
-                    FurnitureType::Electronic(ElectronicType::Computer),
-                    vec2(2.225, -1.2),
-                    vec2(0.07, 0.1),
-                    0,
-                ))
                 .furniture(
                     Furniture::new(
                         "Desk Fan",
@@ -241,6 +227,16 @@ pub fn default() -> Home {
                     0,
                     "MetalDark",
                 ))
+                .furniture(
+                    Furniture::new(
+                        "Desktop On - Chair Occupancy",
+                        FurnitureType::Sensor(SensorType::PresenceBoolean),
+                        vec2(2.05, -0.475),
+                        vec2(0.2, 0.2),
+                        0,
+                    )
+                    .add_sensors(&["binary_sensor.desktop_on"]),
+                )
                 .add_sensors(&[
                     Sensor::new("ultimatesensor_mini_scd41_temperature", "TMP", "°C"),
                     Sensor::new("ultimatesensor_mini_scd41_humidity", "HUM", "%"),

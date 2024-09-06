@@ -180,11 +180,9 @@ impl HomeFlow {
             }
 
             // Render furniture
-            if let Some(furniture) = [edit_response.hovered_id, self.edit_mode.selected_id]
-                .iter()
-                .filter_map(|&id| id)
-                .find_map(|id| room.furniture.iter().find(|r| r.id == id))
-            {
+            for furniture in &room.furniture {
+                let selected = edit_response.hovered_id == Some(furniture.id)
+                    || edit_response.hovered_id == Some(furniture.id);
                 self.closed_dashed_line_with_offset(
                     painter,
                     &Shape::Rectangle.vertices(
@@ -192,7 +190,14 @@ impl HomeFlow {
                         furniture.size,
                         furniture.rotation,
                     ),
-                    Stroke::new(6.0, Color32::from_rgb(150, 0, 50).gamma_multiply(0.8)),
+                    Stroke::new(
+                        if selected { 6.0 } else { 3.0 },
+                        Color32::from_rgb(150, 0, 50).gamma_multiply(if selected {
+                            0.8
+                        } else {
+                            0.4
+                        }),
+                    ),
                     35.0,
                     self.time * 50.0,
                 );

@@ -1,6 +1,6 @@
 use crate::{
     common::{
-        furniture::{ElectronicType, FurnitureType},
+        furniture::{FurnitureType, SensorType},
         layout::DataPoint,
         utils::rotate_point_i32,
         HAState, LightPacket, PostActionsData, PostActionsPacket, SensorPacket, TokenPacket,
@@ -199,7 +199,7 @@ async fn get_states_impl(
     for room in &layout.rooms {
         for furniture in &room.furniture {
             match furniture.furniture_type {
-                FurnitureType::Electronic(ElectronicType::UltimateSensorMini) => {
+                FurnitureType::Sensor(SensorType::UltimateSensorMini) => {
                     // Read targets from the sensor
                     let targets = (1..)
                         .map(|i| {
@@ -300,19 +300,15 @@ async fn get_states_impl(
                         }));
                     };
                 }
-                FurnitureType::Electronic(ElectronicType::MotionSensor) => {
-                    // If sensed, add a presence point in front of the sensor
+                FurnitureType::Sensor(SensorType::PresenceBoolean) => {
+                    // If sensed, add a presence point on the furniture's position
                     if furniture.misc_sensors.iter().any(|id| {
                         states_raw
                             .iter()
                             .find(|state| state.entity_id == *id)
                             .map_or(false, |state| state.state == "on")
                     }) {
-                        presence_points.push(
-                            room.pos
-                                + furniture.pos
-                                + rotate_point_i32(vec2(0.0, 0.5), -furniture.rotation),
-                        );
+                        presence_points.push(room.pos + furniture.pos);
                     }
                 }
                 _ => {}
