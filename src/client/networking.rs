@@ -7,7 +7,7 @@ use anyhow::Result;
 pub fn get_layout(host: &str, token: &str, on_done: impl 'static + Send + FnOnce(Result<Home>)) {
     ehttp::fetch(
         ehttp::Request::post(
-            &format!("http://{host}/load_layout"),
+            format!("http://{host}/load_layout"),
             bincode::serialize(&TokenPacket {
                 token: token.to_string(),
             })
@@ -40,7 +40,7 @@ pub fn save_layout(
 ) {
     ehttp::fetch(
         ehttp::Request::post(
-            &format!("http://{host}/save_layout"),
+            format!("http://{host}/save_layout"),
             bincode::serialize(&SaveLayoutPacket {
                 token: token.to_string(),
                 home: home.clone(),
@@ -56,7 +56,7 @@ pub fn save_layout(
 pub fn get_states(host: &str, token: &str, on_done: impl 'static + Send + FnOnce(Result<HAState>)) {
     ehttp::fetch(
         ehttp::Request::post(
-            &format!("http://{host}/get_states"),
+            format!("http://{host}/get_states"),
             bincode::serialize(&TokenPacket {
                 token: token.to_string(),
             })
@@ -89,7 +89,7 @@ pub fn post_actions(
 ) {
     ehttp::fetch(
         ehttp::Request::post(
-            &format!("http://{host}/post_actions"),
+            format!("http://{host}/post_actions"),
             bincode::serialize(&PostActionsPacket {
                 token: token.to_string(),
                 data: data.to_vec(),
@@ -110,7 +110,7 @@ pub fn login(
 ) {
     ehttp::fetch(
         ehttp::Request::post(
-            &format!("http://{host}/login"),
+            format!("http://{host}/login"),
             bincode::serialize(&LoginPacket {
                 username: username.to_string(),
                 password: password.to_string(),

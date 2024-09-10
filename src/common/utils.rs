@@ -69,7 +69,7 @@ pub fn rotate_point_pivot_i32(point: Vec2, pivot: Vec2, angle: i32) -> Vec2 {
 }
 
 impl Home {
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             version: String::new(),
             materials: Vec::new(),

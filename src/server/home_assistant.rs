@@ -495,7 +495,7 @@ async fn post_actions_impl(data: Vec<PostActionsData>) -> Result<()> {
 
         // Send the request
         let response = client
-            .post(&format!(
+            .post(format!(
                 "{}/api/services/{}/{}",
                 &get_env_variable("HASS_URL"),
                 param.domain,

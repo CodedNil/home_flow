@@ -397,7 +397,7 @@ impl HomeFlow {
                                 .show(ui);
                             combo_box_for_enum(
                                 ui,
-                                &format!("Material {index}"),
+                                format!("Material {index}"),
                                 &mut material.material,
                                 "",
                             );
