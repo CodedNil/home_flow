@@ -324,7 +324,7 @@ async fn get_states_impl(
             let mut cluster = vec![point];
 
             points.retain(|&other_point| {
-                if (point - other_point).length() <= 0.1 {
+                if (point - other_point).length() <= 0.4 {
                     cluster.push(other_point);
                     false
                 } else {

@@ -141,7 +141,7 @@ pub fn default() -> Home {
                     ])
                     .add_data(vec![
                         ("calib_1", DataPoint::Vec4((-5.3, -2.2, 29.0, 809.0))), // Sofa By Sensor
-                        ("calib_2", DataPoint::Vec4((-0.8, -1.8, 3227.0, 3714.0))), // Desk
+                        ("calib_2", DataPoint::Vec4((-0.8, -1.8, 3419.0, 3266.0))), // Desk
                         ("calib_3", DataPoint::Vec4((-5.1, 2.3, -2414.0, 4127.0))), // Kitchen Corner
                         ("calib_4", DataPoint::Vec4((-2.9, 0.0, 349.0, 3725.0))),   // Kitchen Edge
                     ]),

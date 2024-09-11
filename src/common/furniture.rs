@@ -449,7 +449,7 @@ impl Furniture {
     }
 
     fn chair_render(&self, material: FurnMaterial, sub_type: ChairType) -> FurniturePolygons {
-        let mut polygons = Vec::new();
+        let mut polygons: Vec<(FurnMaterial, MultiPolygon)> = Vec::new();
         let material = match sub_type {
             ChairType::Dining => material,
             ChairType::Office => FurnMaterial::new(Material::Empty, Color::from_rgb(40, 40, 40)),
@@ -457,7 +457,10 @@ impl Furniture {
         };
 
         polygons.push((material, self.full_shape()));
-        let inset = 0.1;
+        let inset = match sub_type {
+            ChairType::Office | ChairType::Dining => 0.1,
+            ChairType::Sofa(_) => 0.25,
+        };
         if self.size.x > inset * 3.0 && self.size.y > inset * 3.0 {
             polygons.push((
                 material.lighten(0.05).saturate(-0.1),

@@ -597,7 +597,6 @@ impl HomeFlow {
                 }
             }
         }
-
         for point in presence_points {
             painter.circle(
                 self.world_to_screen_pos(point),
