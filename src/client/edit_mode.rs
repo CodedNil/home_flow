@@ -9,7 +9,7 @@ use crate::{
     },
     common::{
         color::Color,
-        furniture::{ChairType, Furniture, FurnitureType},
+        furniture::{ChairType, Furniture, FurnitureType, TableType},
         layout::{
             Action, GlobalMaterial, Home, Light, MultiLight, Opening, OpeningType, Operation,
             Outline, Room, Sensor, TileOptions, Zone,
@@ -938,6 +938,18 @@ fn room_edit_widgets(
                         }
                         FurnitureType::Table(ref mut table_type) => {
                             combo_box_for_enum(ui, format!("{}-t", furniture.id), table_type, "");
+                            if let TableType::DiningCustomChairs(
+                                ref mut top_chairs,
+                                ref mut bottom_chairs,
+                                ref mut left_chairs,
+                                ref mut right_chairs,
+                            ) = table_type
+                            {
+                                ui.add(DragValue::new(top_chairs).speed(1).range(0..=20));
+                                ui.add(DragValue::new(bottom_chairs).speed(1).range(0..=20));
+                                ui.add(DragValue::new(left_chairs).speed(1).range(0..=20));
+                                ui.add(DragValue::new(right_chairs).speed(1).range(0..=20));
+                            }
                         }
                         FurnitureType::Bed(ref mut color) | FurnitureType::Rug(ref mut color) => {
                             ui.color_edit_button_srgba_unmultiplied(color.mut_array());

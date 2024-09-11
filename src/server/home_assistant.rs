@@ -212,9 +212,9 @@ async fn get_states_impl(
                                     .find(|state| state.entity_id == *id)
                                     .and_then(|state| state.state.parse::<f64>().ok())
                                 {
-                                    if id.ends_with(&format!("target_{i}_x")) {
+                                    if id.contains(&format!("_target_{i}_x")) {
                                         x = value;
-                                    } else if id.ends_with(&format!("target_{i}_y")) {
+                                    } else if id.contains(&format!("_target_{i}_y")) {
                                         y = value;
                                     }
                                 }

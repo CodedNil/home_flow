@@ -32,6 +32,7 @@ nestify::nest! {
                 #[default]
                 Empty,
                 Dining,
+                DiningCustomChairs(u8, u8, u8, u8),
                 Desk,
             }),
             Kitchen(pub enum KitchenType {
@@ -388,6 +389,31 @@ impl Furniture {
                     add_chair(-self.size.x * 0.5 - chair_push, y_pos, -90);
                 });
             }
+            TableType::DiningCustomChairs(top_chairs, bottom_chairs, left_chairs, right_chairs) => {
+                let spacing = 0.1;
+
+                (0..top_chairs).for_each(|i| {
+                    let y_pos =
+                        (f64::from(i) - f64::from(top_chairs - 1) * 0.5) * (chair_size.y + spacing);
+                    add_chair(self.size.x * 0.5 + chair_push, y_pos, 90);
+                });
+                (0..bottom_chairs).for_each(|i| {
+                    let y_pos = (f64::from(i) - f64::from(bottom_chairs - 1) * 0.5)
+                        * (chair_size.y + spacing);
+                    add_chair(-self.size.x * 0.5 - chair_push, y_pos, -90);
+                });
+
+                (0..left_chairs).for_each(|i| {
+                    let x_pos = (f64::from(i) - f64::from(left_chairs - 1) * 0.5)
+                        * (chair_size.x + spacing);
+                    add_chair(x_pos, self.size.y * 0.5 + chair_push, 0);
+                });
+                (0..right_chairs).for_each(|i| {
+                    let x_pos = (f64::from(i) - f64::from(right_chairs - 1) * 0.5)
+                        * (chair_size.x + spacing);
+                    add_chair(x_pos, -self.size.y * 0.5 - chair_push, 180);
+                });
+            }
             TableType::Empty => {}
         }
         children
@@ -434,7 +460,7 @@ impl Furniture {
         let inset = 0.1;
         if self.size.x > inset * 3.0 && self.size.y > inset * 3.0 {
             polygons.push((
-                material.lighten(0.1).saturate(-0.1),
+                material.lighten(0.05).saturate(-0.1),
                 rect(
                     vec2(0.0, -inset * 0.5),
                     self.size - vec2(inset * 2.0, inset),
@@ -445,7 +471,7 @@ impl Furniture {
     }
 
     fn table_render(&self, material: FurnMaterial) -> FurniturePolygons {
-        fancy_rectangle(Vec2::ZERO, self.size, material, 0.04, 0.1)
+        fancy_rectangle(Vec2::ZERO, self.size, material, 0.04, 0.0, 0.1)
     }
 
     fn kitchen_render(&self, sub_type: KitchenType) -> FurniturePolygons {
@@ -471,7 +497,7 @@ impl Furniture {
                 }
                 polygons
             }
-            KitchenType::Sink => fancy_rectangle(Vec2::ZERO, self.size, METAL_DARK, 0.1, 0.05),
+            KitchenType::Sink => fancy_rectangle(Vec2::ZERO, self.size, METAL_DARK, 0.1, 0.0, 0.05),
         }
     }
 
@@ -504,6 +530,7 @@ impl Furniture {
                     self.size,
                     CERAMIC,
                     ceramic_light,
+                    0.0,
                     0.1,
                 ));
                 // Tap
@@ -603,6 +630,7 @@ impl Furniture {
                 vec2(pillow_width, pillow_height),
                 FurnMaterial::new(Material::Empty, pillow_color),
                 -0.015,
+                0.0,
                 0.03,
             ));
         }
@@ -614,6 +642,7 @@ impl Furniture {
             vec2(self.size.x, self.size.y * covers_size),
             FurnMaterial::new(Material::Fabric, color),
             -0.025,
+            0.0,
             0.05,
         ));
 
@@ -684,7 +713,8 @@ impl Furniture {
             Vec2::ZERO,
             self.size,
             FurnMaterial::new(Material::Carpet, color),
-            -0.05,
+            0.05,
+            -0.1,
             0.1,
         )
     }
@@ -696,7 +726,7 @@ impl Furniture {
     ) -> FurniturePolygons {
         match sub_type {
             AnimatedPieceType::Drawer => {
-                fancy_rectangle(Vec2::ZERO, self.size, material, 0.1, 0.05)
+                fancy_rectangle(Vec2::ZERO, self.size, material, 0.1, 0.0, 0.05)
             }
             AnimatedPieceType::Door(_) => {
                 let depth = 0.05;
@@ -721,13 +751,14 @@ fn fancy_rectangle(
     size: Vec2,
     material: FurnMaterial,
     lighten: f64,
+    saturate: f64,
     inset: f64,
 ) -> FurniturePolygons {
     if size.x > inset * 3.0 && size.y > inset * 3.0 {
         vec![
             (material, rect(pos, size)),
             (
-                material.lighten(lighten),
+                material.lighten(lighten).saturate(saturate),
                 rect(pos, size - vec2(inset * 2.0, inset * 2.0)),
             ),
         ]

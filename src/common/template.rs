@@ -1,8 +1,8 @@
 use crate::common::{
     color::Color,
     furniture::{
-        BathroomType, ElectronicType, Furniture, FurnitureType, KitchenType, RenderOrder,
-        SensorType, StorageType, TableType,
+        BathroomType, ChairType, ElectronicType, Furniture, FurnitureType, KitchenType,
+        RenderOrder, SensorType, StorageType, TableType,
     },
     layout::{
         Action, DataPoint, GlobalMaterial, Home, LightType, Operation, Outline, Room, Sensor,
@@ -48,8 +48,8 @@ pub fn default() -> Home {
                 .furniture(Furniture::new(
                     "Hall Radiator",
                     FurnitureType::Radiator,
-                    vec2(0.45, 0.45),
-                    vec2(1.4, 0.1),
+                    vec2(-0.425, 0.45),
+                    vec2(1.2, 0.1),
                     0,
                 ))
                 .furniture(
@@ -140,12 +140,38 @@ pub fn default() -> Home {
                         "sensor.ultimatesensor_mini_target_3_y",
                     ])
                     .add_data(vec![
-                        ("calib_1", DataPoint::Vec4((-5.5, -2.4, 194.0, 584.0))), // Sensor Corner
-                        ("calib_2", DataPoint::Vec4((-1.0, 0.7, 270.0, 5345.0))), // Hall Corner
-                        ("calib_3", DataPoint::Vec4((-0.8, -1.8, 3203.0, 3816.0))), // Desk
-                        ("calib_4", DataPoint::Vec4((-5.1, 2.3, -3228.0, 3354.0))), // Kitchen Corner
-                        ("calib_5", DataPoint::Vec4((-2.9, 0.0, -192.0, 3753.0))),  // Kitchen Edge
+                        ("calib_1", DataPoint::Vec4((-5.3, -2.2, 29.0, 809.0))), // Sofa By Sensor
+                        ("calib_2", DataPoint::Vec4((-0.8, -1.8, 3227.0, 3714.0))), // Desk
+                        ("calib_3", DataPoint::Vec4((-5.1, 2.3, -2414.0, 4127.0))), // Kitchen Corner
+                        ("calib_4", DataPoint::Vec4((-2.9, 0.0, 349.0, 3725.0))),   // Kitchen Edge
                     ]),
+                )
+                .furniture(Furniture::new(
+                    "Kivik 3 Seater Sofa",
+                    FurnitureType::Chair(ChairType::Sofa(Color::from_rgb(234, 210, 168))),
+                    vec2(-2.525, 0.0),
+                    vec2(2.3, 0.95),
+                    -90,
+                ))
+                .furniture(
+                    Furniture::new(
+                        "Kivik Footstool",
+                        FurnitureType::Rug(Color::from_rgb(234, 210, 168)),
+                        vec2(-1.75, 0.5),
+                        vec2(0.8, 0.6),
+                        -90,
+                    )
+                    .render_order(RenderOrder::Mid),
+                )
+                .furniture(
+                    Furniture::new(
+                        "Dining Table",
+                        FurnitureType::Table(TableType::DiningCustomChairs(1, 1, 0, 0)),
+                        vec2(0.35, -0.9),
+                        vec2(1.2, 0.8),
+                        0,
+                    )
+                    .render_order(RenderOrder::Mid),
                 )
                 .furniture(Furniture::new_materials(
                     "Desk",
@@ -406,6 +432,28 @@ pub fn default() -> Home {
                     vec2(1.4, 0.1),
                     0,
                 ))
+                .furniture(
+                    Furniture::new(
+                        "Ultimate Mini",
+                        FurnitureType::Sensor(SensorType::UltimateSensorMini),
+                        vec2(1.85, 0.975),
+                        vec2(0.1, 0.1),
+                        250,
+                    )
+                    .add_sensors(&[
+                        "sensor.bedroom_ultimatesensor_target_1_x_2",
+                        "sensor.bedroom_ultimatesensor_target_1_y_2",
+                        "sensor.bedroom_ultimatesensor_target_2_x_2",
+                        "sensor.bedroom_ultimatesensor_target_2_y_2",
+                        "sensor.bedroom_ultimatesensor_target_3_x_2",
+                        "sensor.bedroom_ultimatesensor_target_3_y_2",
+                    ])
+                    .add_data(vec![
+                        ("calib_1", DataPoint::Vec4((2.1, 0.5, 1989.0, 2636.0))), // Outside Bathroom
+                        ("calib_2", DataPoint::Vec4((2.2, -2.2, -979.0, 3640.0))), // Outside Ensuite
+                        ("calib_3", DataPoint::Vec4((4.9, -2.4, -2050.0, 1420.0))), // By Bed
+                    ]),
+                )
                 .add_sensors(&[Sensor::new("tower_fan_temperature", "TMP", "°C")])
                 .sensor_offset(vec2(0.0, -0.4)),
             Room::new("Ensuite", vec2(1.1, -1.4), vec2(1.6, 2.7), "GraniteTiles")
