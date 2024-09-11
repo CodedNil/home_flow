@@ -13,7 +13,9 @@
 
 **HomeFlow** is a modern web application written in pure Rust, designed to integrate seamlessly with [Home Assistant](https://www.home-assistant.io/) to provide an interactive and animated map-based control of your smart home environment.
 
-![image](https://github.com/user-attachments/assets/1786f101-76a6-4efa-8b29-19273864bd9c)
+![image](https://github.com/user-attachments/assets/4710e320-ebdb-48f1-950f-456580b0da80)
+![image](https://github.com/user-attachments/assets/de4bf09f-94ae-49d7-bd29-5e8a9411b084)
+
 
 ## Overview
 
