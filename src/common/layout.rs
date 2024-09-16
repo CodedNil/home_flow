@@ -1,7 +1,6 @@
 use crate::common::{
     color::Color,
     furniture::Furniture,
-    light_render::{LightData, LightsData},
     shape::{Line, ShadowsData},
     utils::Material,
 };
@@ -178,3 +177,15 @@ pub enum DataPoint {
     Vec2(Vec2),
     Vec4(Vec4),
 }
+
+#[derive(Clone)]
+pub struct LightData {
+    pub hash: u64,
+    pub image: Vec<u8>,
+    pub image_center: Vec2,
+    pub image_size: Vec2,
+    pub image_width: u32,
+    pub image_height: u32,
+}
+
+pub type LightsData = (u64, Vec<u16>);

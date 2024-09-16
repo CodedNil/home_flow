@@ -1,6 +1,6 @@
 /target
 /dist
 /backups
-/database
 .env
 home_layout.ron
+auth.ron

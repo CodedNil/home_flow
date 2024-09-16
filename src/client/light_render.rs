@@ -1,5 +1,5 @@
 use crate::common::{
-    layout::{Light, Room, Walls},
+    layout::{Light, LightData, LightsData, Room, Walls},
     shape::Line,
     utils::hash_vec2,
 };
@@ -14,16 +14,6 @@ use uuid::Uuid;
 const PIXELS_PER_METER: f64 = 30.0;
 const LIGHT_SAMPLES: u8 = 12; // Number of samples within the light's radius for anti-aliasing
 const MAX_LIGHTS_PER_FRAME: u32 = 4;
-
-#[derive(Clone)]
-pub struct LightData {
-    pub hash: u64,
-    pub image: Vec<u8>,
-    pub image_center: Vec2,
-    pub image_size: Vec2,
-    pub image_width: u32,
-    pub image_height: u32,
-}
 
 pub fn combine_lighting(
     bounds_min: Vec2,
@@ -106,8 +96,6 @@ pub fn combine_lighting(
         image_height,
     }
 }
-
-pub type LightsData = (u64, Vec<u16>);
 
 pub fn render_lighting(
     bounds_min: Vec2,

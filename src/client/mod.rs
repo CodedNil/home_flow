@@ -4,6 +4,7 @@ mod edit_mode;
 mod edit_mode_render;
 mod edit_mode_utils;
 mod interaction;
+pub mod light_render;
 mod networking;
 mod render;
 

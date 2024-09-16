@@ -7,8 +7,8 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse, routing::post, Router};
+use chrono::{DateTime, Utc};
 use std::{path::Path, sync::LazyLock};
-use time::{format_description, OffsetDateTime};
 use tokio::{fs, sync::Mutex};
 
 const LAYOUT_PATH: &str = "home_layout.ron";
@@ -41,7 +41,7 @@ async fn load_layout_server(body: Bytes) -> impl IntoResponse {
             return (StatusCode::BAD_REQUEST, Vec::new());
         }
     };
-    if !matches!(verify_token(&packet.token), Ok(true)) {
+    if !matches!(verify_token(&packet.token).await, Ok(true)) {
         return (StatusCode::UNAUTHORIZED, Vec::new());
     }
 
@@ -64,7 +64,7 @@ async fn save_layout_server(body: Bytes) -> impl IntoResponse {
             return StatusCode::BAD_REQUEST.into_response();
         }
     };
-    if !matches!(verify_token(&packet.token), Ok(true)) {
+    if !matches!(verify_token(&packet.token).await, Ok(true)) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
@@ -91,9 +91,11 @@ async fn save_layout_impl(home: &Home) -> Result<()> {
     if Path::new(LAYOUT_PATH).exists() {
         let metadata = fs::metadata(LAYOUT_PATH).await?;
         let modified_time = metadata.modified()?;
-        let modified_time = OffsetDateTime::from(modified_time);
-        let format = format_description::parse("[year]-[month]-[day]_[hour]-[minute]-[second]")?;
-        let backup_filename = format!("backups/home_layout_{}.ron", modified_time.format(&format)?);
+        let modified_time: DateTime<Utc> = modified_time.into();
+        let backup_filename = format!(
+            "backups/home_layout_{}.ron",
+            modified_time.format("%Y-%m-%d_%H-%M-%S")
+        );
 
         fs::create_dir_all("backups").await?;
         fs::rename(LAYOUT_PATH, backup_filename).await?;

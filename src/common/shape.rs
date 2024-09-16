@@ -4,8 +4,6 @@ use crate::common::{
         Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
         Triangles, Walls, Zone,
     },
-    light_render::combine_lighting,
-    light_render::render_lighting,
     utils::hash_vec2,
     utils::{rotate_point_i32, rotate_point_pivot_i32, Material},
 };
@@ -165,6 +163,7 @@ impl Home {
         });
     }
 
+    #[cfg(feature = "gui")]
     pub fn render_lighting(&mut self) {
         let mut hasher = DefaultHasher::new();
         for room in &self.rooms {
@@ -184,8 +183,12 @@ impl Home {
         let all_walls = &self.rendered_data.as_ref().unwrap().wall_lines;
 
         let (bounds_min, bounds_max) = self.bounds();
-        let (update_complete, mut light_data) =
-            render_lighting(bounds_min, bounds_max, &self.rooms, all_walls);
+        let (update_complete, mut light_data) = crate::client::light_render::render_lighting(
+            bounds_min,
+            bounds_max,
+            &self.rooms,
+            all_walls,
+        );
 
         // Override light data for each light
         for room in &mut self.rooms {
@@ -200,7 +203,12 @@ impl Home {
         if !update_complete {
             hash -= 1;
         }
-        self.light_data = Some(combine_lighting(bounds_min, bounds_max, &self.rooms, hash));
+        self.light_data = Some(crate::client::light_render::combine_lighting(
+            bounds_min,
+            bounds_max,
+            &self.rooms,
+            hash,
+        ));
     }
 
     pub fn get_global_material(&self, string: &str) -> GlobalMaterial {

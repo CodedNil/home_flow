@@ -72,7 +72,7 @@ pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
             return (StatusCode::BAD_REQUEST, Vec::new());
         }
     };
-    if !matches!(verify_token(&packet.token), Ok(true)) {
+    if !matches!(verify_token(&packet.token).await, Ok(true)) {
         return (StatusCode::UNAUTHORIZED, Vec::new());
     }
 
@@ -100,7 +100,7 @@ pub async fn post_actions_server(body: Bytes) -> impl IntoResponse {
             return StatusCode::BAD_REQUEST.into_response();
         }
     };
-    if !matches!(verify_token(&packet.token), Ok(true)) {
+    if !matches!(verify_token(&packet.token).await, Ok(true)) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 

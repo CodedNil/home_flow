@@ -5,33 +5,40 @@ use argon2::{
     Argon2,
 };
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse};
+use chrono::{DateTime, Utc};
 use rand::{distributions, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use time::OffsetDateTime;
+use std::collections::HashMap;
+use tokio::{
+    fs::{self, OpenOptions},
+    io::AsyncReadExt,
+};
+use uuid::Uuid;
 
 const MIN_PASSWORD_LENGTH: usize = 6;
 const TOKEN_LENGTH: usize = 20;
-const DATABASE_PATH: &str = "database";
-const ACCOUNTS_TREE: &str = "accounts";
+const AUTH_FILE: &str = "auth.ron";
 
-nestify::nest! {
-    #[derive(Debug, Serialize, Deserialize, Clone)]*
-    struct AuthDatabase {
-        accounts: Vec<struct Account {
-            admin: bool,
-            username: String,
-            password_hash: String,
-            tokens: Vec<struct Token {
-                token: String,
-                last_used: OffsetDateTime,
-            }>,
-        }>,
-    }
+#[derive(Serialize, Deserialize)]
+struct Account {
+    admin: bool,
+    uuid: Uuid,
+    username: String,
+    password_hash: String,
+    tokens: Vec<Token>,
 }
+
+#[derive(Serialize, Deserialize)]
+struct Token {
+    token: String,
+    last_used: DateTime<Utc>,
+}
+
+type Accounts = HashMap<Uuid, Account>;
 
 pub async fn login_server(packet: Bytes) -> impl IntoResponse {
     match bincode::deserialize::<LoginPacket>(&packet) {
-        Ok(packet) => match login_impl(&packet) {
+        Ok(packet) => match login_impl(&packet).await {
             Ok(token) => (StatusCode::OK, token),
             Err(e) => {
                 log::error!("Failed to login: {:?}", e);
@@ -45,18 +52,33 @@ pub async fn login_server(packet: Bytes) -> impl IntoResponse {
     }
 }
 
+async fn read_accounts() -> Result<Accounts> {
+    if fs::metadata(AUTH_FILE).await.is_err() {
+        return Ok(HashMap::new());
+    }
+
+    let mut file = OpenOptions::new().read(true).open(AUTH_FILE).await?;
+    let mut data = String::new();
+    file.read_to_string(&mut data).await?;
+    let accounts: Accounts = ron::from_str(&data)?;
+    Ok(accounts)
+}
+
+async fn write_accounts(accounts: &Accounts) -> Result<()> {
+    let pretty = ron::ser::PrettyConfig::new().compact_arrays(true);
+    let data = ron::ser::to_string_pretty(accounts, pretty)?;
+    fs::write(AUTH_FILE, data).await?;
+    Ok(())
+}
+
 /// Login to account, returning a token
 /// If no password is set, it will set the password
 /// If no accounts exist, it will create an admin account
-fn login_impl(packet: &LoginPacket) -> Result<String> {
-    // Initialize the sled database
-    let db = sled::open(DATABASE_PATH).map_err(|e| anyhow!("Failed to open database: {:?}", e))?;
-    let tree = db
-        .open_tree(ACCOUNTS_TREE)
-        .map_err(|e| anyhow!("Failed to open tree: {:?}", e))?;
+async fn login_impl(packet: &LoginPacket) -> Result<String> {
+    let mut accounts = read_accounts().await.unwrap_or_default();
 
     // Create initial admin account if no accounts exist
-    if tree.is_empty() {
+    if accounts.is_empty() {
         if packet.password.len() < MIN_PASSWORD_LENGTH {
             return Err(anyhow!(
                 "Password must be at least {} characters long",
@@ -77,30 +99,24 @@ fn login_impl(packet: &LoginPacket) -> Result<String> {
         let (token_entry, token) = generate_token();
         let new_account = Account {
             admin: true,
+            uuid: Uuid::new_v4(),
             username: packet.username.clone(),
             password_hash,
             tokens: vec![token_entry],
         };
 
         // Serialize and save the admin account to the database
-        let account_bytes = bincode::serialize(&new_account)
-            .map_err(|e| anyhow!("Failed to serialize account: {:?}", e))?;
-        tree.insert(packet.username.as_bytes(), account_bytes)
-            .map_err(|e| anyhow!("Failed to save admin account: {:?}", e))?;
+        accounts.insert(new_account.uuid, new_account);
+        write_accounts(&accounts).await?;
 
         return Ok(format!("Admin Account Created|{token}"));
     }
 
     // Retrieve account data using username as the key
-    let account_data = tree
-        .get(packet.username.as_bytes())
-        .map_err(|e| anyhow!("Database access error: {:?}", e))?;
-
-    if let Some(account_bytes) = account_data {
-        // Deserialize the account data
-        let mut account: Account = bincode::deserialize(&account_bytes)
-            .map_err(|_| anyhow!("Incorrect username or password"))?;
-
+    let account = accounts
+        .values_mut()
+        .find(|acc| acc.username == packet.username);
+    if let Some(account) = account {
         if account.password_hash.is_empty() {
             // This is a new account setup case
             if packet.password.len() < MIN_PASSWORD_LENGTH {
@@ -121,11 +137,7 @@ fn login_impl(packet: &LoginPacket) -> Result<String> {
             account.tokens.push(token_entry);
             account.password_hash = password_hash;
 
-            // Serialize and save the updated account back to the database
-            let updated_account_bytes = bincode::serialize(&account)
-                .map_err(|e| anyhow!("Failed to serialize account: {:?}", e))?;
-            tree.insert(packet.username.as_bytes(), updated_account_bytes)
-                .map_err(|e| anyhow!("Failed to update account: {:?}", e))?;
+            write_accounts(&accounts).await?;
 
             return Ok(format!("Admin Set|{token}"));
         }
@@ -138,16 +150,9 @@ fn login_impl(packet: &LoginPacket) -> Result<String> {
             .verify_password(packet.password.as_bytes(), &parsed_hash)
             .is_ok()
         {
-            // Create and store a new token
             let (token_entry, token) = generate_token();
             account.tokens.push(token_entry);
-
-            // Serialize and save the updated account back to the database
-            let updated_account_bytes = bincode::serialize(&account)
-                .map_err(|e| anyhow!("Failed to serialize account: {:?}", e))?;
-            tree.insert(packet.username.as_bytes(), updated_account_bytes)
-                .map_err(|e| anyhow!("Failed to update account: {:?}", e))?;
-
+            write_accounts(&accounts).await?;
             return Ok(token);
         }
     }
@@ -163,43 +168,23 @@ fn generate_token() -> (Token, String) {
         .collect();
     let token = Token {
         token: new_token.clone(),
-        last_used: OffsetDateTime::now_utc(),
+        last_used: Utc::now(),
     };
     (token, new_token)
 }
 
 /// Verify tokens, updating the `last_used`
-pub fn verify_token(input_token: &str) -> Result<bool> {
-    // Open the database
-    let db = sled::open(DATABASE_PATH).map_err(|e| anyhow!("Failed to open database: {:?}", e))?;
-    let tree = db
-        .open_tree(ACCOUNTS_TREE)
-        .map_err(|e| anyhow!("Failed to open tree: {:?}", e))?;
+pub async fn verify_token(input_token: &str) -> Result<bool> {
+    let mut accounts = read_accounts().await?;
 
-    // Iterate through all accounts
-    for item in &tree {
-        let (key, account_bytes) =
-            item.map_err(|e| anyhow!("Failed to iterate over accounts: {:?}", e))?;
-
-        // Deserialize account data
-        let mut account: Account = bincode::deserialize(&account_bytes)
-            .map_err(|_| anyhow!("Failed to deserialize account data"))?;
-
-        // Check for token match and update last_used
+    for account in accounts.values_mut() {
         if let Some(token_entry) = account
             .tokens
             .iter_mut()
             .find(|token| token.token == input_token)
         {
-            // Update last_used field to the current time
-            token_entry.last_used = OffsetDateTime::now_utc();
-
-            // Serialize and save the updated account back to the database
-            let updated_account_bytes = bincode::serialize(&account)
-                .map_err(|e| anyhow!("Failed to serialize account: {:?}", e))?;
-            tree.insert(key, updated_account_bytes)
-                .map_err(|e| anyhow!("Failed to update account: {:?}", e))?;
-
+            token_entry.last_used = Utc::now();
+            write_accounts(&accounts).await?;
             return Ok(true);
         }
     }
