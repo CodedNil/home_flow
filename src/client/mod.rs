@@ -281,7 +281,6 @@ impl HomeFlow {
         let mut network_data_guard = network_store.lock();
         match &network_data_guard.layout {
             DownloadLayout::None => {
-                log::info!("Loading layout from server");
                 network_data_guard.layout = DownloadLayout::InProgress;
                 drop(network_data_guard);
                 get_layout(&self.host, &self.stored.auth_token, move |res| {
@@ -292,7 +291,6 @@ impl HomeFlow {
             DownloadLayout::Done(ref response) => {
                 match response {
                     Ok(layout) => {
-                        log::info!("Loaded layout from server");
                         self.layout_server = layout.clone();
                         self.layout = layout.clone();
                     }
@@ -333,12 +331,10 @@ impl HomeFlow {
                         // Update all data with the new state
                         for room in &mut self.layout.rooms {
                             for sensor in &room.sensors {
-                                for sensor_packet in &states.sensors {
-                                    if sensor.entity_id == sensor_packet.entity_id {
-                                        room.hass_data.insert(
-                                            sensor.entity_id.clone(),
-                                            sensor_packet.state.clone(),
-                                        );
+                                for (packet_id, packet_state) in &states.sensors {
+                                    if &sensor.entity_id == packet_id {
+                                        room.hass_data
+                                            .insert(sensor.entity_id.clone(), packet_state.clone());
                                     }
                                 }
                             }
@@ -348,21 +344,20 @@ impl HomeFlow {
                                     || self.time
                                         > light.last_manual + HOME_ASSISTANT_STATE_LOCAL_OVERRIDE
                                 {
-                                    for light_packet in &states.lights {
-                                        if light.entity_id == light_packet.entity_id {
-                                            light.state = light_packet.state;
+                                    for (packet_id, packet_state) in &states.lights {
+                                        if &light.entity_id == packet_id {
+                                            light.state = *packet_state;
                                         }
                                     }
                                 }
                             }
                             for furniture in &mut room.furniture {
-                                for sensor in &mut furniture.wanted_sensors() {
-                                    for sensor_packet in &states.sensors {
-                                        if sensor == &sensor_packet.entity_id {
-                                            furniture.hass_data.insert(
-                                                sensor.clone(),
-                                                sensor_packet.state.clone(),
-                                            );
+                                for sensor in &furniture.wanted_sensors() {
+                                    for (packet_id, packet_state) in &states.sensors {
+                                        if sensor == packet_id {
+                                            furniture
+                                                .hass_data
+                                                .insert(sensor.clone(), packet_state.clone());
                                         }
                                     }
                                 }

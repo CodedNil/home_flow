@@ -1,25 +1,26 @@
 use crate::{
     common::{
-        furniture::{FurnitureType, SensorType},
-        layout::DataPoint,
-        utils::rotate_point_i32,
-        HAState, LightPacket, PostActionsData, PostActionsPacket, SensorPacket, TokenPacket,
+        furniture::Furniture, layout::DataPoint, HAState, PostActionsData, PostActionsPacket,
+        TokenPacket,
     },
-    server::{auth::verify_token, routing::HOME},
+    server::{auth::verify_token, presence, routing::HOME},
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse};
-use glam::{dvec2 as vec2, DVec2 as Vec2};
-use nalgebra::DMatrix;
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
-use serde_json::json;
-use std::{collections::HashMap, env, sync::LazyLock, time::Duration};
-use tokio::{sync::Mutex, time::Instant};
-
-static LOOP_INTERVAL_MS: u64 = 200;
-static CALIBRATION_DURATION: f64 = 30.0;
-static OCCUPANCY_DURATION: f64 = 30.0;
+use serde_json::{json, Value};
+use std::{
+    collections::HashMap,
+    env,
+    sync::{
+        atomic::{AtomicI64, Ordering},
+        LazyLock,
+    },
+    time::Duration,
+};
+use tokio::sync::Mutex;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 fn get_env_variable(key: &str) -> String {
     match env::var(key) {
@@ -34,35 +35,7 @@ fn get_env_variable(key: &str) -> String {
 }
 
 static HA_STATE: LazyLock<Mutex<Option<HAState>>> = LazyLock::new(|| Mutex::new(None));
-
-/// Every X seconds, get the states from Home Assistant
-pub async fn server_loop() {
-    let client = reqwest::Client::new();
-    let url = format!("{}/api/states", get_env_variable("HASS_URL"));
-    let token = format!("Bearer {}", get_env_variable("HASS_TOKEN"));
-    loop {
-        // Get list of sensors to fetch
-        let layout = HOME.lock().await;
-        let mut sensors = Vec::new();
-        for room in &layout.rooms {
-            for sensor in &room.sensors {
-                sensors.push(sensor.entity_id.clone());
-            }
-            for furniture in &room.furniture {
-                let wanted = furniture.wanted_sensors();
-                if !wanted.is_empty() {
-                    sensors.extend(wanted);
-                }
-            }
-        }
-        drop(layout);
-
-        if let Ok(states) = get_states_impl(&client, &url, &token, sensors).await {
-            *HA_STATE.lock().await = Some(states);
-        }
-        tokio::time::sleep(tokio::time::Duration::from_millis(LOOP_INTERVAL_MS)).await;
-    }
-}
+static PENDING_ACTIONS: LazyLock<Mutex<Vec<Value>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
     let packet: TokenPacket = match bincode::deserialize(&body) {
@@ -72,7 +45,7 @@ pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
             return (StatusCode::BAD_REQUEST, Vec::new());
         }
     };
-    if !matches!(verify_token(&packet.token).await, Ok(true)) {
+    if !verify_token(&packet.token).await.unwrap_or(false) {
         return (StatusCode::UNAUTHORIZED, Vec::new());
     }
 
@@ -100,427 +73,241 @@ pub async fn post_actions_server(body: Bytes) -> impl IntoResponse {
             return StatusCode::BAD_REQUEST.into_response();
         }
     };
-    if !matches!(verify_token(&packet.token).await, Ok(true)) {
+    if !verify_token(&packet.token).await.unwrap_or(false) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
-    match post_actions_impl(packet.data).await {
-        Ok(()) => StatusCode::OK.into_response(),
-        Err(e) => {
-            log::error!("Failed to post state: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
+    post_actions_impl(packet.data).await;
+    StatusCode::OK.into_response()
 }
 
 #[derive(Debug, Deserialize)]
-struct HassState {
-    entity_id: String,
-    state: String,
+pub struct HassState {
+    pub entity_id: String,
+    pub state: String,
     #[allow(dead_code)]
     last_changed: String,
     attributes: HashMap<String, serde_json::Value>,
 }
 
-// Room name -> (Occupied, Targets, Last Occupied)
-type OccupancyData = HashMap<String, (bool, u8, Instant)>;
+pub async fn run_server() -> Result<()> {
+    // Connect to the WebSocket
+    let (mut ws_stream, _) = connect_async(format!(
+        "ws://{}/api/websocket",
+        get_env_variable("HASS_URL")
+    ))
+    .await?;
 
-static LAST_OCCUPANCY: LazyLock<Mutex<OccupancyData>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
-type PresenceCalibration = (Instant, Vec<Vec2>);
-static PRESENCE_CALIBRATION: LazyLock<Mutex<Option<PresenceCalibration>>> =
-    LazyLock::new(|| Mutex::new(None));
-
-async fn get_states_impl(
-    client: &reqwest::Client,
-    url: &str,
-    token: &str,
-    target_sensors: Vec<String>,
-) -> Result<HAState> {
-    let states_raw = client
-        .get(url)
-        .header(AUTHORIZATION, token)
-        .header(CONTENT_TYPE, "application/json")
-        .send()
-        .await?
-        .json::<Vec<HassState>>()
+    // Send authentication message
+    ws_stream
+        .send(Message::Text(
+            json!({
+                "type": "auth",
+                "access_token": get_env_variable("HASS_TOKEN")
+            })
+            .to_string(),
+        ))
         .await?;
 
-    let mut lights = Vec::new();
-    let mut sensors = Vec::new();
+    // Listen for messages
+    let mut actions_interval = tokio::time::interval(Duration::from_millis(100));
+    loop {
+        tokio::select! {
+            Some(message) = ws_stream.next() => {
+                match message {
+                    Ok(Message::Text(txt)) => {
+                        let mut response: Value = serde_json::from_str(&txt)?;
+                        if response["type"] == "auth_ok" {
+                            ws_stream
+                                .send(Message::Text(
+                                    json!({
+                                        "id": 1,
+                                        "type": "subscribe_events",
+                                        "event_type": "state_changed"
+                                    })
+                                    .to_string(),
+                                ))
+                                .await?;
+                            ws_stream
+                                .send(Message::Text(
+                                    json!({
+                                        "id": 2,
+                                        "type": "get_states",
+                                    })
+                                    .to_string(),
+                                ))
+                                .await?;
+                        } else if response["type"] == "event"
+                            && response["id"].as_u64() == Some(1)
+                            && response["event"]["event_type"] == "state_changed"
+                        {
+                            process_state(&response["event"]["data"]).await?;
+                        } else if response["type"] == "result" && response["id"].as_u64() == Some(2) {
+                            if let Err(e) = process_full_states(response["result"].take()).await {
+                                log::error!("{}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return Err(e.into());
+                    }
+                    _ => {}
+                }
+            },
+            _ = actions_interval.tick() => {
+                // Periodically check for pending actions
+                let mut pending_actions = PENDING_ACTIONS.lock().await;
+                if !pending_actions.is_empty() {
+                    for action in pending_actions.drain(..) {
+                        ws_stream
+                            .send(Message::Text(action.to_string()))
+                            .await?;
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn process_full_states(states_raw: Value) -> Result<()> {
+    let states_raw = serde_json::from_value::<Vec<HassState>>(states_raw)?;
+
+    let target_sensors = get_target_sensors().await;
+    let mut lights = HashMap::new();
+    let mut sensors = HashMap::new();
 
     for state_raw in &states_raw {
         if let Some((domain, entity_id)) = state_raw.entity_id.split_once('.') {
             match domain {
-                "light" => lights.push(LightPacket {
-                    entity_id: entity_id.to_string(),
-                    state: state_raw
-                        .attributes
-                        .get("brightness")
-                        .and_then(serde_json::Value::as_u64)
-                        .map_or_else(
-                            || if state_raw.state == "on" { 255 } else { 0 },
-                            |b| b as u8,
-                        ),
-                }),
+                "light" => {
+                    lights.insert(
+                        entity_id.to_string(),
+                        state_raw
+                            .attributes
+                            .get("brightness")
+                            .and_then(serde_json::Value::as_u64)
+                            .map_or_else(
+                                || if state_raw.state == "on" { 255 } else { 0 },
+                                |b| b as u8,
+                            ),
+                    );
+                }
                 "sensor" if target_sensors.contains(&entity_id.to_string()) => {
-                    sensors.push(SensorPacket {
-                        entity_id: entity_id.to_string(),
-                        state: state_raw.state.clone(),
-                    });
+                    sensors.insert(entity_id.to_string(), state_raw.state.clone());
                 }
                 _ => {}
             }
         }
     }
 
-    // Begin calibration if needed
-    let mut calibration_lock = PRESENCE_CALIBRATION.lock().await;
-    let presence_calibration = states_raw.iter().any(|state| {
-        state.entity_id == "input_boolean.presence_calibration" && state.state == "on"
-    });
-    match (&*calibration_lock, presence_calibration) {
-        (None, true) => {
-            *calibration_lock = Some((Instant::now(), Vec::new()));
-            log::info!("Presence calibration started");
-        }
-        (Some(_), false) => {
-            *calibration_lock = None;
-        }
-        _ => {}
-    }
-    let is_calibrating = calibration_lock.is_some();
-    drop(calibration_lock);
+    let presence_points = presence::calculate(&sensors).await?;
 
-    let layout = HOME.lock().await.clone();
-
-    let mut presence_points = Vec::new();
-    let mut presence_points_raw = Vec::new();
-    for room in &layout.rooms {
-        for furniture in &room.furniture {
-            match furniture.furniture_type {
-                FurnitureType::Sensor(SensorType::UltimateSensorMini) => {
-                    // Read targets from the sensor
-                    let targets = (1..)
-                        .map(|i| {
-                            let mut x = f64::NAN;
-                            let mut y = f64::NAN;
-
-                            for id in &furniture.misc_sensors {
-                                if let Some(value) = states_raw
-                                    .iter()
-                                    .find(|state| state.entity_id == *id)
-                                    .and_then(|state| state.state.parse::<f64>().ok())
-                                {
-                                    if id.contains(&format!("_target_{i}_x")) {
-                                        x = value;
-                                    } else if id.contains(&format!("_target_{i}_y")) {
-                                        y = value;
-                                    }
-                                }
-                            }
-
-                            if x.is_nan() || y.is_nan() {
-                                None
-                            } else {
-                                Some(vec2(x, y))
-                            }
-                        })
-                        .take_while(Option::is_some)
-                        .flatten()
-                        .filter(|&v| v != Vec2::ZERO)
-                        .collect::<Vec<_>>();
-
-                    if is_calibrating {
-                        presence_points_raw.extend(targets.clone());
-                    }
-
-                    // Collect calibration points if available
-                    let calibration_data = (1..)
-                        .map(|i| {
-                            furniture
-                                .misc_data
-                                .get(&format!("calib_{i}"))
-                                .and_then(|data| {
-                                    if let DataPoint::Vec4((wx, wy, sx, sy)) = data {
-                                        Some((vec2(*wx, *wy), vec2(*sx, *sy)))
-                                    } else {
-                                        None
-                                    }
-                                })
-                        })
-                        .take_while(Option::is_some)
-                        .flatten()
-                        .collect::<Vec<_>>();
-
-                    if calibration_data.len() >= 3 {
-                        // Create matrices for sensor and world points
-                        let mut sensor_matrix = DMatrix::zeros(calibration_data.len(), 3);
-                        let mut world_matrix_x = DMatrix::zeros(calibration_data.len(), 1);
-                        let mut world_matrix_y = DMatrix::zeros(calibration_data.len(), 1);
-
-                        for (i, &(world, sensor)) in calibration_data.iter().enumerate() {
-                            sensor_matrix[(i, 0)] = sensor.x;
-                            sensor_matrix[(i, 1)] = sensor.y;
-                            sensor_matrix[(i, 2)] = 1.0; // Homogeneous coordinate
-
-                            world_matrix_x[(i, 0)] = world.x;
-                            world_matrix_y[(i, 0)] = world.y;
-                        }
-
-                        // Solve for the transformation matrix using the least squares method
-                        let sensor_matrix_pseudo_inverse = (sensor_matrix.transpose()
-                            * &sensor_matrix)
-                            .try_inverse()
-                            .unwrap()
-                            * sensor_matrix.transpose();
-
-                        let transform_x = sensor_matrix_pseudo_inverse.clone() * world_matrix_x;
-                        let transform_y = sensor_matrix_pseudo_inverse * world_matrix_y;
-
-                        let a = transform_x[(0, 0)];
-                        let b = transform_x[(1, 0)];
-                        let tx = transform_x[(2, 0)];
-
-                        let c = transform_y[(0, 0)];
-                        let d = transform_y[(1, 0)];
-                        let ty = transform_y[(2, 0)];
-
-                        presence_points.extend(targets.iter().map(|target| {
-                            vec2(
-                                a * target.x + b * target.y + tx,
-                                c * target.x + d * target.y + ty,
-                            )
-                        }));
-                    } else {
-                        presence_points.extend(targets.iter().map(|target| {
-                            room.pos
-                                + furniture.pos
-                                + rotate_point_i32(*target / 1000.0, -furniture.rotation)
-                        }));
-                    };
-                }
-                FurnitureType::Sensor(SensorType::PresenceBoolean) => {
-                    // If sensed, add a presence point on the furniture's position
-                    if furniture.misc_sensors.iter().any(|id| {
-                        states_raw
-                            .iter()
-                            .find(|state| state.entity_id == *id)
-                            .map_or(false, |state| state.state == "on")
-                    }) {
-                        presence_points.push(room.pos + furniture.pos);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    // Merge close points
-    presence_points = {
-        let mut points = presence_points.clone();
-        let mut merged_points = Vec::new();
-
-        while let Some(point) = points.pop() {
-            let mut cluster = vec![point];
-
-            points.retain(|&other_point| {
-                if (point - other_point).length() <= 0.4 {
-                    cluster.push(other_point);
-                    false
-                } else {
-                    true
-                }
-            });
-
-            let centroid = cluster.iter().copied().sum::<Vec2>() / cluster.len() as f64;
-            merged_points.push(centroid);
-        }
-
-        merged_points
-    };
-
-    // If calibrating, add raw points to data
-    let mut calibration = PRESENCE_CALIBRATION.lock().await;
-    if let Some((start_time, calibration_points)) = calibration.as_mut() {
-        if start_time.elapsed().as_secs_f64() > CALIBRATION_DURATION {
-            let average = (calibration_points.iter().copied().sum::<Vec2>()
-                / calibration_points.len() as f64)
-                .round();
-            log::info!("Calibration ended, average point: {:?}", average);
-
-            // Set input_boolean.presence_calibration to false and input_text.presence_calibration_output to the average point
-            post_actions_impl(vec![
-                PostActionsData {
-                    domain: "input_boolean".to_string(),
-                    action: "turn_off".to_string(),
-                    entity_id: "input_boolean.presence_calibration".to_string(),
-                    additional_data: HashMap::new(),
-                },
-                PostActionsData {
-                    domain: "input_text".to_string(),
-                    action: "set_value".to_string(),
-                    entity_id: "input_text.presence_calibration_output".to_string(),
-                    additional_data: vec![(
-                        "value".to_string(),
-                        DataPoint::String(format!("{},{}", average.x, average.y)),
-                    )]
-                    .into_iter()
-                    .collect(),
-                },
-            ])
-            .await
-            .unwrap();
-
-            *calibration = None;
-        } else {
-            calibration_points.extend(presence_points_raw);
-        }
-    }
-    drop(calibration);
-
-    // Calculate zone occupancy
-    let mut zone_occupancy = HashMap::new();
-    for room in &layout.rooms {
-        let room_occupancy = presence_points
-            .iter()
-            .filter(|&&p| room.contains(p))
-            .count();
-
-        zone_occupancy.insert(
-            room.name.to_lowercase().replace(' ', "_"),
-            (room_occupancy > 0, room_occupancy as u8),
-        );
-
-        for zone in &room.zones {
-            let zone_occupancy_count = presence_points
-                .iter()
-                .filter(|&&p| zone.contains(room.pos, p))
-                .count();
-
-            zone_occupancy
-                .entry(zone.name.to_lowercase().replace(' ', "_"))
-                .and_modify(|e| {
-                    e.0 |= zone_occupancy_count > 0;
-                    e.1 += zone_occupancy_count as u8;
-                })
-                .or_insert((zone_occupancy_count > 0, zone_occupancy_count as u8));
-        }
-    }
-
-    // Compare to LAST_OCCUPANCY and for differences, post actions
-    let mut last_occupancy = LAST_OCCUPANCY.lock().await;
-    let mut post_data = Vec::new();
-
-    for (zone_name, (occupied, targets)) in &zone_occupancy {
-        let (last_occupied, last_targets, last_time) =
-            last_occupancy.entry(zone_name.clone()).or_insert_with(|| {
-                (
-                    *occupied,
-                    *targets,
-                    if *occupied {
-                        Instant::now()
-                    } else {
-                        Instant::now() - Duration::from_secs(3600)
-                    },
-                )
-            });
-
-        // Update the time if occupied
-        if *occupied {
-            *last_time = Instant::now();
-        }
-
-        // Update the occupancy if necessary
-        if *last_occupied != *occupied
-            && (*occupied || last_time.elapsed().as_secs_f64() > OCCUPANCY_DURATION)
-        {
-            *last_occupied = *occupied;
-            post_data.push(PostActionsData {
-                domain: "input_boolean".to_string(),
-                action: if *occupied { "turn_on" } else { "turn_off" }.to_string(),
-                entity_id: format!("input_boolean.{zone_name}_occupancy"),
-                additional_data: HashMap::new(),
-            });
-        }
-
-        // Update targets if necessary
-        if *last_targets != *targets {
-            *last_targets = *targets;
-            post_data.push(PostActionsData {
-                domain: "input_number".to_string(),
-                action: "set_value".to_string(),
-                entity_id: format!("input_number.{zone_name}_targets"),
-                additional_data: vec![("value".to_string(), DataPoint::Int(*targets))]
-                    .into_iter()
-                    .collect(),
-            });
-        }
-    }
-    drop(last_occupancy);
-
-    if !post_data.is_empty() {
-        post_actions_impl(post_data).await?;
-    }
-
-    Ok(HAState {
+    // Update the state
+    *HA_STATE.lock().await = Some(HAState {
         lights,
         sensors,
         presence_points,
-    })
+    });
+    Ok(())
 }
 
-async fn post_actions_impl(data: Vec<PostActionsData>) -> Result<()> {
-    let client = reqwest::Client::new();
-    let mut errors = Vec::new();
+async fn process_state(data: &Value) -> Result<()> {
+    let target_sensors = get_target_sensors().await;
+    let entity_id = data["entity_id"].as_str().unwrap();
+    let new_state = &data["new_state"];
 
-    // Convert params to the format required by the Home Assistant API
+    let mut ha_state = HA_STATE.lock().await;
+    let mut needs_presence_update = false;
+    if let Some((domain, id)) = entity_id.split_once('.') {
+        if let Some(ha_state) = ha_state.as_mut() {
+            match domain {
+                "light" => {
+                    ha_state.lights.insert(
+                        id.to_string(),
+                        new_state["attributes"]["brightness"].as_u64().map_or_else(
+                            || if new_state["state"] == "on" { 255 } else { 0 },
+                            |b| b as u8,
+                        ),
+                    );
+                }
+                "sensor" if target_sensors.contains(&entity_id.to_string()) => {
+                    ha_state.sensors.insert(
+                        entity_id.to_string(),
+                        new_state["state"].as_str().unwrap_or("unknown").to_string(),
+                    );
+                    if entity_id == "input_boolean.presence_calibration" {
+                        needs_presence_update = true;
+                    } else if let Some((_, suffix)) = entity_id.split_once("_target_") {
+                        if suffix.contains("_x") || suffix.contains("_y") {
+                            needs_presence_update = true;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    drop(ha_state);
+
+    if needs_presence_update {
+        let mut ha_state = HA_STATE.lock().await;
+        if let Some(state) = ha_state.as_mut() {
+            let presence_points = presence::calculate(&state.sensors).await?;
+            state.presence_points = presence_points;
+        }
+    }
+
+    Ok(())
+}
+
+const DEFAULT_SENSORS: &[&str] = &["input_boolean.presence_calibration"];
+
+async fn get_target_sensors() -> Vec<String> {
+    HOME.lock()
+        .await
+        .rooms
+        .iter()
+        .flat_map(|room| {
+            room.sensors
+                .iter()
+                .map(|sensor| sensor.entity_id.clone())
+                .chain(room.furniture.iter().flat_map(Furniture::wanted_sensors))
+        })
+        .chain(DEFAULT_SENSORS.iter().map(ToString::to_string))
+        .collect()
+}
+
+static NEXT_ID: LazyLock<AtomicI64> = LazyLock::new(|| AtomicI64::new(3));
+
+pub async fn post_actions_impl(data: Vec<PostActionsData>) {
+    let mut new_actions = Vec::new();
     for param in data {
-        // Construct the JSON payload
-        let mut data = HashMap::new();
-        data.insert("entity_id".to_string(), json!(param.entity_id));
-        for (key, value) in param.additional_data {
-            data.insert(
+        let service_data = json!(param
+            .additional_data
+            .into_iter()
+            .map(|(key, value)| (
                 key,
                 match value {
                     DataPoint::String(s) => serde_json::Value::String(s),
-                    DataPoint::Float(f) => {
-                        serde_json::Value::Number(serde_json::Number::from_f64(f).unwrap())
-                    }
+                    DataPoint::Float(f) =>
+                        serde_json::Value::Number(serde_json::Number::from_f64(f).unwrap()),
                     DataPoint::Int(i) => serde_json::Value::Number(serde_json::Number::from(i)),
                     DataPoint::Vec2(v) => serde_json::json!([v.x, v.y]),
                     DataPoint::Vec4((a, b, c, d)) => serde_json::json!([a, b, c, d]),
-                },
-            );
-        }
-
-        // Send the request
-        let response = client
-            .post(format!(
-                "{}/api/services/{}/{}",
-                &get_env_variable("HASS_URL"),
-                param.domain,
-                param.action
+                }
             ))
-            .header(
-                AUTHORIZATION,
-                format!("Bearer {}", get_env_variable("HASS_TOKEN")),
-            )
-            .header(CONTENT_TYPE, "application/json")
-            .json(&data)
-            .send()
-            .await;
+            .collect::<serde_json::Map<_, _>>());
 
-        if let Err(e) = response {
-            errors.push(anyhow!("Failed to post actions: {}", e));
-        }
+        new_actions.push(json!({
+            "id": NEXT_ID.fetch_add(1, Ordering::SeqCst),
+            "type": "call_service",
+            "domain": param.domain,
+            "service": param.action,
+            "service_data": service_data,
+            "target": {
+                "entity_id": param.entity_id,
+            }
+        }));
     }
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(anyhow!(
-            "Errors occurred while posting actions: {:?}",
-            errors
-        ))
-    }
+    PENDING_ACTIONS.lock().await.extend(new_actions);
 }

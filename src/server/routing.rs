@@ -30,7 +30,12 @@ pub async fn start_server() {
         .and_then(|data| ron::from_str::<Home>(&data).ok())
         .unwrap_or_else(template::default);
 
-    super::home_assistant::server_loop().await;
+    match super::home_assistant::run_server().await {
+        Ok(()) => {}
+        Err(e) => {
+            log::error!("Home assistant websocket error: {e:?}");
+        }
+    }
 }
 
 async fn load_layout_server(body: Bytes) -> impl IntoResponse {
@@ -41,7 +46,7 @@ async fn load_layout_server(body: Bytes) -> impl IntoResponse {
             return (StatusCode::BAD_REQUEST, Vec::new());
         }
     };
-    if !matches!(verify_token(&packet.token).await, Ok(true)) {
+    if !verify_token(&packet.token).await.unwrap_or(false) {
         return (StatusCode::UNAUTHORIZED, Vec::new());
     }
 
@@ -64,7 +69,7 @@ async fn save_layout_server(body: Bytes) -> impl IntoResponse {
             return StatusCode::BAD_REQUEST.into_response();
         }
     };
-    if !matches!(verify_token(&packet.token).await, Ok(true)) {
+    if !verify_token(&packet.token).await.unwrap_or(false) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
