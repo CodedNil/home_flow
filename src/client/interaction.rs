@@ -6,8 +6,8 @@ use crate::{
         PostActionsData,
     },
 };
+use ahash::AHashMap;
 use egui::{pos2, Color32, Painter, Pos2, Response, Stroke};
-use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct IState {
@@ -162,12 +162,12 @@ impl HomeFlow {
                                     "turn_off"
                                 }
                                 .to_string(),
-                                additional_data: HashMap::new(),
+                                additional_data: AHashMap::new(),
                             });
                         } else {
                             let action =
                                 if new_state > 0 { "turn_on" } else { "turn_off" }.to_string();
-                            let mut additional_data = HashMap::new();
+                            let mut additional_data = AHashMap::new();
                             if new_state > 0 {
                                 additional_data.insert(
                                     "brightness_pct".to_string(),

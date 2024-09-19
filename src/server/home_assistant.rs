@@ -5,22 +5,21 @@ use crate::{
     },
     server::{auth::verify_token, presence, routing::HOME},
 };
+use ahash::AHashMap;
 use anyhow::Result;
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse};
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap,
     env,
     sync::{
         atomic::{AtomicI64, Ordering},
-        LazyLock,
+        Arc, LazyLock,
     },
-    time::Duration,
 };
-use tokio::sync::Mutex;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio::{net::TcpStream, sync::Mutex};
+use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 fn get_env_variable(key: &str) -> String {
     match env::var(key) {
@@ -35,7 +34,10 @@ fn get_env_variable(key: &str) -> String {
 }
 
 static HA_STATE: LazyLock<Mutex<Option<HAState>>> = LazyLock::new(|| Mutex::new(None));
-static PENDING_ACTIONS: LazyLock<Mutex<Vec<Value>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+
+type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
+static WS_STREAM: LazyLock<Arc<Mutex<Option<WsStream>>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(None)));
 
 pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
     let packet: TokenPacket = match bincode::deserialize(&body) {
@@ -87,7 +89,7 @@ pub struct HassState {
     pub state: String,
     #[allow(dead_code)]
     last_changed: String,
-    attributes: HashMap<String, serde_json::Value>,
+    attributes: AHashMap<String, serde_json::Value>,
 }
 
 pub async fn run_server() -> Result<()> {
@@ -101,80 +103,88 @@ pub async fn run_server() -> Result<()> {
     // Send authentication message
     ws_stream
         .send(Message::Text(
-            json!({
-                "type": "auth",
-                "access_token": get_env_variable("HASS_TOKEN")
-            })
-            .to_string(),
+            json!({"type": "auth", "access_token": get_env_variable("HASS_TOKEN")}).to_string(),
         ))
         .await?;
 
+    *WS_STREAM.lock().await = Some(ws_stream);
+
     // Listen for messages
-    let mut actions_interval = tokio::time::interval(Duration::from_millis(100));
+    let mut slow_refresh_interval = tokio::time::interval(std::time::Duration::from_secs(2));
     loop {
         tokio::select! {
-            Some(message) = ws_stream.next() => {
-                match message {
-                    Ok(Message::Text(txt)) => {
-                        let mut response: Value = serde_json::from_str(&txt)?;
-                        if response["type"] == "auth_ok" {
-                            ws_stream
-                                .send(Message::Text(
-                                    json!({
-                                        "id": 1,
-                                        "type": "subscribe_events",
-                                        "event_type": "state_changed"
-                                    })
-                                    .to_string(),
-                                ))
-                                .await?;
-                            ws_stream
-                                .send(Message::Text(
-                                    json!({
-                                        "id": 2,
-                                        "type": "get_states",
-                                    })
-                                    .to_string(),
-                                ))
-                                .await?;
-                        } else if response["type"] == "event"
-                            && response["id"].as_u64() == Some(1)
-                            && response["event"]["event_type"] == "state_changed"
-                        {
-                            process_state(&response["event"]["data"]).await?;
-                        } else if response["type"] == "result" && response["id"].as_u64() == Some(2) {
-                            if let Err(e) = process_full_states(response["result"].take()).await {
-                                log::error!("{}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        return Err(e.into());
-                    }
-                    _ => {}
+            // WebSocket message handling
+            message = async {
+                let mut ws_stream = WS_STREAM.lock().await;
+                if let Some(ref mut ws_stream) = *ws_stream {
+                    ws_stream.next().await
+                } else {
+                    None
                 }
-            },
-            _ = actions_interval.tick() => {
-                // Periodically check for pending actions
-                let mut pending_actions = PENDING_ACTIONS.lock().await;
-                if !pending_actions.is_empty() {
-                    for action in pending_actions.drain(..) {
-                        ws_stream
-                            .send(Message::Text(action.to_string()))
-                            .await?;
-                    }
+            } => {
+                if let Some(message) = message {
+                    handle_ws_message(message).await?;
+                }
+            }
+
+            // Slow refresh interval for presence calculation
+            _ = slow_refresh_interval.tick() => {
+                let mut ha_state = HA_STATE.lock().await;
+                if let Some(state) = ha_state.as_mut() {
+                    let presence_points = presence::calculate(&state.sensors).await?;
+                    state.presence_points = presence_points;
                 }
             }
         }
     }
 }
 
+async fn handle_ws_message(
+    message: Result<Message, tokio_tungstenite::tungstenite::Error>,
+) -> Result<()> {
+    match message {
+        Ok(Message::Text(txt)) => {
+            let mut response: Value = serde_json::from_str(&txt)?;
+            if response["type"] == "auth_ok" {
+                let mut ws_stream = WS_STREAM.lock().await;
+                if let Some(ref mut ws_stream) = *ws_stream {
+                    ws_stream
+                            .send(Message::Text(
+                                json!({"id": 1, "type": "subscribe_events", "event_type": "state_changed"})
+                                    .to_string(),
+                            ))
+                            .await?;
+                    ws_stream
+                        .send(Message::Text(
+                            json!({"id": 2, "type": "get_states"}).to_string(),
+                        ))
+                        .await?;
+                }
+            } else if response["type"] == "event"
+                && response["id"].as_u64() == Some(1)
+                && response["event"]["event_type"] == "state_changed"
+            {
+                process_state(&response["event"]["data"]).await?;
+            } else if response["type"] == "result" && response["id"].as_u64() == Some(2) {
+                if let Err(e) = process_full_states(response["result"].take()).await {
+                    log::error!("{}", e);
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("{}", e);
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 async fn process_full_states(states_raw: Value) -> Result<()> {
     let states_raw = serde_json::from_value::<Vec<HassState>>(states_raw)?;
 
     let target_sensors = get_target_sensors().await;
-    let mut lights = HashMap::new();
-    let mut sensors = HashMap::new();
+    let mut lights = AHashMap::new();
+    let mut sensors = AHashMap::new();
 
     for state_raw in &states_raw {
         if let Some((domain, entity_id)) = state_raw.entity_id.split_once('.') {
@@ -309,5 +319,12 @@ pub async fn post_actions_impl(data: Vec<PostActionsData>) {
             }
         }));
     }
-    PENDING_ACTIONS.lock().await.extend(new_actions);
+    let mut ws_stream = WS_STREAM.lock().await;
+    if let Some(ref mut ws_stream) = *ws_stream {
+        for action in new_actions {
+            if let Err(e) = ws_stream.send(Message::Text(action.to_string())).await {
+                log::error!("Failed to send action: {:?}", e);
+            }
+        }
+    }
 }

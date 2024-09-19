@@ -1,4 +1,5 @@
 use crate::common::LoginPacket;
+use ahash::AHashMap;
 use anyhow::{anyhow, Result};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -8,7 +9,6 @@ use axum::{body::Bytes, http::StatusCode, response::IntoResponse};
 use chrono::{DateTime, Utc};
 use rand::{distributions, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use tokio::{
     fs::{self, OpenOptions},
     io::AsyncReadExt,
@@ -34,7 +34,7 @@ struct Token {
     last_used: DateTime<Utc>,
 }
 
-type Accounts = HashMap<Uuid, Account>;
+type Accounts = AHashMap<Uuid, Account>;
 
 pub async fn login_server(packet: Bytes) -> impl IntoResponse {
     match bincode::deserialize::<LoginPacket>(&packet) {
@@ -54,7 +54,7 @@ pub async fn login_server(packet: Bytes) -> impl IntoResponse {
 
 async fn read_accounts() -> Result<Accounts> {
     if fs::metadata(AUTH_FILE).await.is_err() {
-        return Ok(HashMap::new());
+        return Ok(AHashMap::new());
     }
 
     let mut file = OpenOptions::new().read(true).open(AUTH_FILE).await?;

@@ -8,13 +8,13 @@ use crate::{
         utils::{rotate_point, rotate_point_i32, rotate_point_pivot, Lerp, Material},
     },
 };
+use ahash::AHashMap;
 use egui::{
     epaint::{CircleShape, PathStroke, TessellationOptions, Tessellator, Vertex},
     vec2 as evec2, Color32, ColorImage, FontId, Mesh, Painter, Shape as EShape, Stroke, TextureId,
     TextureOptions,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
-use std::collections::HashMap;
 
 const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
 const DOOR_COLOR: Color32 = Color32::from_rgb(200, 130, 40);
@@ -181,9 +181,9 @@ impl HomeFlow {
         }
 
         // Gather furniture and children
-        let mut furniture_map = HashMap::new();
-        let mut furniture_locations = HashMap::new();
-        let mut child_adjustments = HashMap::new();
+        let mut furniture_map = AHashMap::new();
+        let mut furniture_locations = AHashMap::new();
+        let mut child_adjustments = AHashMap::new();
 
         let mut handle_furniture_child = |room_pos: Vec2, obj: &Furniture, child: &Furniture| {
             let hover = child.hover_amount.max(0.0);

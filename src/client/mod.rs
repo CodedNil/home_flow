@@ -20,13 +20,14 @@ use crate::{
         HAState, PostActionsData,
     },
 };
+use ahash::AHashMap;
 use anyhow::Result;
 use egui::{Align2, CentralPanel, Color32, Context, Frame, Sense, TextEdit, TextureHandle, Window};
 use egui_notify::Toasts;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 static HOME_ASSISTANT_STATE_REFRESH: f64 = 1.0;
 static HOME_ASSISTANT_STATE_LOCAL_OVERRIDE: f64 = 5.0;
@@ -44,7 +45,7 @@ nestify::nest! {
 
         layout_server: Home,
         layout: Home,
-        textures: HashMap<String, TextureHandle>,
+        textures: AHashMap<String, TextureHandle>,
         light_data: Option<(u64, TextureHandle)>,
         bounds: (Vec2, Vec2),
         rotate_key_down: bool,
@@ -132,7 +133,7 @@ impl HomeFlow {
 
             layout_server: Home::empty(),
             layout: Home::empty(),
-            textures: HashMap::new(),
+            textures: AHashMap::new(),
             light_data: None,
             bounds: (Vec2::ZERO, Vec2::ZERO),
             rotate_key_down: false,

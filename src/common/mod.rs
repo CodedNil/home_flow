@@ -1,7 +1,7 @@
 use crate::common::layout::{DataPoint, Home};
+use ahash::AHashMap;
 use glam::DVec2;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 pub mod color;
 pub mod furniture;
@@ -13,8 +13,8 @@ pub mod utils;
 // Packet for communication between the server to the client
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct HAState {
-    pub lights: HashMap<String, u8>,
-    pub sensors: HashMap<String, String>,
+    pub lights: AHashMap<String, u8>,
+    pub sensors: AHashMap<String, String>,
     pub presence_points: Vec<DVec2>,
 }
 
@@ -30,17 +30,18 @@ pub struct SaveLayoutPacket {
     pub home: Home,
 }
 
-nestify::nest! {
-    #[derive(Debug, Serialize, Deserialize, Clone)]*
-    pub struct PostActionsPacket {
-        pub token: String,
-        pub data: Vec<pub struct PostActionsData {
-            pub entity_id: String,
-            pub domain: String,
-            pub action: String,
-            pub additional_data: HashMap<String, DataPoint>,
-        }>,
-    }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PostActionsPacket {
+    pub token: String,
+    pub data: Vec<PostActionsData>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PostActionsData {
+    pub entity_id: String,
+    pub domain: String,
+    pub action: String,
+    pub additional_data: AHashMap<String, DataPoint>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

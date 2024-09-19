@@ -4,13 +4,11 @@ use crate::common::{
     shape::{polygons_to_shadows, triangulate_polygon, ShadowsData},
     utils::{hash_vec2, Material},
 };
+use ahash::AHashMap;
 use geo_types::MultiPolygon;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-};
+use std::hash::{Hash, Hasher};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
@@ -94,14 +92,14 @@ nestify::nest! {
 
         pub power_draw_entity: String,
         pub misc_sensors: Vec<String>,
-        pub misc_data: HashMap<String, DataPoint>,
+        pub misc_data: AHashMap<String, DataPoint>,
 
         #[serde(skip)]
         pub hover_amount: f64,
         #[serde(skip)]
         pub rendered_data: Option<FurnRender>,
         #[serde(skip)]
-        pub hass_data: HashMap<String, String>,
+        pub hass_data: AHashMap<String, String>,
     }
 }
 
@@ -129,10 +127,10 @@ impl Furniture {
             rotation,
             power_draw_entity: String::new(),
             misc_sensors: Vec::new(),
-            misc_data: HashMap::new(),
+            misc_data: AHashMap::new(),
             hover_amount: 0.0,
             rendered_data: None,
-            hass_data: HashMap::new(),
+            hass_data: AHashMap::new(),
         }
     }
 

@@ -7,25 +7,26 @@ use crate::{
     },
     server::{home_assistant::post_actions_impl, routing::HOME},
 };
+use ahash::AHashMap;
 use anyhow::Result;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use nalgebra::DMatrix;
-use std::{collections::HashMap, sync::LazyLock, time::Duration};
+use std::{sync::LazyLock, time::Duration};
 use tokio::{sync::Mutex, time::Instant};
 
 static CALIBRATION_DURATION: f64 = 30.0;
 static OCCUPANCY_DURATION: f64 = 30.0;
 
 // Room name -> (Occupied, Targets, Last Occupied)
-type OccupancyData = HashMap<String, (bool, u8, Instant)>;
+type OccupancyData = AHashMap<String, (bool, u8, Instant)>;
 
 static LAST_OCCUPANCY: LazyLock<Mutex<OccupancyData>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+    LazyLock::new(|| Mutex::new(AHashMap::new()));
 type PresenceCalibration = (Instant, Vec<Vec2>);
 static PRESENCE_CALIBRATION: LazyLock<Mutex<Option<PresenceCalibration>>> =
     LazyLock::new(|| Mutex::new(None));
 
-pub async fn calculate(sensors: &HashMap<String, String>) -> Result<Vec<Vec2>> {
+pub async fn calculate(sensors: &AHashMap<String, String>) -> Result<Vec<Vec2>> {
     // Begin calibration if needed
     let mut calibration_lock = PRESENCE_CALIBRATION.lock().await;
     let presence_calibration = sensors
@@ -203,7 +204,7 @@ pub async fn calculate(sensors: &HashMap<String, String>) -> Result<Vec<Vec2>> {
                     domain: "input_boolean".to_string(),
                     action: "turn_off".to_string(),
                     entity_id: "input_boolean.presence_calibration".to_string(),
-                    additional_data: HashMap::new(),
+                    additional_data: AHashMap::new(),
                 },
                 PostActionsData {
                     domain: "input_text".to_string(),
@@ -227,7 +228,7 @@ pub async fn calculate(sensors: &HashMap<String, String>) -> Result<Vec<Vec2>> {
     drop(calibration);
 
     // Calculate zone occupancy
-    let mut zone_occupancy = HashMap::new();
+    let mut zone_occupancy = AHashMap::new();
     for room in &layout.rooms {
         let room_occupancy = presence_points
             .iter()
@@ -287,7 +288,7 @@ pub async fn calculate(sensors: &HashMap<String, String>) -> Result<Vec<Vec2>> {
                 domain: "input_boolean".to_string(),
                 action: if *occupied { "turn_on" } else { "turn_off" }.to_string(),
                 entity_id: format!("input_boolean.{zone_name}_occupancy"),
-                additional_data: HashMap::new(),
+                additional_data: AHashMap::new(),
             });
         }
 

@@ -3,9 +3,9 @@ use crate::common::{
     shape::Line,
     utils::hash_vec2,
 };
+use ahash::AHashMap;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use std::{
-    collections::HashMap,
     f64::consts::PI,
     hash::{DefaultHasher, Hash, Hasher},
 };
@@ -102,9 +102,9 @@ pub fn render_lighting(
     bounds_max: Vec2,
     rooms: &Vec<Room>,
     all_walls: &[Line],
-) -> (bool, HashMap<Uuid, LightsData>) {
+) -> (bool, AHashMap<Uuid, LightsData>) {
     let mut cur_changed = 0;
-    let mut new_light_data = HashMap::new();
+    let mut new_light_data = AHashMap::new();
     for room in rooms {
         for light in &room.lights {
             let mut hasher = DefaultHasher::new();

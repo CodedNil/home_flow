@@ -4,11 +4,12 @@ use crate::common::{
     shape::{Line, ShadowsData},
     utils::Material,
 };
+use ahash::AHashMap;
 use geo_types::MultiPolygon;
 use glam::DVec2 as Vec2;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::hash::Hash;
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
@@ -135,7 +136,7 @@ nestify::nest! {
             #[serde(skip)]
             pub rendered_data: Option<RoomRender>,
             #[serde(skip)]
-            pub hass_data: HashMap<String, String>,
+            pub hass_data: AHashMap<String, String>,
         }>,
 
         #[serde(skip)]

@@ -6,12 +6,10 @@ use crate::common::{
         Operation, Outline, Room, Sensor, Shape, TileOptions, Walls, Zone,
     },
 };
+use ahash::AHashMap;
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-};
+use std::hash::{Hash, Hasher};
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
@@ -105,7 +103,7 @@ impl Room {
             sensors_offset: Vec2::ZERO,
             outline: None,
             rendered_data: None,
-            hass_data: HashMap::new(),
+            hass_data: AHashMap::new(),
         }
     }
 
