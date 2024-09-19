@@ -37,14 +37,14 @@ pub fn combine_lighting(
     let mut lights_data = Vec::new();
     for room in rooms {
         for light in &room.lights {
-            if light.state == 0 {
+            if light.lerped_state < 0.01 {
                 continue;
             }
             if let Some((_, light_data)) = &light.light_data {
                 if light_data.len() == image_pixel_count {
                     lights_data.push((
-                        light.intensity * (f64::from(light.state) / 255.0),
-                        light.get_points(room),
+                        light.intensity * light.lerped_state,
+                        light.get_points(room.pos, room.size),
                         light_data,
                     ));
                 }
@@ -127,7 +127,7 @@ pub fn render_lighting(
                     rooms,
                     all_walls,
                     light,
-                    &light.get_points(room),
+                    &light.get_points(room.pos, room.size),
                 );
                 new_light_data.insert(light.id, (hash, light_data));
                 cur_changed += 1;

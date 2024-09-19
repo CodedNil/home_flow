@@ -18,7 +18,7 @@ use crate::{
     },
 };
 use egui::{
-    collapsing_header::CollapsingState, Align2, Button, Color32, Context, CursorIcon, DragValue,
+    collapsing_header::CollapsingState, Align2, Button, Color32, CursorIcon, DragValue,
     PointerButton, TextEdit, Ui, Window,
 };
 use glam::{dvec2 as vec2, DVec2 as Vec2};
@@ -103,7 +103,7 @@ enum AlterObject {
 }
 
 impl HomeFlow {
-    pub fn edit_mode_settings(&mut self, ctx: &Context, ui: &mut Ui) {
+    pub fn edit_mode_settings(&mut self, ui: &mut Ui) {
         if self.edit_mode.enabled {
             ui.checkbox(&mut self.edit_mode.resize_enabled, "Resizing");
             if ui.button("Materials Editor").clicked() {
@@ -152,7 +152,7 @@ impl HomeFlow {
                 .resizable(true)
                 .max_height(500.0)
                 .open(&mut self.edit_mode.preview_edits)
-                .show(ctx, |ui| {
+                .show(ui.ctx(), |ui| {
                     let initial_layout = ron::ser::to_string_pretty(
                         &self.layout_server,
                         ron::ser::PrettyConfig::default(),
@@ -192,12 +192,7 @@ impl HomeFlow {
         }
     }
 
-    pub fn run_edit_mode(
-        &mut self,
-        response: &egui::Response,
-        ctx: &Context,
-        ui: &Ui,
-    ) -> EditResponse {
+    pub fn run_edit_mode(&mut self, response: &egui::Response, ui: &Ui) -> EditResponse {
         if !self.edit_mode.enabled {
             return EditResponse {
                 used_dragged: false,
@@ -245,7 +240,9 @@ impl HomeFlow {
             }
         }
 
-        let mouse_down = ctx.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
+        let mouse_down = ui
+            .ctx()
+            .input(|i| i.pointer.button_down(egui::PointerButton::Primary));
         if let Some(hover_details) = &hover_details {
             // Start drag
             if mouse_down && self.edit_mode.drag_data.is_none() && can_drag {
@@ -280,7 +277,7 @@ impl HomeFlow {
                     .title_bar(false)
                     .resizable(false)
                     .interactable(false)
-                    .show(ctx, |ui| {
+                    .show(ui.ctx(), |ui| {
                         ui.label(format!("Pos: ({:.3}m, {:.3}m)", new_pos.x, new_pos.y));
                         if drag_data.start_size.length() > 0.0 {
                             ui.label(format!(
@@ -369,7 +366,7 @@ impl HomeFlow {
                 .resizable(false)
                 .collapsible(true)
                 .open(&mut window_open)
-                .show(ctx, |ui| self.edit_widgets(ui, selected_id));
+                .show(ui.ctx(), |ui| self.edit_widgets(ui, selected_id));
             if !window_open {
                 self.edit_mode.selected_id = None;
                 self.edit_mode.selected_type = None;

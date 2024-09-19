@@ -40,7 +40,7 @@ impl HomeFlow {
         let mut light_hovered = None;
         for room in &self.layout.rooms {
             for light in &room.lights {
-                let points = light.get_points(room);
+                let points = light.get_points(room.pos, room.size);
                 for point in points {
                     let mouse_dist = self.mouse_pos_world.distance(point) as f32;
                     if mouse_dist < (if self.is_mobile { 1.0 } else { 0.3 }) {
@@ -54,7 +54,7 @@ impl HomeFlow {
         // Toggle light with a right click
         if response.clicked_by(interaction_button) {
             if let Some(light_hovered) = &light_hovered {
-                let target_state = if light_hovered.state < 130 { 255 } else { 0 };
+                let target_state = if light_hovered.state < 127 { 255 } else { 0 };
                 let mut is_amended = false;
                 if let Some(light_drag) = &mut self.interaction_state.light_drag {
                     if light_drag.group_id == light_hovered.entity_id {
@@ -75,6 +75,31 @@ impl HomeFlow {
                         animated_state: f64::from(light_hovered.state) / 255.0,
                         animated_state_target: f64::from(target_state) / 255.0,
                     });
+                }
+
+                // Set lights to the new state
+                for room in &mut self.layout.rooms {
+                    for light in &mut room.lights {
+                        if light.entity_id == light_hovered.entity_id {
+                            light.state = target_state;
+                            light.last_manual = self.time;
+
+                            // Remove existing post packets for this light, and add a new one
+                            let entity_id = format!("light.{}", light.entity_id);
+                            self.post_queue.retain(|x| x.entity_id != entity_id);
+                            self.post_queue.push(PostActionsData {
+                                entity_id,
+                                domain: "light".to_string(),
+                                action: if target_state > 127 {
+                                    "turn_on"
+                                } else {
+                                    "turn_off"
+                                }
+                                .to_string(),
+                                additional_data: AHashMap::new(),
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -116,6 +141,42 @@ impl HomeFlow {
                     light_drag.animated_state = f64::from(new_percent);
                     light_drag.animated_state_target = f64::from(new_percent);
                 }
+
+                // Set lights to the new state
+                let target_state = (new_percent * 255.0).round() as u8;
+                for room in &mut self.layout.rooms {
+                    for light in &mut room.lights {
+                        if light.entity_id == light_drag.group_id {
+                            light.state = target_state;
+                            light.last_manual = self.time;
+
+                            // Remove existing post packets for this light, and add a new one
+                            let entity_id = format!("light.{}", light.entity_id);
+                            self.post_queue.retain(|x| x.entity_id != entity_id);
+                            let is_binary_light =
+                                matches!(light_drag.light_type, LightType::Binary);
+                            let mut additional_data = AHashMap::new();
+                            if !is_binary_light && target_state > 0 {
+                                additional_data.insert(
+                                    "brightness_pct".to_string(),
+                                    DataPoint::Int((f64::from(target_state) / 255.0 * 100.0) as u8),
+                                );
+                            }
+                            self.post_queue.push(PostActionsData {
+                                entity_id,
+                                domain: "light".to_string(),
+                                action: if target_state > if is_binary_light { 127 } else { 0 } {
+                                    "turn_on"
+                                } else {
+                                    "turn_off"
+                                }
+                                .to_string(),
+                                additional_data,
+                            });
+                        }
+                    }
+                }
+
                 light_drag.last_time = self.time;
             } else if (light_drag.animated_state - light_drag.animated_state_target).abs()
                 > f64::EPSILON
@@ -140,51 +201,6 @@ impl HomeFlow {
             let reverse_fade =
                 1.0 - ((self.time - light_drag.last_time) / POPUP_FADE_TIME).clamp(0.0, 1.0);
             let fade = start_fade.min(reverse_fade);
-
-            // Set lights to the new state
-            let new_state = (light_drag.animated_state * 255.0) as u8;
-            for room in &mut self.layout.rooms {
-                for light in &mut room.lights {
-                    if light.entity_id == light_drag.group_id {
-                        light.state = new_state;
-                        light.last_manual = self.time;
-
-                        // Remove existing post packets for this light, and add a new one
-                        let entity_id = format!("light.{}", light.entity_id);
-                        self.post_queue.retain(|x| x.entity_id != entity_id);
-                        if matches!(light_drag.light_type, LightType::Binary) {
-                            self.post_queue.push(PostActionsData {
-                                entity_id,
-                                domain: "light".to_string(),
-                                action: if new_state > 150 {
-                                    "turn_on"
-                                } else {
-                                    "turn_off"
-                                }
-                                .to_string(),
-                                additional_data: AHashMap::new(),
-                            });
-                        } else {
-                            let action =
-                                if new_state > 0 { "turn_on" } else { "turn_off" }.to_string();
-                            let mut additional_data = AHashMap::new();
-                            if new_state > 0 {
-                                additional_data.insert(
-                                    "brightness_pct".to_string(),
-                                    DataPoint::Int((f64::from(new_state) * 100.0 / 255.0) as u8),
-                                );
-                            }
-
-                            self.post_queue.push(PostActionsData {
-                                entity_id,
-                                domain: "light".to_string(),
-                                action,
-                                additional_data,
-                            });
-                        }
-                    }
-                }
-            }
 
             let pos_bottom = pos2(
                 light_drag.start_pos.x,

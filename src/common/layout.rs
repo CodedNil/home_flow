@@ -113,6 +113,8 @@ nestify::nest! {
                 #[serde(skip)]
                 pub state: u8,
                 #[serde(skip)]
+                pub lerped_state: f64,
+                #[serde(skip)]
                 pub light_data: Option<LightsData>,
                 #[serde(skip)]
                 pub last_manual: f64,

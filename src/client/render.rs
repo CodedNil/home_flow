@@ -21,27 +21,11 @@ const DOOR_COLOR: Color32 = Color32::from_rgb(200, 130, 40);
 const WINDOW_COLOR: Color32 = Color32::from_rgb(80, 140, 240);
 
 impl HomeFlow {
-    pub fn ready_texture(&mut self, material: Material, ctx: &egui::Context) {
-        self.textures
-            .entry(material.to_string())
-            .or_insert_with(|| {
-                let texture = image::load_from_memory(material.get_image())
-                    .unwrap()
-                    .into_rgba8();
-                let (width, height) = texture.dimensions();
-                ctx.load_texture(
-                    material.to_string(),
-                    ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &texture),
-                    TextureOptions::NEAREST_REPEAT,
-                )
-            });
-    }
-
     pub fn load_texture(&self, material: Material) -> TextureId {
         self.textures.get(&material.to_string()).unwrap().id()
     }
 
-    pub fn render_layout(&mut self, painter: &Painter, ctx: &egui::Context) {
+    pub fn render_layout(&mut self, painter: &Painter) {
         if self.layout.version.is_empty() {
             return;
         }
@@ -77,7 +61,23 @@ impl HomeFlow {
             }
         }
         for material in materials_to_ready {
-            self.ready_texture(material, ctx);
+            let ctx = painter.ctx();
+            self.textures
+                .entry(material.to_string())
+                .or_insert_with(|| {
+                    let texture = image::load_from_memory(material.get_image())
+                        .unwrap()
+                        .into_rgba8();
+                    let (width, height) = texture.dimensions();
+                    ctx.load_texture(
+                        material.to_string(),
+                        ColorImage::from_rgba_unmultiplied(
+                            [width as usize, height as usize],
+                            &texture,
+                        ),
+                        TextureOptions::NEAREST_REPEAT,
+                    )
+                });
         }
 
         // Render rooms
@@ -365,7 +365,7 @@ impl HomeFlow {
                     .map_or(true, |(hash, _)| *hash != light_data.hash);
 
                 if needs_reload {
-                    let texture = ctx.load_texture(
+                    let texture = painter.ctx().load_texture(
                         "lighting".to_string(),
                         ColorImage::from_rgba_premultiplied(
                             [
@@ -496,11 +496,16 @@ impl HomeFlow {
 
         // Render lights
         let mut lights_data = Vec::new();
-        for room in &self.layout.rooms {
-            for light in &room.lights {
-                let points = light.get_points(room);
+        for room in &mut self.layout.rooms {
+            for light in &mut room.lights {
+                let points = light.get_points(room.pos, room.size);
                 for point in points {
-                    lights_data.push((point, light.state));
+                    let statef = f64::from(light.state) / 255.0;
+                    if (light.lerped_state - statef).abs() > 0.01 {
+                        let diff = (statef - light.lerped_state).signum() * self.frame_time;
+                        light.lerped_state = (light.lerped_state + diff).clamp(0.0, 1.0);
+                    }
+                    lights_data.push((point, light.lerped_state));
                 }
             }
         }
@@ -542,16 +547,15 @@ impl HomeFlow {
             painter.add(EShape::mesh(out_mesh));
 
             // Calculate the color based on the light's state
-            let color = if light_state == 0 {
+            let color = if light_state == 0.0 {
                 Color32::from_rgb(100, 100, 100)
             } else {
                 let color_off = Color32::from_rgb(200, 200, 200);
                 let color_on = Color32::from_rgb(255, 255, 50);
-                let factor = f64::from(light_state) / 255.0;
                 Color32::from_rgb(
-                    color_off.r().lerp(color_on.r(), factor),
-                    color_off.g().lerp(color_on.g(), factor),
-                    color_off.b().lerp(color_on.b(), factor),
+                    color_off.r().lerp(color_on.r(), light_state),
+                    color_off.g().lerp(color_on.g(), light_state),
+                    color_off.b().lerp(color_on.b(), light_state),
                 )
             };
 

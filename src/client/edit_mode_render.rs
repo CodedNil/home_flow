@@ -6,16 +6,11 @@ use crate::{
         utils::RoundFactor,
     },
 };
-use egui::{Align2, Color32, Context, Painter, Shape as EShape, Stroke, Window};
+use egui::{Align2, Color32, Painter, Shape as EShape, Stroke, Window};
 use glam::{dvec2 as vec2, DVec2 as Vec2};
 
 impl HomeFlow {
-    pub fn paint_edit_mode(
-        &mut self,
-        painter: &Painter,
-        edit_response: &EditResponse,
-        ctx: &Context,
-    ) {
+    pub fn paint_edit_mode(&mut self, painter: &Painter, edit_response: &EditResponse) {
         if let Some(snap_line_x) = edit_response.snap_line_x {
             let length = 20.0;
             let start = self.world_to_screen(vec2(-length, snap_line_x));
@@ -48,7 +43,7 @@ impl HomeFlow {
             .pivot(Align2::CENTER_BOTTOM)
             .title_bar(false)
             .resizable(false)
-            .show(ctx, |ui| {
+            .show(painter.ctx(), |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label("Drag to move objects");
                     ui.label("Click to select room, escape to deselect");

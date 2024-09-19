@@ -561,7 +561,7 @@ impl eframe::App for HomeFlow {
                         snap_line_y: None,
                     }
                 } else {
-                    self.run_edit_mode(&response, ctx, ui)
+                    self.run_edit_mode(&response, ui)
                 };
                 if !edit_mode_response.used_dragged
                     && (self.interaction_state.light_drag.is_none()
@@ -570,10 +570,10 @@ impl eframe::App for HomeFlow {
                     self.handle_pan_zoom(&response, ui);
                 }
 
-                self.render_layout(&painter, ctx);
+                self.render_layout(&painter);
 
                 if !self.is_mobile && self.edit_mode.enabled {
-                    self.paint_edit_mode(&painter, &edit_mode_response, ctx);
+                    self.paint_edit_mode(&painter, &edit_mode_response);
                 } else {
                     self.interact_with_layout(&response, &painter);
                 }
@@ -597,7 +597,7 @@ impl eframe::App for HomeFlow {
                                 )
                                 .with_cross_justify(true),
                                 |ui| {
-                                    self.edit_mode_settings(ctx, ui);
+                                    self.edit_mode_settings(ui);
                                 },
                             );
                         });

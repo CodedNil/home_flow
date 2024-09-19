@@ -185,7 +185,8 @@ impl Room {
                 multi: None,
                 intensity,
                 radius,
-                state: 255,
+                state: 0,
+                lerped_state: 0.0,
                 light_data: None,
                 last_manual: 0.0,
             }
@@ -355,7 +356,8 @@ impl Light {
             multi: None,
             intensity: 2.0,
             radius: 0.2,
-            state: 255,
+            state: 0,
+            lerped_state: 0.0,
             light_data: None,
             last_manual: 0.0,
         }
@@ -375,18 +377,19 @@ impl Light {
             }),
             intensity: 2.0,
             radius: 0.2,
-            state: 255,
+            state: 0,
+            lerped_state: 0.0,
             light_data: None,
             last_manual: 0.0,
         }
     }
 
-    pub fn get_points(&self, room: &Room) -> Vec<Vec2> {
+    pub fn get_points(&self, room_pos: Vec2, room_size: Vec2) -> Vec<Vec2> {
         self.multi.as_ref().map_or_else(
-            || vec![room.pos + self.pos],
+            || vec![room_pos + self.pos],
             |multi| {
                 let mut lights_data = Vec::new();
-                let size = room.size - multi.room_padding;
+                let size = room_size - multi.room_padding;
                 let spacing = if multi.cols > 1 && multi.rows > 1 {
                     size / vec2(f64::from(multi.cols) - 1.0, f64::from(multi.rows) - 1.0)
                 } else if multi.cols > 1 {
@@ -402,7 +405,7 @@ impl Light {
                     for row in 0..multi.rows {
                         let y_pos = self.pos.y
                             + (f64::from(row) - f64::from(multi.rows - 1) * 0.5) * spacing.y;
-                        lights_data.push(room.pos + vec2(x_pos, y_pos));
+                        lights_data.push(room_pos + vec2(x_pos, y_pos));
                     }
                 }
                 lights_data
@@ -421,6 +424,7 @@ impl Hash for Light {
         self.intensity.to_bits().hash(state);
         self.radius.to_bits().hash(state);
         self.state.hash(state);
+        self.lerped_state.to_bits().hash(state);
     }
 }
 impl MultiLight {
