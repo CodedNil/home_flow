@@ -240,7 +240,9 @@ async fn process_state(data: &Value) -> Result<()> {
                         ),
                     );
                 }
-                "sensor" if target_sensors.contains(&entity_id.to_string()) => {
+                "sensor" | "binary_sensor" | "input_boolean"
+                    if target_sensors.contains(&entity_id.to_string()) =>
+                {
                     ha_state.sensors.insert(
                         entity_id.to_string(),
                         new_state["state"].as_str().unwrap_or("unknown").to_string(),
