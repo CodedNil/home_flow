@@ -12,7 +12,7 @@ use crate::{
         furniture::{ChairType, Furniture, FurnitureType, TableType},
         layout::{
             Action, GlobalMaterial, Home, Light, MultiLight, Opening, OpeningType, Operation,
-            Outline, Room, Sensor, TileOptions, Zone,
+            Outline, Room, Sensor, TileOptions, Walls, Zone,
         },
         utils::Material,
     },
@@ -544,15 +544,22 @@ fn room_edit_widgets(
 
             // Wall selection
             for index in 0..4 {
-                let (is_wall, wall_side) = match index {
-                    0 => (&mut room.walls.left, "Left"),
-                    1 => (&mut room.walls.top, "Top"),
-                    2 => (&mut room.walls.right, "Right"),
-                    _ => (&mut room.walls.bottom, "Bottom"),
+                let (mut is_wall, wall_side, flag) = match index {
+                    0 => (room.walls.contains(Walls::LEFT), "Left", Walls::LEFT),
+                    1 => (room.walls.contains(Walls::TOP), "Top", Walls::TOP),
+                    2 => (room.walls.contains(Walls::RIGHT), "Right", Walls::RIGHT),
+                    _ => (room.walls.contains(Walls::BOTTOM), "Bottom", Walls::BOTTOM),
                 };
+
                 ui.horizontal(|ui| {
                     labelled_widget(ui, &format!("{wall_side} Wall"), |ui| {
-                        ui.checkbox(is_wall, "");
+                        if ui.checkbox(&mut is_wall, "").changed() {
+                            if is_wall {
+                                room.walls.insert(flag);
+                            } else {
+                                room.walls.remove(flag);
+                            }
+                        }
                     });
                 });
             }

@@ -1,5 +1,5 @@
 use crate::common::{
-    layout::{Light, LightData, LightsData, Room, Walls},
+    layout::{Light, LightData, LightsData, Room},
     shape::Line,
     utils::hash_vec2,
 };
@@ -163,14 +163,14 @@ fn render_light(
             if !rooms_to_check.iter().any(|r| r.id == room.id) {
                 rooms_to_check.push(room);
             }
-            if room.walls != Walls::WALL {
+            if !room.walls.is_all() {
                 is_light_contained = false;
             }
         }
     }
     if !is_light_contained {
         for room in rooms {
-            if room.walls != Walls::WALL && !rooms_to_check.iter().any(|r| r.id == room.id) {
+            if !room.walls.is_all() && !rooms_to_check.iter().any(|r| r.id == room.id) {
                 rooms_to_check.push(room);
             }
         }

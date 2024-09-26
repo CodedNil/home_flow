@@ -45,7 +45,7 @@ impl Home {
             if room.rendered_data.is_none() || room.rendered_data.as_ref().unwrap().hash != hash {
                 let polygons = room.polygons();
                 let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
-                let wall_polys = if room.walls == Walls::NONE && !any_add {
+                let wall_polys = if room.walls.is_empty() && !any_add {
                     EMPTY_MULTI_POLYGON
                 } else {
                     room.wall_polygons(&polygons)
@@ -455,7 +455,7 @@ impl Room {
             .operations
             .iter()
             .any(|operation| operation.action == Action::AddWall);
-        if self.walls == Walls::WALL && !any_add {
+        if self.walls.is_all() && !any_add {
             return new_polys;
         }
 
@@ -465,10 +465,10 @@ impl Room {
         let mut subtract_shape = EMPTY_MULTI_POLYGON;
         for index in 0..4 {
             if !match index {
-                0 => self.walls.left,
-                1 => self.walls.top,
-                2 => self.walls.right,
-                _ => self.walls.bottom,
+                0 => self.walls.contains(Walls::LEFT),
+                1 => self.walls.contains(Walls::TOP),
+                2 => self.walls.contains(Walls::RIGHT),
+                _ => self.walls.contains(Walls::BOTTOM),
             } {
                 let pos_neg = vec2(1.0, -1.0);
                 let neg_pos = vec2(-1.0, 1.0);
@@ -488,8 +488,14 @@ impl Room {
             }
         }
         // Add corners
-        let directions = [(self.walls.left, -right), (self.walls.right, right)];
-        let verticals = [(self.walls.top, up), (self.walls.bottom, -up)];
+        let directions = [
+            (self.walls.contains(Walls::LEFT), -right),
+            (self.walls.contains(Walls::RIGHT), right),
+        ];
+        let verticals = [
+            (self.walls.contains(Walls::TOP), up),
+            (self.walls.contains(Walls::BOTTOM), -up),
+        ];
         for (wall_horizontal, horizontal_multiplier) in &directions {
             for (wall_vertical, vertical_multiplier) in &verticals {
                 if !wall_horizontal && !wall_vertical {

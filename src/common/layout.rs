@@ -69,14 +69,8 @@ nestify::nest! {
                 pub rotation: i32,
             }>,
 
-            #>[derive(Copy, Hash, PartialEq, Eq)]
-            pub walls: pub struct Walls {
-                pub left: bool,
-                pub top: bool,
-                pub right: bool,
-                pub bottom: bool,
-            },
 
+            pub walls: Walls,
             pub openings: Vec<pub struct Opening {
                 pub id: Uuid,
                 #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash)]
@@ -145,6 +139,16 @@ nestify::nest! {
         pub rendered_data: Option<HomeRender>,
         #[serde(skip)]
         pub light_data: Option<LightData>,
+    }
+}
+
+bitflags::bitflags! {
+    #[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
+    pub struct Walls: u8 {
+        const LEFT   = 0b0001;
+        const TOP    = 0b0010;
+        const RIGHT  = 0b0100;
+        const BOTTOM = 0b1000;
     }
 }
 

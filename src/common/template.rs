@@ -6,7 +6,7 @@ use crate::common::{
     },
     layout::{
         Action, DataPoint, GlobalMaterial, Home, LightType, Operation, Outline, Room, Sensor,
-        Shape, Zone, LAYOUT_VERSION,
+        Shape, Walls, Zone, LAYOUT_VERSION,
     },
     utils::Material,
 };
@@ -37,10 +37,8 @@ pub fn default() -> Home {
             .tiles(0.4, 0.02, Color::from_rgba(60, 60, 60, 200)),
         ],
         rooms: vec![
-            Room::new("Hall", vec2(1.35, 0.5), vec2(4.5, 1.10), "Carpet") // + 0.85
-                .no_wall_left()
-                .no_wall_right()
-                .no_wall_bottom()
+            Room::new("Hall", vec2(1.35, 0.5), vec2(4.5, 1.10), "Carpet")
+                .set_walls(Walls::TOP)
                 .add_material(vec2(-1.7, 1.55), vec2(1.1, 2.0), "Wood")
                 .door_flipped(vec2(-1.7, 2.55), 0)
                 .lights_grid("Hall Downlights", 3, 1, vec2(1.15, 1.75), vec2(0.0, 0.0))
@@ -73,8 +71,7 @@ pub fn default() -> Home {
                     .add_sensors(&["binary_sensor.hall_parasoll_door_sensor_opening"]),
                 ),
             Room::new("Lounge", vec2(-2.75, -1.4), vec2(6.1, 2.7), "Carpet")
-                .no_wall_top()
-                .no_wall_right()
+                .set_walls(Walls::LEFT | Walls::BOTTOM)
                 .operation(Operation::new(
                     Action::SubtractWall,
                     Shape::Rectangle,
@@ -275,8 +272,7 @@ pub fn default() -> Home {
                     ),
                 ]),
             Room::new("Kitchen", vec2(-4.2, 1.5), vec2(3.2, 3.1), "MarbleTiles")
-                .no_wall_right()
-                .no_wall_bottom()
+                .set_walls(Walls::LEFT | Walls::TOP)
                 .add(vec2(1.65, 0.45), vec2(0.3, 2.2))
                 .subtract(vec2(1.55, -1.15), vec2(0.5, 1.0))
                 .window_width(vec2(0.3, 1.55), 0, 1.4)

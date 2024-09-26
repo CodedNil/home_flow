@@ -93,7 +93,7 @@ impl Room {
             material: material.to_owned(),
             pos,
             size,
-            walls: Walls::WALL,
+            walls: Walls::all(),
             operations: Vec::new(),
             zones: Vec::new(),
             openings: Vec::new(),
@@ -116,23 +116,8 @@ impl Room {
         self
     }
 
-    pub const fn no_wall_left(mut self) -> Self {
-        self.walls.left = false;
-        self
-    }
-
-    pub const fn no_wall_top(mut self) -> Self {
-        self.walls.top = false;
-        self
-    }
-
-    pub const fn no_wall_right(mut self) -> Self {
-        self.walls.right = false;
-        self
-    }
-
-    pub const fn no_wall_bottom(mut self) -> Self {
-        self.walls.bottom = false;
+    pub const fn set_walls(mut self, walls: Walls) -> Self {
+        self.walls = walls;
         self
     }
 
@@ -552,22 +537,6 @@ impl Hash for TileOptions {
         self.grout_width.to_bits().hash(state);
         self.grout_color.hash(state);
     }
-}
-
-impl Walls {
-    pub const NONE: Self = Self {
-        left: false,
-        top: false,
-        right: false,
-        bottom: false,
-    };
-
-    pub const WALL: Self = Self {
-        left: true,
-        top: true,
-        right: true,
-        bottom: true,
-    };
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Display, EnumIter, Default, Hash)]
