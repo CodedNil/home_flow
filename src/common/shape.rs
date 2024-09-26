@@ -272,11 +272,6 @@ impl Room {
         (min, max)
     }
 
-    pub fn bounds_with_walls(&self) -> (Vec2, Vec2) {
-        let (min, max) = self.bounds();
-        (min - Vec2::splat(WALL_WIDTH), max + Vec2::splat(WALL_WIDTH))
-    }
-
     pub fn contains(&self, point: Vec2) -> bool {
         let mut inside = Shape::Rectangle.contains(point, self.pos, self.size, 0);
         for operation in &self.operations {
@@ -298,12 +293,13 @@ impl Room {
     pub fn polygons(&self) -> MultiPolygon {
         let mut polygons = Shape::Rectangle.polygons(self.pos, self.size, 0);
         for operation in &self.operations {
+            let polys = operation.polygons(self.pos);
             match operation.action {
                 Action::Add => {
-                    polygons = union_polygons(&polygons, &operation.polygons(self.pos));
+                    polygons = union_polygons(&polygons, &polys);
                 }
                 Action::Subtract => {
-                    polygons = difference_polygons(&polygons, &operation.polygons(self.pos));
+                    polygons = difference_polygons(&polygons, &polys);
                 }
                 _ => {}
             }
@@ -412,52 +408,39 @@ impl Room {
     }
 
     pub fn wall_polygons(&self, polygons: &MultiPolygon) -> MultiPolygon {
-        let bounds = self.bounds_with_walls();
-        let center = (bounds.0 + bounds.1) / 2.0;
-        let size = bounds.1 - bounds.0;
-
-        // Filter out inner polygons
-        let mut new_polygons = MultiPolygon(vec![]);
-        for polygon in polygons {
-            new_polygons = union_polygons(
-                &new_polygons,
-                &MultiPolygon::new(vec![Polygon::new(polygon.exterior().clone(), vec![])]),
-            );
-        }
-
         let width_half = WALL_WIDTH / 2.0;
 
-        let mut polygon_outside = EMPTY_MULTI_POLYGON;
-        let mut polygon_inside = EMPTY_MULTI_POLYGON;
-        for polygon in &new_polygons.0 {
-            polygon_outside = union_polygons(
-                &polygon_outside,
-                &offset_polygon(polygon, width_half, JoinType::Miter),
-            );
-            polygon_inside = union_polygons(
-                &polygon_inside,
-                &offset_polygon(polygon, -width_half, JoinType::Miter),
-            );
-        }
+        // Extract exteriors to ignore inner polygons (holes)
+        let new_polygons = polygons
+            .iter()
+            .map(|polygon| Polygon::new(polygon.exterior().clone(), vec![]))
+            .collect::<Vec<_>>();
 
-        let mut new_polys = difference_polygons(&polygon_outside, &polygon_inside);
+        // Offset polygons to create wall outlines
+        let polygons_outside = offset_polygons(&new_polygons, width_half);
+        let polygons_inside = offset_polygons(&new_polygons, -width_half);
+
+        let mut wall_polygons = difference_polygons(&polygons_outside, &polygons_inside);
 
         // Subtract operations that are SubtractWall
         for operation in &self.operations {
             if operation.action == Action::SubtractWall {
-                let operation_polygon = operation.polygon(self.pos);
-                new_polys = difference_polygons(&new_polys, &operation_polygon.into());
+                wall_polygons =
+                    difference_polygons(&wall_polygons, &operation.polygon(self.pos).into());
             }
         }
 
         // If walls aren't on all sides, trim as needed
-        let any_add = self
-            .operations
-            .iter()
-            .any(|operation| operation.action == Action::AddWall);
-        if self.walls.is_all() && !any_add {
-            return new_polys;
+        if self.walls.is_all() && !self.operations.iter().any(|o| o.action == Action::AddWall) {
+            return wall_polygons;
         }
+
+        let bounds = {
+            let (min, max) = self.bounds();
+            (min - Vec2::splat(WALL_WIDTH), max + Vec2::splat(WALL_WIDTH))
+        };
+        let center = (bounds.0 + bounds.1) / 2.0;
+        let size = bounds.1 - bounds.0;
 
         let up = size.y * 0.5 - width_half * 3.0;
         let right = size.x * 0.5 - width_half * 3.0;
@@ -488,24 +471,18 @@ impl Room {
             }
         }
         // Add corners
-        let directions = [
-            (self.walls.contains(Walls::LEFT), -right),
-            (self.walls.contains(Walls::RIGHT), right),
-        ];
-        let verticals = [
-            (self.walls.contains(Walls::TOP), up),
-            (self.walls.contains(Walls::BOTTOM), -up),
-        ];
-        for (wall_horizontal, horizontal_multiplier) in &directions {
-            for (wall_vertical, vertical_multiplier) in &verticals {
-                if !wall_horizontal && !wall_vertical {
+        let directions = [(-right, Walls::LEFT), (right, Walls::RIGHT)];
+        let verticals = [(up, Walls::TOP), (-up, Walls::BOTTOM)];
+        for (h_mult, h_wall) in &directions {
+            for (v_mult, v_wall) in &verticals {
+                if !self.walls.contains(*h_wall) && !self.walls.contains(*v_wall) {
                     subtract_shape = union_polygons(
                         &subtract_shape,
                         &create_polygons(&[
-                            center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 0.9),
-                            center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 0.9),
-                            center + vec2(*horizontal_multiplier * 4.0, *vertical_multiplier * 4.0),
-                            center + vec2(*horizontal_multiplier * 0.9, *vertical_multiplier * 4.0),
+                            center + vec2(*h_mult * 0.9, *v_mult * 0.9),
+                            center + vec2(*h_mult * 4.0, *v_mult * 0.9),
+                            center + vec2(*h_mult * 4.0, *v_mult * 4.0),
+                            center + vec2(*h_mult * 0.9, *v_mult * 4.0),
                         ]),
                     );
                 }
@@ -520,7 +497,7 @@ impl Room {
             }
         }
 
-        difference_polygons(&new_polys, &subtract_shape)
+        difference_polygons(&wall_polygons, &subtract_shape)
     }
 }
 
@@ -627,6 +604,12 @@ fn offset_polygon(polygon: &Polygon, offset_size: f64, join_type: JoinType) -> M
             CLIPPER_PRECISION,
         )
     }
+}
+fn offset_polygons(polygons: &[Polygon], distance: f64) -> MultiPolygon {
+    polygons
+        .iter()
+        .map(|polygon| offset_polygon(polygon, distance, JoinType::Miter))
+        .fold(EMPTY_MULTI_POLYGON, |acc, poly| union_polygons(&acc, &poly))
 }
 
 fn union_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
