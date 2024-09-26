@@ -260,34 +260,28 @@ impl Room {
     }
 
     pub fn bounds(&self) -> (Vec2, Vec2) {
-        let (mut min, mut max) = self.self_bounds();
-        for operation in &self.operations {
-            if operation.action == Action::Add {
-                for corner in operation.vertices(self.pos) {
-                    min = min.min(corner);
-                    max = max.max(corner);
-                }
-            }
-        }
-        (min, max)
+        self.operations
+            .iter()
+            .filter(|op| op.action == Action::Add)
+            .flat_map(|op| op.vertices(self.pos))
+            .fold(self.self_bounds(), |(min, max), corner| {
+                (min.min(corner), max.max(corner))
+            })
     }
 
     pub fn contains(&self, point: Vec2) -> bool {
-        let mut inside = Shape::Rectangle.contains(point, self.pos, self.size, 0);
-        for operation in &self.operations {
+        // Iterate over operations in reverse to give precedence to the last operation
+        for operation in self.operations.iter().rev() {
             if operation.contains(self.pos, point) {
                 match operation.action {
-                    Action::Add => {
-                        inside = true;
-                    }
-                    Action::Subtract => {
-                        inside = false;
-                    }
-                    _ => {}
+                    Action::Add => return true,
+                    Action::Subtract => return false,
+                    _ => continue, // Ignore other actions
                 }
             }
         }
-        inside
+        // If no operations contain the point, check the base rectangle
+        Shape::Rectangle.contains(point, self.pos, self.size, 0)
     }
 
     pub fn polygons(&self) -> MultiPolygon {
@@ -605,6 +599,7 @@ fn offset_polygon(polygon: &Polygon, offset_size: f64, join_type: JoinType) -> M
         )
     }
 }
+
 fn offset_polygons(polygons: &[Polygon], distance: f64) -> MultiPolygon {
     polygons
         .iter()

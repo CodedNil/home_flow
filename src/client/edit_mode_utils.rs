@@ -409,7 +409,7 @@ pub fn combo_box_for_enum<T>(
 ) where
     T: ToString + PartialEq + Copy + IntoEnumIterator,
 {
-    ComboBox::from_id_source(id)
+    ComboBox::from_id_salt(id)
         .selected_text(if label.is_empty() {
             selected.to_string()
         } else {
@@ -428,7 +428,7 @@ pub fn combo_box_for_materials(
     materials: &[GlobalMaterial],
     selected: &mut String,
 ) {
-    ComboBox::from_id_source(format!("Materials {id}"))
+    ComboBox::from_id_salt(format!("Materials {id}"))
         .selected_text(selected.clone())
         .show_ui(ui, |ui| {
             for material in materials {

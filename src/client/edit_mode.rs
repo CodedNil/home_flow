@@ -919,7 +919,7 @@ fn room_edit_widgets(
                         .min_size(egui::vec2(100.0, 0.0))
                         .show(ui);
 
-                    egui::ComboBox::from_id_source(format!("Furniture {}", furniture.id))
+                    egui::ComboBox::from_id_salt(format!("Furniture {}", furniture.id))
                         .selected_text(furniture.furniture_type.to_string())
                         .show_ui(ui, |ui| {
                             for variant in <FurnitureType as strum::IntoEnumIterator>::iter() {
