@@ -69,14 +69,26 @@ async fn main() {
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
+    use eframe::wasm_bindgen::JsCast as _;
     eframe::WebLogger::init(log::LevelFilter::Info).ok(); // Redirect `log` message to `console.log`
 
     let web_options = eframe::WebOptions::default();
 
     wasm_bindgen_futures::spawn_local(async {
+        let document = web_sys::window()
+            .expect("No window")
+            .document()
+            .expect("No document");
+
+        let canvas = document
+            .get_element_by_id("homeflow_canvas")
+            .expect("Failed to find homeflow_canvas")
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .expect("homeflow_canvas was not a HtmlCanvasElement");
+
         eframe::WebRunner::new()
             .start(
-                "homeflow_canvas",
+                canvas,
                 web_options,
                 Box::new(|cc| Ok(Box::new(client::HomeFlow::new(cc)))),
             )

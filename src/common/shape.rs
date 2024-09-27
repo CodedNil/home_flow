@@ -18,8 +18,6 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub const WALL_WIDTH: f64 = 0.1;
 
-pub const CLIPPER_PRECISION: f64 = 1e4; // How many decimal places to use for clipper
-
 impl Home {
     pub fn render(&mut self, edit_mode: bool) {
         let mut hasher = DefaultHasher::new();
@@ -30,11 +28,6 @@ impl Home {
             if rendered_data.hash == home_hash {
                 return;
             }
-        }
-
-        #[cfg(target_arch = "wasm32")]
-        if !crate::client::clipper_wasm::is_clipper_loaded() {
-            return;
         }
 
         // Process all rooms
@@ -97,7 +90,7 @@ impl Home {
         let mut wall_lines = Vec::new();
         for multipoly in &wall_polygons {
             for poly in multipoly {
-                let walls_offset = offset_polygon(poly, -0.025, JoinType::Miter);
+                let walls_offset = offset_polygon(poly, -0.025);
                 for line in walls_offset.lines_iter() {
                     wall_lines.push((coord_to_vec2(line.start), coord_to_vec2(line.end)));
                 }
@@ -572,43 +565,23 @@ pub struct ShadowTriangles {
     pub inners: Vec<bool>,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum JoinType {
-    Miter,
-    Round,
-}
-
-fn offset_polygon(polygon: &Polygon, offset_size: f64, join_type: JoinType) -> MultiPolygon {
-    #[cfg(target_arch = "wasm32")]
-    {
-        let join_round = join_type == JoinType::Round;
-        crate::client::clipper_wasm::offset_polygon_wasm(polygon, offset_size, join_round).unwrap()
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let join_type = match join_type {
-            JoinType::Miter => geo_clipper::JoinType::Miter(0.0),
-            JoinType::Round => geo_clipper::JoinType::Round(0.0),
-        };
-        geo_clipper::Clipper::offset(
-            polygon,
-            offset_size,
-            join_type,
-            geo_clipper::EndType::ClosedPolygon,
-            CLIPPER_PRECISION,
-        )
-    }
+fn offset_polygon(polygon: &Polygon, offset_size: f64) -> MultiPolygon {
+    geo_buffer::buffer_polygon(polygon, offset_size)
 }
 
 fn offset_polygons(polygons: &[Polygon], distance: f64) -> MultiPolygon {
     polygons
         .iter()
-        .map(|polygon| offset_polygon(polygon, distance, JoinType::Miter))
+        .map(|polygon| offset_polygon(polygon, distance))
         .fold(EMPTY_MULTI_POLYGON, |acc, poly| union_polygons(&acc, &poly))
 }
 
 fn union_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
     geo::BooleanOps::union(poly_a, poly_b)
+}
+
+fn union_polygons_accuracy(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
+    geo::SpadeBoolops::union(poly_a, poly_b).unwrap()
 }
 
 fn difference_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
@@ -630,11 +603,11 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>, height: f64) -> Shadows
     let mut interior_points = Vec::new();
     for multipoly in polygons {
         for poly in multipoly {
-            let exterior = offset_polygon(poly, offset_size, JoinType::Round);
-            let interior = offset_polygon(poly, -0.025, JoinType::Miter);
+            let exterior = offset_polygon(poly, offset_size);
+            shadow_exteriors = union_polygons_accuracy(&shadow_exteriors, &exterior);
 
-            shadow_exteriors = union_polygons(&shadow_exteriors, &exterior);
-            shadow_interiors = union_polygons(&shadow_interiors, &interior);
+            let interior = offset_polygon(poly, -0.025);
+            shadow_interiors = union_polygons_accuracy(&shadow_interiors, &interior);
 
             interior_points.extend(interior.exterior_coords_iter().map(coord_to_vec2));
         }

@@ -442,15 +442,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "clipper-sys"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc6bccb550d47c390af7a601bee66a74fd3a01163feb85442021096f5533d2e5"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "colored"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -655,21 +646,12 @@ dependencies = [
 
 [[package]]
 name = "ecolor"
-version = "0.28.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e6b451ff1143f6de0f33fc7f1b68fecfd2c7de06e104de96c4514de3f5396f8"
-dependencies = [
- "emath 0.28.1",
-]
-
-[[package]]
-name = "ecolor"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5629649a8ae57c73f175f4a96419905a8102cfbfcbce96ea25a826bbf468e990"
 dependencies = [
  "bytemuck",
- "emath 0.29.0",
+ "emath",
  "serde",
 ]
 
@@ -682,7 +664,7 @@ dependencies = [
  "ahash",
  "bytemuck",
  "document-features",
- "egui 0.29.0",
+ "egui",
  "egui-winit",
  "egui_glow",
  "glow",
@@ -712,26 +694,14 @@ dependencies = [
 
 [[package]]
 name = "egui"
-version = "0.28.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20c97e70a2768de630f161bb5392cbd3874fcf72868f14df0e002e82e06cb798"
-dependencies = [
- "ahash",
- "emath 0.28.1",
- "epaint 0.28.1",
- "nohash-hasher",
-]
-
-[[package]]
-name = "egui"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26bab3b3572566257a497b5f87d2cccaf7f7f122d4b8b620cba0493becc7955e"
 dependencies = [
  "accesskit",
  "ahash",
- "emath 0.29.0",
- "epaint 0.29.0",
+ "emath",
+ "epaint",
  "log",
  "nohash-hasher",
  "ron",
@@ -741,10 +711,9 @@ dependencies = [
 [[package]]
 name = "egui-notify"
 version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0c6c49d9c02771e28f3b40289c16b4473308807b1ed09a878713d7f11e3dcad"
+source = "git+https://github.com/ItsEthra/egui-notify#2fbf8da60f8775499beccbe59ed0df47fee47079"
 dependencies = [
- "egui 0.28.1",
+ "egui",
 ]
 
 [[package]]
@@ -755,7 +724,7 @@ checksum = "642c749bf221b5a3ecae3144c98b837729d87b9fde6c39a6ad00f07b71dbee94"
 dependencies = [
  "ahash",
  "arboard",
- "egui 0.29.0",
+ "egui",
  "log",
  "raw-window-handle",
  "serde",
@@ -773,7 +742,7 @@ checksum = "ea182206896187f7a2fcc207a1573785fc31330cb245f6cebcf663ea933f8d20"
 dependencies = [
  "ahash",
  "bytemuck",
- "egui 0.29.0",
+ "egui",
  "glow",
  "log",
  "memoffset",
@@ -803,12 +772,6 @@ checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
 
 [[package]]
 name = "emath"
-version = "0.28.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a6a21708405ea88f63d8309650b4d77431f4bc28fb9d8e6f77d3963b51249e6"
-
-[[package]]
-name = "emath"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af86c4efae11da2a3dcbb4afebd0e9ed1916345e8d187b4051d443c8bd79af93"
@@ -830,20 +793,6 @@ dependencies = [
 
 [[package]]
 name = "epaint"
-version = "0.28.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f0dcc0a0771e7500e94cd1cb797bd13c9f23b9409bdc3c824e2cbc562b7fa01"
-dependencies = [
- "ab_glyph",
- "ahash",
- "ecolor 0.28.1",
- "emath 0.28.1",
- "nohash-hasher",
- "parking_lot",
-]
-
-[[package]]
-name = "epaint"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "445e11ec86a4d85e1350578ba20b2d89977ed937f3faab32e1c3ec81d20c1842"
@@ -851,8 +800,8 @@ dependencies = [
  "ab_glyph",
  "ahash",
  "bytemuck",
- "ecolor 0.29.0",
- "emath 0.29.0",
+ "ecolor",
+ "emath",
  "epaint_default_fonts",
  "log",
  "nohash-hasher",
@@ -1036,12 +985,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "geo-clipper"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c080ca0fbf8beeaad1c3bb420d00db56fa109f92cb8e985a0ff53fb5c2820bab"
+name = "geo"
+version = "0.28.0"
+source = "git+https://github.com/RobWalt/geo.git?branch=feat/spade-boolops#a50681e1784f13f028d35cc93321512805af53a4"
 dependencies = [
- "clipper-sys",
+ "earcutr",
+ "float_next_after",
+ "geo-types",
+ "geographiclib-rs",
+ "log",
+ "num-traits",
+ "robust",
+ "rstar",
+ "spade",
+]
+
+[[package]]
+name = "geo-buffer"
+version = "0.2.0"
+source = "git+https://github.com/CodedNil/geo-buffer#72263392099b1e4f5601c85752550843c078cbb9"
+dependencies = [
+ "geo 0.28.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "geo-types",
 ]
 
@@ -1263,17 +1227,16 @@ dependencies = [
  "diff",
  "dotenvy",
  "eframe",
- "egui 0.29.0",
+ "egui",
  "egui-notify",
  "ehttp",
  "futures-util",
- "geo",
- "geo-clipper",
+ "geo 0.28.0 (git+https://github.com/RobWalt/geo.git?branch=feat/spade-boolops)",
+ "geo-buffer",
  "geo-types",
  "glam",
  "image",
  "indexmap",
- "js-sys",
  "log",
  "nalgebra",
  "nestify",
@@ -1289,8 +1252,8 @@ dependencies = [
  "tokio-tungstenite",
  "tower-http",
  "uuid",
- "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
