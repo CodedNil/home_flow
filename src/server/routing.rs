@@ -36,6 +36,16 @@ pub async fn start_server() {
             log::error!("Home assistant websocket error: {e:?}");
         }
     }
+    loop {
+        match super::home_assistant::run_server().await {
+            Ok(()) => {}
+            Err(e) => {
+                log::error!("Home assistant websocket error: {e:?}");
+            }
+        }
+        log::info!("Attempting to reconnect websocket");
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    }
 }
 
 async fn load_layout_server(body: Bytes) -> impl IntoResponse {

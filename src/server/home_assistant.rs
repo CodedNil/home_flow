@@ -124,6 +124,10 @@ pub async fn run_server() -> Result<()> {
             } => {
                 if let Some(message) = message {
                     handle_ws_message(message).await?;
+                } else {
+                    // Handle disconnection
+                    log::error!("WebSocket disconnected");
+                    return Ok(());
                 }
             }
 
