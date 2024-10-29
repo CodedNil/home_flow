@@ -496,7 +496,7 @@ impl eframe::App for HomeFlow {
                                                     toasts_store
                                                         .lock()
                                                         .info(message)
-                                                        .set_duration(Some(Duration::from_secs(3)));
+                                                        .duration(Some(Duration::from_secs(3)));
 
                                                     self.stored.auth_token = token.to_string();
                                                 } else {
@@ -509,7 +509,7 @@ impl eframe::App for HomeFlow {
                                                 toasts_store
                                                     .lock()
                                                     .error(e.to_string())
-                                                    .set_duration(Some(Duration::from_secs(3)));
+                                                    .duration(Some(Duration::from_secs(3)));
                                             }
                                         }
                                         network_data_guard.login = LoginState::None;

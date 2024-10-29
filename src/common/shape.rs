@@ -580,10 +580,6 @@ fn union_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon 
     geo::BooleanOps::union(poly_a, poly_b)
 }
 
-fn union_polygons_accuracy(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
-    geo::SpadeBoolops::union(poly_a, poly_b).unwrap()
-}
-
 fn difference_polygons(poly_a: &MultiPolygon, poly_b: &MultiPolygon) -> MultiPolygon {
     geo::BooleanOps::difference(poly_a, poly_b)
 }
@@ -604,10 +600,10 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>, height: f64) -> Shadows
     for multipoly in polygons {
         for poly in multipoly {
             let exterior = offset_polygon(poly, offset_size);
-            shadow_exteriors = union_polygons_accuracy(&shadow_exteriors, &exterior);
+            shadow_exteriors = union_polygons(&shadow_exteriors, &exterior);
 
             let interior = offset_polygon(poly, -0.025);
-            shadow_interiors = union_polygons_accuracy(&shadow_interiors, &interior);
+            shadow_interiors = union_polygons(&shadow_interiors, &interior);
 
             interior_points.extend(interior.exterior_coords_iter().map(coord_to_vec2));
         }
