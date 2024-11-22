@@ -1,5 +1,6 @@
 use crate::common::{
     color::Color,
+    geo_buffer,
     layout::{
         Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
         Triangles, Walls, Zone,

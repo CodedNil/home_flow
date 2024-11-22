@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod color;
 pub mod furniture;
+pub mod geo_buffer;
 pub mod layout;
 pub mod shape;
 pub mod template;
