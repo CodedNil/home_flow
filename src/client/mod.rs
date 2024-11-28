@@ -115,7 +115,7 @@ impl Default for StoredData {
 }
 
 impl HomeFlow {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext) -> Self {
         let stored = cc.storage.map_or_else(StoredData::default, |storage| {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         });

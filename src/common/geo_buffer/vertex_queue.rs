@@ -9,7 +9,7 @@ pub enum IndexType {
 }
 
 impl fmt::Display for IndexType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::PointerIndex(x) => write!(f, "Pointer index: {x}"),
             Self::RealIndex(x) => write!(f, "Real index: {x}"),
@@ -207,7 +207,7 @@ impl VertexQueue {
 }
 
 impl fmt::Display for VertexQueue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[").unwrap();
         for (e, ee, eee) in self.iter() {
             let ee = ee.get_index();
@@ -223,7 +223,7 @@ pub struct Iter<'a> {
     idx: usize,
 }
 
-impl<'a> Iterator for Iter<'a> {
+impl Iterator for Iter<'_> {
     type Item = (usize, IndexType, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
