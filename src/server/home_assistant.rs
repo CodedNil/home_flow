@@ -103,7 +103,9 @@ pub async fn run_server() -> Result<()> {
     // Send authentication message
     ws_stream
         .send(Message::Text(
-            json!({"type": "auth", "access_token": get_env_variable("HASS_TOKEN")}).to_string(),
+            json!({"type": "auth", "access_token": get_env_variable("HASS_TOKEN")})
+                .to_string()
+                .into(),
         ))
         .await?;
 
@@ -155,12 +157,12 @@ async fn handle_ws_message(
                     ws_stream
                             .send(Message::Text(
                                 json!({"id": 1, "type": "subscribe_events", "event_type": "state_changed"})
-                                    .to_string(),
+                                    .to_string().into(),
                             ))
                             .await?;
                     ws_stream
                         .send(Message::Text(
-                            json!({"id": 2, "type": "get_states"}).to_string(),
+                            json!({"id": 2, "type": "get_states"}).to_string().into(),
                         ))
                         .await?;
                 }
@@ -328,7 +330,10 @@ pub async fn post_actions_impl(data: Vec<PostActionsData>) {
     let mut ws_stream = WS_STREAM.lock().await;
     if let Some(ref mut ws_stream) = *ws_stream {
         for action in new_actions {
-            if let Err(e) = ws_stream.send(Message::Text(action.to_string())).await {
+            if let Err(e) = ws_stream
+                .send(Message::Text(action.to_string().into()))
+                .await
+            {
                 log::error!("Failed to send action: {:?}", e);
             }
         }

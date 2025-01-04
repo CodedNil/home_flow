@@ -1,6 +1,9 @@
 default:
     cargo run --target-dir target/desktop
 
+build:
+    cargo build --target-dir target/desktop
+
 build-web:
     trunk build
 

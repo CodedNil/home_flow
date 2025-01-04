@@ -27,7 +27,7 @@ async fn main() {
     // Set up router
     let app = server::routing::setup_routes(
         axum::Router::new()
-            .nest_service("/", tower_http::services::ServeDir::new("dist"))
+            .fallback_service(tower_http::services::ServeDir::new("dist"))
             .layer(tower_http::compression::CompressionLayer::new()),
     );
 
