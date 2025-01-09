@@ -156,7 +156,7 @@ pub async fn calculate(sensors: &AHashMap<String, String>) -> Result<Vec<Vec2>> 
                     if furniture
                         .misc_sensors
                         .iter()
-                        .any(|id| sensors.get(id).map_or(false, |state| state == "on"))
+                        .any(|id| sensors.get(id).is_some_and(|state| state == "on"))
                     {
                         presence_points.push(room.pos + furniture.pos);
                     }
