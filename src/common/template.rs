@@ -56,9 +56,19 @@ pub fn default() -> Home {
                         FurnitureType::Sensor(SensorType::PresenceBoolean),
                         vec2(-1.7, 1.6),
                         vec2(0.2, 0.2),
-                        -90,
+                        0,
                     )
                     .add_sensors(&["binary_sensor.hall_vallhorn_motion_sensor_occupancy"]),
+                )
+                .furniture(
+                    Furniture::new(
+                        "Vallhorn Motion Sensor 2",
+                        FurnitureType::Sensor(SensorType::PresenceBoolean),
+                        vec2(0.15, 0.0),
+                        vec2(0.2, 0.2),
+                        0,
+                    )
+                    .add_sensors(&["binary_sensor.hall_vallhorn_motion_sensor_2_occupancy"]),
                 )
                 .furniture(
                     Furniture::new(
