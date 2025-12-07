@@ -2,12 +2,12 @@ use crate::common::{
     color::Color,
     furniture::{self, Furniture, FurnitureType},
     layout::{
-        Action, GlobalMaterial, Home, Light, LightType, MultiLight, Opening, OpeningType,
-        Operation, Outline, Room, Sensor, Shape, TileOptions, Walls, Zone,
+        Action, GlobalMaterial, Light, LightType, MultiLight, Opening, OpeningType, Operation,
+        Outline, Room, Sensor, Shape, TileOptions, Walls, Zone,
     },
 };
 use ahash::AHashMap;
-use glam::{dvec2 as vec2, DVec2 as Vec2};
+use glam::{DVec2 as Vec2, dvec2 as vec2};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use strum_macros::{Display, EnumIter};
@@ -16,16 +16,6 @@ use uuid::Uuid;
 pub fn hash_vec2<H: Hasher>(vec: Vec2, state: &mut H) {
     vec.x.to_bits().hash(state);
     vec.y.to_bits().hash(state);
-}
-
-pub trait RoundFactor {
-    fn round_factor(&self, factor: f64) -> f64;
-}
-
-impl RoundFactor for f64 {
-    fn round_factor(&self, factor: f64) -> f64 {
-        (self * factor).round() / factor
-    }
 }
 
 pub trait Lerp {
@@ -66,25 +56,6 @@ pub fn rotate_point_pivot_i32(point: Vec2, pivot: Vec2, angle: i32) -> Vec2 {
     rotate_point_pivot(point, pivot, f64::from(angle))
 }
 
-impl Home {
-    pub const fn empty() -> Self {
-        Self {
-            version: String::new(),
-            materials: Vec::new(),
-            rooms: Vec::new(),
-            rendered_data: None,
-            light_data: None,
-        }
-    }
-}
-impl Hash for Home {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.version.hash(state);
-        self.materials.hash(state);
-        self.rooms.hash(state);
-    }
-}
-
 impl Room {
     pub fn new(name: &str, pos: Vec2, size: Vec2, material: &str) -> Self {
         Self {
@@ -105,10 +76,6 @@ impl Room {
             rendered_data: None,
             hass_data: AHashMap::new(),
         }
-    }
-
-    pub fn default() -> Self {
-        Self::new("New Room", Vec2::ZERO, vec2(1.0, 1.0), "")
     }
 
     pub const fn outline(mut self, outline: Outline) -> Self {
@@ -266,18 +233,6 @@ impl Room {
         self
     }
 }
-impl Hash for Room {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.material.hash(state);
-        hash_vec2(self.pos, state);
-        hash_vec2(self.size, state);
-        self.operations.hash(state);
-        self.walls.hash(state);
-        self.openings.hash(state);
-        self.outline.hash(state);
-        self.furniture.hash(state);
-    }
-}
 
 impl Sensor {
     pub fn new(entity_id: &str, display_name: &str, unit: &str) -> Self {
@@ -287,10 +242,6 @@ impl Sensor {
             display_name: display_name.to_owned(),
             unit: unit.to_owned(),
         }
-    }
-
-    pub fn default() -> Self {
-        Self::new("sensor_id", "TMP", "°C")
     }
 }
 
@@ -307,10 +258,6 @@ impl Opening {
         }
     }
 
-    pub fn default() -> Self {
-        Self::new(OpeningType::Door, Vec2::ZERO, 0)
-    }
-
     pub const fn width(mut self, width: f64) -> Self {
         self.width = width;
         self
@@ -319,14 +266,6 @@ impl Opening {
     pub const fn flip(mut self) -> Self {
         self.flipped = !self.flipped;
         self
-    }
-}
-impl Hash for Opening {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.opening_type.hash(state);
-        hash_vec2(self.pos, state);
-        self.rotation.hash(state);
-        self.width.to_bits().hash(state);
     }
 }
 
@@ -397,35 +336,13 @@ impl Light {
             },
         )
     }
-
-    pub fn default() -> Self {
-        Self::new("", Vec2::ZERO)
-    }
 }
 impl Hash for Light {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        hash_vec2(self.pos, state);
-        self.multi.hash(state);
         self.intensity.to_bits().hash(state);
         self.radius.to_bits().hash(state);
         self.state.hash(state);
         self.lerped_state.to_bits().hash(state);
-    }
-}
-impl MultiLight {
-    pub const fn default() -> Self {
-        Self {
-            room_padding: vec2(0.5, 0.5),
-            rows: 1,
-            cols: 1,
-        }
-    }
-}
-impl Hash for MultiLight {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        hash_vec2(self.room_padding, state);
-        self.rows.hash(state);
-        self.cols.hash(state);
     }
 }
 
@@ -442,26 +359,11 @@ impl Operation {
         }
     }
 
-    pub fn default() -> Self {
-        Self::new(Action::Add, Shape::Rectangle, Vec2::ZERO, vec2(1.0, 1.0))
-    }
-
     pub fn set_material(mut self, material: &str) -> Self {
         self.material = Some(material.to_owned());
         self
     }
 }
-impl Hash for Operation {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.action.hash(state);
-        self.shape.hash(state);
-        self.material.hash(state);
-        hash_vec2(self.pos, state);
-        hash_vec2(self.size, state);
-        self.rotation.hash(state);
-    }
-}
-
 impl Zone {
     pub fn new(name: &str, shape: Shape, pos: Vec2, size: Vec2) -> Self {
         Self {
@@ -473,33 +375,11 @@ impl Zone {
             rotation: 0,
         }
     }
-
-    pub fn default() -> Self {
-        Self::new("Zone", Shape::Rectangle, Vec2::ZERO, vec2(1.0, 1.0))
-    }
-}
-impl Hash for Zone {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.shape.hash(state);
-        hash_vec2(self.pos, state);
-        hash_vec2(self.size, state);
-        self.rotation.hash(state);
-    }
 }
 
 impl Outline {
     pub const fn new(thickness: f64, color: Color) -> Self {
         Self { thickness, color }
-    }
-
-    pub const fn default() -> Self {
-        Self::new(0.05, Color::WHITE)
-    }
-}
-impl Hash for Outline {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.thickness.to_bits().hash(state);
-        self.color.hash(state);
     }
 }
 
@@ -520,22 +400,6 @@ impl GlobalMaterial {
             grout_color,
         });
         self
-    }
-}
-impl Hash for GlobalMaterial {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        self.material.hash(state);
-        self.tint.hash(state);
-        self.tiles.hash(state);
-    }
-}
-
-impl Hash for TileOptions {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.spacing.to_bits().hash(state);
-        self.grout_width.to_bits().hash(state);
-        self.grout_color.hash(state);
     }
 }
 

@@ -2,5 +2,5 @@
 /dist
 /backups
 .env
-home_layout.ron
 auth.ron
+.direnv

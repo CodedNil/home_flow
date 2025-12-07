@@ -5,53 +5,40 @@ use crate::common::{
         Action, GlobalMaterial, Home, HomeRender, OpeningType, Operation, Room, RoomRender, Shape,
         Triangles, Walls, Zone,
     },
-    utils::hash_vec2,
-    utils::{rotate_point_i32, rotate_point_pivot_i32, Material},
+    utils::{Material, rotate_point_i32, rotate_point_pivot_i32},
 };
 use geo::{
-    triangulate_spade::SpadeTriangulationConfig, BoundingRect, CoordsIter, LinesIter,
-    TriangulateEarcut, TriangulateSpade,
+    BoundingRect, CoordsIter, LinesIter, TriangulateDelaunay, TriangulateEarcut,
+    triangulate_delaunay::DelaunayTriangulationConfig,
 };
 use geo_types::{Coord, MultiPolygon, Polygon};
-use glam::{dvec2 as vec2, DVec2 as Vec2};
+use glam::{DVec2 as Vec2, dvec2 as vec2};
 use indexmap::IndexMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub const WALL_WIDTH: f64 = 0.1;
 
 impl Home {
-    pub fn render(&mut self, edit_mode: bool) {
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        edit_mode.hash(&mut hasher);
-        let home_hash = hasher.finish();
-        if let Some(rendered_data) = &self.rendered_data {
-            if rendered_data.hash == home_hash {
-                return;
-            }
+    pub fn render(&mut self) {
+        if self.rendered_data.is_some() {
+            return;
         }
 
         // Process all rooms
         for room in &mut self.rooms {
-            let mut hasher = DefaultHasher::new();
-            room.hash(&mut hasher);
-            let hash = hasher.finish();
-            if room.rendered_data.is_none() || room.rendered_data.as_ref().unwrap().hash != hash {
-                let polygons = room.polygons();
-                let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
-                let wall_polys = if room.walls.is_empty() && !any_add {
-                    EMPTY_MULTI_POLYGON
-                } else {
-                    room.wall_polygons(&polygons)
-                };
-                let mat_tris = room.material_polygons(&self.materials);
-                room.rendered_data = Some(RoomRender {
-                    hash,
-                    polygons,
-                    material_triangles: mat_tris,
-                    wall_polygons: wall_polys,
-                });
-            }
+            let polygons = room.polygons();
+            let any_add = room.operations.iter().any(|o| o.action == Action::AddWall);
+            let wall_polys = if room.walls.is_empty() && !any_add {
+                EMPTY_MULTI_POLYGON
+            } else {
+                room.wall_polygons(&polygons)
+            };
+            let mat_tris = room.material_polygons(&self.materials);
+            room.rendered_data = Some(RoomRender {
+                polygons,
+                material_triangles: mat_tris,
+                wall_polygons: wall_polys,
+            });
         }
 
         // Process all furniture
@@ -124,33 +111,13 @@ impl Home {
             }
         }
 
-        // If the hashes match, reuse the existing shadows
-        let walls_hash = {
-            let mut hasher = DefaultHasher::new();
-            for room in &self.rooms {
-                room.hash(&mut hasher);
-            }
-            hasher.finish()
-        };
-
         let compute_shadows = || polygons_to_shadows(wall_polygons.iter().collect(), 1.0);
-        let wall_shadows = if edit_mode {
-            (walls_hash, (Color::TRANSPARENT, vec![]))
-        } else {
-            self.rendered_data.take().map_or_else(
-                || (walls_hash, compute_shadows()),
-                |rendered_data| {
-                    if rendered_data.wall_shadows.0 == walls_hash {
-                        rendered_data.wall_shadows
-                    } else {
-                        (walls_hash, compute_shadows())
-                    }
-                },
-            )
-        };
+        let wall_shadows = self
+            .rendered_data
+            .take()
+            .map_or_else(compute_shadows, |rendered_data| rendered_data.wall_shadows);
 
         self.rendered_data = Some(HomeRender {
-            hash: home_hash,
             wall_triangles,
             wall_lines,
             wall_shadows,
@@ -161,17 +128,13 @@ impl Home {
     pub fn render_lighting(&mut self) {
         let mut hasher = DefaultHasher::new();
         for room in &self.rooms {
-            hash_vec2(room.pos, &mut hasher);
-            hash_vec2(room.size, &mut hasher);
-            room.operations.hash(&mut hasher);
-            room.walls.hash(&mut hasher);
             room.lights.hash(&mut hasher);
         }
         let mut hash = hasher.finish();
-        if let Some(light_data) = &self.light_data {
-            if light_data.hash == hash {
-                return;
-            }
+        if let Some(light_data) = &self.light_data
+            && light_data.hash == hash
+        {
+            return;
         }
 
         let all_walls = &self.rendered_data.as_ref().unwrap().wall_lines;
@@ -270,7 +233,7 @@ impl Room {
                 match operation.action {
                     Action::Add => return true,
                     Action::Subtract => return false,
-                    _ => continue, // Ignore other actions
+                    _ => {} // Ignore other actions
                 }
             }
         }
@@ -337,37 +300,37 @@ impl Room {
         let mut grout_polygons = Vec::new();
         for (material, poly) in &polygons {
             let global_material = global_materials.iter().find(|m| &m.name == material);
-            if let Some(global_material) = global_material {
-                if let Some(tile) = &global_material.tiles {
-                    let mut new_polygons = Vec::new();
-                    let bounds = poly.bounding_rect().unwrap();
-                    let poly_center = coord_to_vec2((bounds.min() + bounds.max()) / 2.0);
+            if let Some(global_material) = global_material
+                && let Some(tile) = &global_material.tiles
+            {
+                let mut new_polygons = Vec::new();
+                let bounds = poly.bounding_rect().unwrap();
+                let poly_center = coord_to_vec2((bounds.min() + bounds.max()) / 2.0);
 
-                    let (startx, endx) = (bounds.min().x, bounds.max().x);
-                    let num_grout_x = ((endx - startx) / tile.spacing).floor() as usize;
-                    for i in 0..num_grout_x {
-                        let x_pos = (i as f64 - (num_grout_x - 1) as f64 / 2.0) * tile.spacing;
-                        let line = Shape::Rectangle.polygons(
-                            poly_center + vec2(x_pos, 0.0),
-                            vec2(tile.grout_width, bounds.height()),
-                            0,
-                        );
-                        new_polygons.push(intersection_polygons(&line, poly));
-                    }
-
-                    let num_grout_y = (bounds.height() / tile.spacing).floor() as usize;
-                    for i in 0..num_grout_y {
-                        let y_pos = (i as f64 - (num_grout_y - 1) as f64 / 2.0) * tile.spacing;
-                        let line = Shape::Rectangle.polygons(
-                            poly_center + vec2(0.0, y_pos),
-                            vec2(bounds.width(), tile.grout_width),
-                            0,
-                        );
-                        new_polygons.push(intersection_polygons(&line, poly));
-                    }
-
-                    grout_polygons.push((format!("{material}-grout"), new_polygons));
+                let (startx, endx) = (bounds.min().x, bounds.max().x);
+                let num_grout_x = ((endx - startx) / tile.spacing).floor() as usize;
+                for i in 0..num_grout_x {
+                    let x_pos = (i as f64 - (num_grout_x - 1) as f64 / 2.0) * tile.spacing;
+                    let line = Shape::Rectangle.polygons(
+                        poly_center + vec2(x_pos, 0.0),
+                        vec2(tile.grout_width, bounds.height()),
+                        0,
+                    );
+                    new_polygons.push(intersection_polygons(&line, poly));
                 }
+
+                let num_grout_y = (bounds.height() / tile.spacing).floor() as usize;
+                for i in 0..num_grout_y {
+                    let y_pos = (i as f64 - (num_grout_y - 1) as f64 / 2.0) * tile.spacing;
+                    let line = Shape::Rectangle.polygons(
+                        poly_center + vec2(0.0, y_pos),
+                        vec2(bounds.width(), tile.grout_width),
+                        0,
+                    );
+                    new_polygons.push(intersection_polygons(&line, poly));
+                }
+
+                grout_polygons.push((format!("{material}-grout"), new_polygons));
             }
         }
         // Create triangles for each material
@@ -514,11 +477,6 @@ impl Zone {
         self.shape
             .contains(point, room_pos + self.pos, self.size, self.rotation)
     }
-
-    pub fn vertices(&self, room_pos: Vec2) -> Vec<Vec2> {
-        self.shape
-            .vertices(room_pos + self.pos, self.size, self.rotation)
-    }
 }
 
 pub fn point_to_vec2(c: geo_types::Point) -> Vec2 {
@@ -615,7 +573,7 @@ pub fn polygons_to_shadows(polygons: Vec<&MultiPolygon>, height: f64) -> Shadows
     for polygon in shadow_polygons {
         let (indices, vertices) = {
             let triangles = polygon
-                .constrained_triangulation(SpadeTriangulationConfig::default())
+                .constrained_triangulation(DelaunayTriangulationConfig::default())
                 .unwrap();
             let mut indices = Vec::new();
             let mut vertices = Vec::new();

@@ -1,12 +1,12 @@
 use crate::common::{
     color::Color,
     layout::{DataPoint, GlobalMaterial, Shape, Triangles},
-    shape::{polygons_to_shadows, triangulate_polygon, ShadowsData},
-    utils::{hash_vec2, Material},
+    shape::{ShadowsData, polygons_to_shadows, triangulate_polygon},
+    utils::{Material, hash_vec2},
 };
 use ahash::AHashMap;
 use geo_types::MultiPolygon;
-use glam::{dvec2 as vec2, DVec2 as Vec2};
+use glam::{DVec2 as Vec2, dvec2 as vec2};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use strum_macros::{Display, EnumIter};
@@ -183,16 +183,6 @@ impl Furniture {
         self
     }
 
-    pub fn default() -> Self {
-        Self::new(
-            "New Furniture",
-            FurnitureType::Chair(ChairType::default()),
-            Vec2::ZERO,
-            vec2(1.0, 1.0),
-            0,
-        )
-    }
-
     pub const fn get_render_order(&self) -> u8 {
         let render_order = match self.render_order {
             RenderOrder::Default => match self.furniture_type {
@@ -238,27 +228,6 @@ impl Furniture {
             self.furniture_type,
             FurnitureType::AnimatedPiece(_) | FurnitureType::Chair(_)
         )
-    }
-
-    pub const fn has_material(&self) -> bool {
-        matches!(
-            self.furniture_type,
-            FurnitureType::Table(_)
-                | FurnitureType::Chair(ChairType::Dining)
-                | FurnitureType::Storage(_)
-                | FurnitureType::Misc
-        )
-    }
-
-    pub const fn has_children_material(&self) -> bool {
-        matches!(
-            self.furniture_type,
-            FurnitureType::Table(TableType::Dining) | FurnitureType::Storage(_)
-        )
-    }
-
-    pub fn contains(&self, room_pos: Vec2, point: Vec2) -> bool {
-        Shape::Rectangle.contains(point, room_pos + self.pos, self.size, self.rotation)
     }
 
     pub fn render(

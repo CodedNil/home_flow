@@ -1,10 +1,9 @@
 use crate::common::{
     layout::{Light, LightData, LightsData, Room},
     shape::Line,
-    utils::hash_vec2,
 };
 use ahash::AHashMap;
-use glam::{dvec2 as vec2, DVec2 as Vec2};
+use glam::{DVec2 as Vec2, dvec2 as vec2};
 use std::{
     f64::consts::PI,
     hash::{DefaultHasher, Hash, Hasher},
@@ -40,14 +39,14 @@ pub fn combine_lighting(
             if light.lerped_state < 0.01 {
                 continue;
             }
-            if let Some((_, light_data)) = &light.light_data {
-                if light_data.len() == image_pixel_count {
-                    lights_data.push((
-                        light.intensity * light.lerped_state,
-                        light.get_points(room.pos, room.size),
-                        light_data,
-                    ));
-                }
+            if let Some((_, light_data)) = &light.light_data
+                && light_data.len() == image_pixel_count
+            {
+                lights_data.push((
+                    light.intensity * light.lerped_state,
+                    light.get_points(room.pos, room.size),
+                    light_data,
+                ));
             }
         }
     }
@@ -74,7 +73,7 @@ pub fn combine_lighting(
                 }
                 for light_pos in light_points {
                     let distance = world.distance(*light_pos) * 2.0 / light_intensity;
-                    total_light_intensity += light_pixel / distance.powf(2.0);
+                    total_light_intensity += light_pixel / distance.powi(2);
                     if total_light_intensity >= 255.0 {
                         total_light_intensity = 255.0;
                         break;
@@ -108,16 +107,8 @@ pub fn render_lighting(
     for room in rooms {
         for light in &room.lights {
             let mut hasher = DefaultHasher::new();
-            hash_vec2(light.pos, &mut hasher);
-            light.multi.hash(&mut hasher);
             light.intensity.to_bits().hash(&mut hasher);
             light.radius.to_bits().hash(&mut hasher);
-            for room in rooms {
-                hash_vec2(room.pos, &mut hasher);
-                hash_vec2(room.size, &mut hasher);
-                room.operations.hash(&mut hasher);
-                room.walls.hash(&mut hasher);
-            }
             let hash = hasher.finish();
 
             if light.light_data.is_none() || light.light_data.as_ref().unwrap().0 != hash {

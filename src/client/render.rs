@@ -1,20 +1,20 @@
 use crate::{
-    client::{vec2_to_egui_pos, HomeFlow},
+    client::{HomeFlow, vec2_to_egui_pos},
     common::{
         color::Color,
         furniture::{AnimatedPieceType, Furniture, FurnitureType},
         layout::{OpeningType, Shape},
-        shape::{point_to_vec2, WALL_WIDTH},
-        utils::{rotate_point, rotate_point_i32, rotate_point_pivot, Lerp, Material},
+        shape::{WALL_WIDTH, point_to_vec2},
+        utils::{Lerp, Material, rotate_point, rotate_point_i32, rotate_point_pivot},
     },
 };
 use ahash::AHashMap;
 use egui::{
-    epaint::{CircleShape, PathStroke, TessellationOptions, Tessellator, Vertex},
-    vec2 as evec2, Color32, ColorImage, FontId, Mesh, Painter, Shape as EShape, Stroke, TextureId,
-    TextureOptions,
+    Color32, ColorImage, FontId, Mesh, Painter, Shape as EShape, Stroke, TextureId, TextureOptions,
+    epaint::{CircleShape, TessellationOptions, Tessellator, Vertex},
+    vec2 as evec2,
 };
-use glam::{dvec2 as vec2, DVec2 as Vec2};
+use glam::{DVec2 as Vec2, dvec2 as vec2};
 
 const WALL_COLOR: Color32 = Color32::from_rgb(130, 80, 20);
 const DOOR_COLOR: Color32 = Color32::from_rgb(200, 130, 40);
@@ -26,16 +26,11 @@ impl HomeFlow {
     }
 
     pub fn render_layout(&mut self, painter: &Painter) {
-        if self.layout.version.is_empty() {
-            return;
-        }
-        self.layout.render(self.edit_mode.enabled);
+        self.layout.render();
         if self.layout.rendered_data.is_none() {
             return;
         }
-        if !self.edit_mode.enabled {
-            self.layout.render_lighting();
-        }
+        self.layout.render_lighting();
         self.bounds = self.layout.bounds();
 
         // Ready textures
@@ -325,7 +320,7 @@ impl HomeFlow {
         // Render wall shadows
         let rendered_data = self.layout.rendered_data.as_ref().unwrap();
         let shadow_offset = vec2(0.01, -0.02);
-        let (shadow_color, shadow_triangles) = &rendered_data.wall_shadows.1;
+        let (shadow_color, shadow_triangles) = &rendered_data.wall_shadows;
         for triangles in shadow_triangles {
             if triangles.vertices.is_empty() {
                 continue;
@@ -356,52 +351,49 @@ impl HomeFlow {
         }
 
         // Render lighting
-        if !self.edit_mode.enabled {
-            if let Some(light_data) = &self.layout.light_data {
-                // Check if the light data has changed and needs to be reloaded.
-                let needs_reload = self
-                    .light_data
-                    .as_ref()
-                    .map_or(true, |(hash, _)| *hash != light_data.hash);
+        if let Some(light_data) = &self.layout.light_data {
+            // Check if the light data has changed and needs to be reloaded.
+            let needs_reload = self
+                .light_data
+                .as_ref()
+                .is_none_or(|(hash, _)| *hash != light_data.hash);
 
-                if needs_reload {
-                    let texture = painter.ctx().load_texture(
-                        "lighting".to_string(),
-                        ColorImage::from_rgba_premultiplied(
-                            [
-                                light_data.image_width as usize,
-                                light_data.image_height as usize,
-                            ],
-                            &light_data.image,
-                        ),
-                        TextureOptions::LINEAR,
-                    );
-                    self.light_data = Some((light_data.hash, texture));
-                }
+            if needs_reload {
+                let texture = painter.ctx().load_texture(
+                    "lighting".to_string(),
+                    ColorImage::from_rgba_premultiplied(
+                        [
+                            light_data.image_width as usize,
+                            light_data.image_height as usize,
+                        ],
+                        &light_data.image,
+                    ),
+                    TextureOptions::LINEAR,
+                );
+                self.light_data = Some((light_data.hash, texture));
+            }
 
-                // Render the texture.
-                if let Some((_, texture_handle)) = &self.light_data {
-                    let vertices = [
-                        vec2(-0.5, -0.5),
-                        vec2(0.5, -0.5),
-                        vec2(0.5, 0.5),
-                        vec2(-0.5, 0.5),
-                    ]
-                    .iter()
-                    .map(|&v| Vertex {
-                        pos: self.world_to_screen_pos(
-                            light_data.image_center + v * light_data.image_size,
-                        ),
-                        uv: egui::pos2(v.x as f32 + 0.5, 1.0 - (v.y as f32 + 0.5)),
-                        color: Color::WHITE.to_egui(),
-                    })
-                    .collect();
-                    painter.add(EShape::mesh(Mesh {
-                        indices: vec![0, 1, 2, 0, 2, 3],
-                        vertices,
-                        texture_id: texture_handle.id(),
-                    }));
-                }
+            // Render the texture.
+            if let Some((_, texture_handle)) = &self.light_data {
+                let vertices = [
+                    vec2(-0.5, -0.5),
+                    vec2(0.5, -0.5),
+                    vec2(0.5, 0.5),
+                    vec2(-0.5, 0.5),
+                ]
+                .iter()
+                .map(|&v| Vertex {
+                    pos: self
+                        .world_to_screen_pos(light_data.image_center + v * light_data.image_size),
+                    uv: egui::pos2(v.x as f32 + 0.5, 1.0 - (v.y as f32 + 0.5)),
+                    color: Color::WHITE.to_egui(),
+                })
+                .collect();
+                painter.add(EShape::mesh(Mesh {
+                    indices: vec![0, 1, 2, 0, 2, 3],
+                    vertices,
+                    texture_id: texture_handle.id(),
+                }));
             }
         }
 
@@ -450,14 +442,14 @@ impl HomeFlow {
                     self.world_to_screen_pos(end_pos),
                 ];
 
-                let stroke = PathStroke::new(depth, color);
+                let stroke = Stroke::new(depth, color);
                 if opening.opening_type == OpeningType::Window {
                     window_meshes.push(EShape::LineSegment { points, stroke });
                 } else {
                     //Render a line filing the gap between the door and the wall
                     painter.add(EShape::LineSegment {
                         points,
-                        stroke: PathStroke::new(depth * 0.75, Color32::from_rgb(80, 80, 80)),
+                        stroke: Stroke::new(depth * 0.75, Color32::from_rgb(80, 80, 80)),
                     });
                     // Render the door
                     let open_amount = opening.open_amount.max(0.0)
@@ -643,7 +635,7 @@ impl HomeFlow {
                 painter.text(
                     self.world_to_screen_pos(pos) - (evec2(0.0, 0.1) * self.stored.zoom as f32),
                     egui::Align2::CENTER_CENTER,
-                    sensor.display_name.to_string(),
+                    sensor.display_name.clone(),
                     FontId::proportional(sensor_draw_scale * 0.35),
                     Color32::BLACK,
                 );
@@ -652,14 +644,14 @@ impl HomeFlow {
                     egui::Align2::CENTER_CENTER,
                     value
                         .parse::<f64>()
-                        .map_or_else(|_| (*value).to_string(), |value| value.round().to_string()),
+                        .map_or_else(|_| (*value).clone(), |value| value.round().to_string()),
                     FontId::proportional(sensor_draw_scale * 0.5),
                     Color32::BLACK,
                 );
                 painter.text(
                     self.world_to_screen_pos(pos) + (evec2(0.0, 0.1) * self.stored.zoom as f32),
                     egui::Align2::CENTER_CENTER,
-                    sensor.unit.to_string(),
+                    sensor.unit.clone(),
                     FontId::proportional(sensor_draw_scale * 0.35),
                     Color32::BLACK,
                 );

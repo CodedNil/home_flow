@@ -1,13 +1,13 @@
 use crate::common::LoginPacket;
 use ahash::AHashMap;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse};
 use chrono::{DateTime, Utc};
-use rand::{distributions, thread_rng, Rng};
+use rand::{Rng, distr::Alphanumeric};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{self, OpenOptions},
@@ -37,16 +37,16 @@ struct Token {
 type Accounts = AHashMap<Uuid, Account>;
 
 pub async fn login_server(packet: Bytes) -> impl IntoResponse {
-    match bincode::deserialize::<LoginPacket>(&packet) {
+    match postcard::from_bytes::<LoginPacket>(&packet) {
         Ok(packet) => match login_impl(&packet).await {
             Ok(token) => (StatusCode::OK, token),
             Err(e) => {
-                log::error!("Failed to login: {:?}", e);
+                log::error!("Failed to login: {e:?}");
                 (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
             }
         },
         Err(e) => {
-            log::error!("Failed to deserialise login packet: {:?}", e);
+            log::error!("Failed to deserialise login packet: {e:?}");
             (StatusCode::BAD_REQUEST, String::new())
         }
     }
@@ -81,8 +81,7 @@ async fn login_impl(packet: &LoginPacket) -> Result<String> {
     if accounts.is_empty() {
         if packet.password.len() < MIN_PASSWORD_LENGTH {
             return Err(anyhow!(
-                "Password must be at least {} characters long",
-                MIN_PASSWORD_LENGTH
+                "Password must be at least {MIN_PASSWORD_LENGTH} characters long"
             ));
         }
 
@@ -161,8 +160,8 @@ async fn login_impl(packet: &LoginPacket) -> Result<String> {
 
 /// Helper function to generate a random token
 fn generate_token() -> (Token, String) {
-    let new_token: String = thread_rng()
-        .sample_iter(&distributions::Alphanumeric)
+    let new_token: String = rand::rng()
+        .sample_iter(&Alphanumeric)
         .take(TOKEN_LENGTH)
         .map(char::from)
         .collect();

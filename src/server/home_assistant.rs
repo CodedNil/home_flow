@@ -1,7 +1,7 @@
 use crate::{
     common::{
-        furniture::Furniture, layout::DataPoint, HAState, PostActionsData, PostActionsPacket,
-        TokenPacket,
+        HAState, PostActionsData, PostActionsPacket, TokenPacket, furniture::Furniture,
+        layout::DataPoint,
     },
     server::{auth::verify_token, presence, routing::HOME},
 };
@@ -10,16 +10,16 @@ use anyhow::Result;
 use axum::{body::Bytes, http::StatusCode, response::IntoResponse};
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     env,
     sync::{
-        atomic::{AtomicI64, Ordering},
         Arc, LazyLock,
+        atomic::{AtomicI64, Ordering},
     },
 };
 use tokio::{net::TcpStream, sync::Mutex};
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
 
 fn get_env_variable(key: &str) -> String {
     match env::var(key) {
@@ -27,7 +27,10 @@ fn get_env_variable(key: &str) -> String {
         Err(e) => match e {
             env::VarError::NotPresent => panic!("Environment variable {key} not found."),
             env::VarError::NotUnicode(oss) => {
-                panic!("Environment variable {key} contains invalid data: {oss:?}")
+                panic!(
+                    "Environment variable {key} contains invalid data: {}",
+                    oss.display()
+                )
             }
         },
     }
@@ -40,10 +43,10 @@ static WS_STREAM: LazyLock<Arc<Mutex<Option<WsStream>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(None)));
 
 pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
-    let packet: TokenPacket = match bincode::deserialize(&body) {
+    let packet: TokenPacket = match postcard::from_bytes(&body) {
         Ok(packet) => packet,
         Err(e) => {
-            log::error!("Failed to deserialize get_states_server packet: {:?}", e);
+            log::error!("Failed to deserialize get_states_server packet: {e:?}");
             return (StatusCode::BAD_REQUEST, Vec::new());
         }
     };
@@ -57,10 +60,10 @@ pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
             log::error!("State not found in memory");
             (StatusCode::INTERNAL_SERVER_ERROR, Vec::new())
         },
-        |states| match bincode::serialize(states) {
+        |states| match postcard::to_allocvec(states) {
             Ok(serialized) => (StatusCode::OK, serialized),
             Err(e) => {
-                log::error!("Failed to serialize states: {:?}", e);
+                log::error!("Failed to serialize states: {e:?}");
                 (StatusCode::INTERNAL_SERVER_ERROR, Vec::new())
             }
         },
@@ -68,10 +71,10 @@ pub async fn get_states_server(body: Bytes) -> impl IntoResponse {
 }
 
 pub async fn post_actions_server(body: Bytes) -> impl IntoResponse {
-    let packet: PostActionsPacket = match bincode::deserialize(&body) {
+    let packet: PostActionsPacket = match postcard::from_bytes(&body) {
         Ok(packet) => packet,
         Err(e) => {
-            log::error!("Failed to deserialize post_actions_server packet: {:?}", e);
+            log::error!("Failed to deserialize post_actions_server packet: {e:?}");
             return StatusCode::BAD_REQUEST.into_response();
         }
     };
@@ -171,14 +174,15 @@ async fn handle_ws_message(
                 && response["event"]["event_type"] == "state_changed"
             {
                 process_state(&response["event"]["data"]).await?;
-            } else if response["type"] == "result" && response["id"].as_u64() == Some(2) {
-                if let Err(e) = process_full_states(response["result"].take()).await {
-                    log::error!("{}", e);
-                }
+            } else if response["type"] == "result"
+                && response["id"].as_u64() == Some(2)
+                && let Err(e) = process_full_states(response["result"].take()).await
+            {
+                log::error!("{e}");
             }
         }
         Err(e) => {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
         _ => {}
     }
@@ -234,35 +238,35 @@ async fn process_state(data: &Value) -> Result<()> {
 
     let mut ha_state = HA_STATE.lock().await;
     let mut needs_presence_update = false;
-    if let Some((domain, id)) = entity_id.split_once('.') {
-        if let Some(ha_state) = ha_state.as_mut() {
-            match domain {
-                "light" => {
-                    ha_state.lights.insert(
-                        id.to_string(),
-                        new_state["attributes"]["brightness"].as_u64().map_or_else(
-                            || if new_state["state"] == "on" { 255 } else { 0 },
-                            |b| b as u8,
-                        ),
-                    );
-                }
-                "sensor" | "binary_sensor" | "input_boolean"
-                    if target_sensors.contains(&entity_id.to_string()) =>
-                {
-                    ha_state.sensors.insert(
-                        entity_id.to_string(),
-                        new_state["state"].as_str().unwrap_or("unknown").to_string(),
-                    );
-                    if entity_id == "input_boolean.presence_calibration" {
-                        needs_presence_update = true;
-                    } else if let Some((_, suffix)) = entity_id.split_once("_target_") {
-                        if suffix.contains("_x") || suffix.contains("_y") {
-                            needs_presence_update = true;
-                        }
-                    }
-                }
-                _ => {}
+    if let Some((domain, id)) = entity_id.split_once('.')
+        && let Some(ha_state) = ha_state.as_mut()
+    {
+        match domain {
+            "light" => {
+                ha_state.lights.insert(
+                    id.to_string(),
+                    new_state["attributes"]["brightness"].as_u64().map_or_else(
+                        || if new_state["state"] == "on" { 255 } else { 0 },
+                        |b| b as u8,
+                    ),
+                );
             }
+            "sensor" | "binary_sensor" | "input_boolean"
+                if target_sensors.contains(&entity_id.to_string()) =>
+            {
+                ha_state.sensors.insert(
+                    entity_id.to_string(),
+                    new_state["state"].as_str().unwrap_or("unknown").to_string(),
+                );
+                if entity_id == "input_boolean.presence_calibration" {
+                    needs_presence_update = true;
+                } else if let Some((_, suffix)) = entity_id.split_once("_target_")
+                    && (suffix.contains("_x") || suffix.contains("_y"))
+                {
+                    needs_presence_update = true;
+                }
+            }
+            _ => {}
         }
     }
     drop(ha_state);
@@ -300,21 +304,23 @@ static NEXT_ID: LazyLock<AtomicI64> = LazyLock::new(|| AtomicI64::new(3));
 pub async fn post_actions_impl(data: Vec<PostActionsData>) {
     let mut new_actions = Vec::new();
     for param in data {
-        let service_data = json!(param
-            .additional_data
-            .into_iter()
-            .map(|(key, value)| (
-                key,
-                match value {
-                    DataPoint::String(s) => serde_json::Value::String(s),
-                    DataPoint::Float(f) =>
-                        serde_json::Value::Number(serde_json::Number::from_f64(f).unwrap()),
-                    DataPoint::Int(i) => serde_json::Value::Number(serde_json::Number::from(i)),
-                    DataPoint::Vec2(v) => serde_json::json!([v.x, v.y]),
-                    DataPoint::Vec4((a, b, c, d)) => serde_json::json!([a, b, c, d]),
-                }
-            ))
-            .collect::<serde_json::Map<_, _>>());
+        let service_data = json!(
+            param
+                .additional_data
+                .into_iter()
+                .map(|(key, value)| (
+                    key,
+                    match value {
+                        DataPoint::String(s) => serde_json::Value::String(s),
+                        DataPoint::Float(f) =>
+                            serde_json::Value::Number(serde_json::Number::from_f64(f).unwrap()),
+                        DataPoint::Int(i) => serde_json::Value::Number(serde_json::Number::from(i)),
+                        DataPoint::Vec2(v) => serde_json::json!([v.x, v.y]),
+                        DataPoint::Vec4((a, b, c, d)) => serde_json::json!([a, b, c, d]),
+                    }
+                ))
+                .collect::<serde_json::Map<_, _>>()
+        );
 
         new_actions.push(json!({
             "id": NEXT_ID.fetch_add(1, Ordering::SeqCst),
@@ -334,7 +340,7 @@ pub async fn post_actions_impl(data: Vec<PostActionsData>) {
                 .send(Message::Text(action.to_string().into()))
                 .await
             {
-                log::error!("Failed to send action: {:?}", e);
+                log::error!("Failed to send action: {e:?}");
             }
         }
     }

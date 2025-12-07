@@ -1,12 +1,3 @@
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_precision_loss,
-    clippy::suboptimal_flops,
-    clippy::cast_sign_loss,
-    clippy::too_many_lines,
-    clippy::cognitive_complexity
-)]
-
 mod common;
 
 #[cfg(feature = "gui")]

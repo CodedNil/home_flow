@@ -108,11 +108,6 @@ impl Color {
     }
 
     #[inline]
-    pub fn mut_array(&mut self) -> &mut [u8; 4] {
-        &mut self.0
-    }
-
-    #[inline]
     pub const fn to_tuple(self) -> (u8, u8, u8, u8) {
         (self.r(), self.g(), self.b(), self.a())
     }

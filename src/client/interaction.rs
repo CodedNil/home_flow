@@ -1,13 +1,13 @@
 use crate::{
     client::HomeFlow,
     common::{
+        PostActionsData,
         layout::{DataPoint, LightType},
         utils::Lerp,
-        PostActionsData,
     },
 };
 use ahash::AHashMap;
-use egui::{pos2, Color32, Painter, Pos2, Response, Stroke};
+use egui::{Color32, Painter, Pos2, Response, Stroke, pos2};
 
 #[derive(Default)]
 pub struct IState {
@@ -52,77 +52,77 @@ impl HomeFlow {
             }
         }
         // Toggle light with a right click
-        if response.clicked_by(interaction_button) {
-            if let Some(light_hovered) = &light_hovered {
-                let target_state = if light_hovered.state < 127 { 255 } else { 0 };
-                let mut is_amended = false;
-                if let Some(light_drag) = &mut self.interaction_state.light_drag {
-                    if light_drag.group_id == light_hovered.entity_id {
-                        is_amended = true;
-                        light_drag.last_time = self.time;
-                        light_drag.animated_state_target = f64::from(target_state) / 255.0;
-                    }
-                }
-                if !is_amended {
-                    self.interaction_state.light_drag = Some(LightDrag {
-                        group_id: light_hovered.entity_id.clone(),
-                        start_state: light_hovered.state,
-                        start_pos: self.world_to_screen_pos(light_hovered.pos),
-                        light_type: light_hovered.light_type.clone(),
-                        active: false,
-                        start_time: self.time,
-                        last_time: self.time,
-                        animated_state: f64::from(light_hovered.state) / 255.0,
-                        animated_state_target: f64::from(target_state) / 255.0,
-                    });
-                }
-
-                // Set lights to the new state
-                for room in &mut self.layout.rooms {
-                    for light in &mut room.lights {
-                        if light.entity_id == light_hovered.entity_id {
-                            light.state = target_state;
-                            light.last_manual = self.time;
-
-                            // Remove existing post packets for this light, and add a new one
-                            let entity_id = format!("light.{}", light.entity_id);
-                            self.post_queue.retain(|x| x.entity_id != entity_id);
-                            self.post_queue.push(PostActionsData {
-                                entity_id,
-                                domain: "light".to_string(),
-                                action: if target_state > 127 {
-                                    "turn_on"
-                                } else {
-                                    "turn_off"
-                                }
-                                .to_string(),
-                                additional_data: AHashMap::new(),
-                            });
-                        }
-                    }
-                }
+        if response.clicked_by(interaction_button)
+            && let Some(light_hovered) = &light_hovered
+        {
+            let target_state = if light_hovered.state < 127 { 255 } else { 0 };
+            let mut is_amended = false;
+            if let Some(light_drag) = &mut self.interaction_state.light_drag
+                && light_drag.group_id == light_hovered.entity_id
+            {
+                is_amended = true;
+                light_drag.last_time = self.time;
+                light_drag.animated_state_target = f64::from(target_state) / 255.0;
             }
-        }
-        // Drag light with a right click
-        if response.drag_started_by(interaction_button) {
-            if let Some(light_hovered) = &light_hovered {
+            if !is_amended {
                 self.interaction_state.light_drag = Some(LightDrag {
                     group_id: light_hovered.entity_id.clone(),
                     start_state: light_hovered.state,
                     start_pos: self.world_to_screen_pos(light_hovered.pos),
                     light_type: light_hovered.light_type.clone(),
-                    active: true,
+                    active: false,
                     start_time: self.time,
                     last_time: self.time,
                     animated_state: f64::from(light_hovered.state) / 255.0,
-                    animated_state_target: f64::from(light_hovered.state) / 255.0,
+                    animated_state_target: f64::from(target_state) / 255.0,
                 });
             }
-        }
-        if response.drag_stopped_by(interaction_button) {
-            if let Some(light_drag) = &mut self.interaction_state.light_drag {
-                light_drag.active = false;
+
+            // Set lights to the new state
+            for room in &mut self.layout.rooms {
+                for light in &mut room.lights {
+                    if light.entity_id == light_hovered.entity_id {
+                        light.state = target_state;
+                        light.last_manual = self.time;
+
+                        // Remove existing post packets for this light, and add a new one
+                        let entity_id = format!("light.{}", light.entity_id);
+                        self.post_queue.retain(|x| x.entity_id != entity_id);
+                        self.post_queue.push(PostActionsData {
+                            entity_id,
+                            domain: "light".to_string(),
+                            action: if target_state > 127 {
+                                "turn_on"
+                            } else {
+                                "turn_off"
+                            }
+                            .to_string(),
+                            additional_data: AHashMap::new(),
+                        });
+                    }
+                }
             }
+        }
+        // Drag light with a right click
+        if response.drag_started_by(interaction_button)
+            && let Some(light_hovered) = &light_hovered
+        {
+            self.interaction_state.light_drag = Some(LightDrag {
+                group_id: light_hovered.entity_id.clone(),
+                start_state: light_hovered.state,
+                start_pos: self.world_to_screen_pos(light_hovered.pos),
+                light_type: light_hovered.light_type.clone(),
+                active: true,
+                start_time: self.time,
+                last_time: self.time,
+                animated_state: f64::from(light_hovered.state) / 255.0,
+                animated_state_target: f64::from(light_hovered.state) / 255.0,
+            });
+        }
+        if response.drag_stopped_by(interaction_button)
+            && let Some(light_drag) = &mut self.interaction_state.light_drag
+        {
+            light_drag.active = false;
         }
         let mut should_end = false;
         if let Some(light_drag) = &mut self.interaction_state.light_drag {

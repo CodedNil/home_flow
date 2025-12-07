@@ -1,15 +1,15 @@
 use crate::{
     common::{
+        PostActionsData,
         furniture::{FurnitureType, SensorType},
         layout::DataPoint,
         utils::rotate_point_i32,
-        PostActionsData,
     },
     server::{home_assistant::post_actions_impl, routing::HOME},
 };
 use ahash::AHashMap;
 use anyhow::Result;
-use glam::{dvec2 as vec2, DVec2 as Vec2};
+use glam::{DVec2 as Vec2, dvec2 as vec2};
 use nalgebra::DMatrix;
 use std::{sync::LazyLock, time::Duration};
 use tokio::{sync::Mutex, time::Instant};
@@ -45,7 +45,7 @@ pub async fn calculate(sensors: &AHashMap<String, String>) -> Result<Vec<Vec2>> 
     let is_calibrating = calibration_lock.is_some();
     drop(calibration_lock);
 
-    let layout = HOME.lock().await.clone();
+    let layout = HOME.lock().await;
 
     let mut presence_points = Vec::new();
     let mut presence_points_raw = Vec::new();
@@ -149,7 +149,7 @@ pub async fn calculate(sensors: &AHashMap<String, String>) -> Result<Vec<Vec2>> 
                                 + furniture.pos
                                 + rotate_point_i32(*target / 1000.0, -furniture.rotation)
                         }));
-                    };
+                    }
                 }
                 FurnitureType::Sensor(SensorType::PresenceBoolean) => {
                     // If sensed, add a presence point on the furniture's position
@@ -196,7 +196,7 @@ pub async fn calculate(sensors: &AHashMap<String, String>) -> Result<Vec<Vec2>> 
             let average = (calibration_points.iter().copied().sum::<Vec2>()
                 / calibration_points.len() as f64)
                 .round();
-            log::info!("Calibration ended, average point: {:?}", average);
+            log::info!("Calibration ended, average point: {average:?}");
 
             // Set input_boolean.presence_calibration to false and input_text.presence_calibration_output to the average point
             post_actions_impl(vec![

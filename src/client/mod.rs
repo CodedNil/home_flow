@@ -1,6 +1,3 @@
-mod edit_mode;
-mod edit_mode_render;
-mod edit_mode_utils;
 mod interaction;
 pub mod light_render;
 mod networking;
@@ -8,21 +5,21 @@ mod render;
 
 use crate::{
     client::{
-        edit_mode::{EditDetails, EditResponse},
         interaction::IState,
-        networking::{get_layout, get_states, login, post_actions},
+        networking::{get_states, login, post_actions},
     },
     common::{
-        layout::Home,
-        utils::{rotate_point, rotate_point_pivot},
         HAState, PostActionsData,
+        layout::Home,
+        template,
+        utils::{rotate_point, rotate_point_pivot},
     },
 };
 use ahash::AHashMap;
 use anyhow::Result;
 use egui::{Align2, CentralPanel, Color32, Context, Frame, Sense, TextEdit, TextureHandle, Window};
 use egui_notify::Toasts;
-use glam::{dvec2 as vec2, DVec2 as Vec2};
+use glam::{DVec2 as Vec2, dvec2 as vec2};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
@@ -41,7 +38,6 @@ nestify::nest! {
         mouse_pos_world: Vec2,
         is_mobile: bool,
 
-        layout_server: Home,
         layout: Home,
         textures: AHashMap<String, TextureHandle>,
         light_data: Option<(u64, TextureHandle)>,
@@ -53,7 +49,6 @@ nestify::nest! {
         presence_points: Vec<Vec2>,
 
         toasts: Arc<Mutex<Toasts>>,
-        edit_mode: EditDetails,
         host: String,
 
         #>[derive(Deserialize, Serialize, Debug)]
@@ -72,12 +67,6 @@ nestify::nest! {
 
         #>[derive(Default)]*
         network_data: Arc<Mutex<struct DownloadData {
-            layout: enum DownloadLayout {
-                #[default]
-                None,
-                InProgress,
-                Done(Result<Home>),
-            },
             hass_states: enum DownloadStates {
                 #[default]
                 None,
@@ -129,8 +118,7 @@ impl HomeFlow {
             mouse_pos_world: Vec2::ZERO,
             is_mobile: false,
 
-            layout_server: Home::empty(),
-            layout: Home::empty(),
+            layout: template::default(),
             textures: AHashMap::new(),
             light_data: None,
             bounds: (Vec2::ZERO, Vec2::ZERO),
@@ -141,7 +129,6 @@ impl HomeFlow {
             presence_points: Vec::new(),
 
             toasts: Arc::new(Mutex::new(Toasts::default())),
-            edit_mode: EditDetails::default(),
             host: "localhost:8127".to_string(),
             stored: StoredData { rotation, ..stored },
             login_form: LoginForm {
@@ -188,12 +175,7 @@ impl HomeFlow {
         }
 
         // Drag
-        let pointer_button = if self.edit_mode.enabled {
-            egui::PointerButton::Secondary
-        } else {
-            egui::PointerButton::Primary
-        };
-        let mut translation_delta = if response.dragged_by(pointer_button) {
+        let mut translation_delta = if response.dragged_by(egui::PointerButton::Primary) {
             egui_to_vec2(response.drag_delta()) * 0.01
         } else {
             Vec2::ZERO
@@ -271,41 +253,6 @@ impl HomeFlow {
         self.stored.translation = self.stored.translation.clamp(self.bounds.0, self.bounds.1);
     }
 
-    fn load_layout(&mut self) {
-        // Load layout from server if needed
-        if !self.layout.version.is_empty() {
-            return;
-        }
-        let network_store = self.network_data.clone();
-        let mut network_data_guard = network_store.lock();
-        match &network_data_guard.layout {
-            DownloadLayout::None => {
-                network_data_guard.layout = DownloadLayout::InProgress;
-                drop(network_data_guard);
-                get_layout(&self.host, &self.stored.auth_token, move |res| {
-                    network_store.lock().layout = DownloadLayout::Done(res);
-                });
-            }
-            DownloadLayout::InProgress => {}
-            DownloadLayout::Done(ref response) => {
-                match response {
-                    Ok(layout) => {
-                        self.layout_server = layout.clone();
-                        self.layout = layout.clone();
-                    }
-                    Err(e) => {
-                        // If unauthorised, clear auth token and show login screen
-                        if e.to_string().contains("status code: 401") {
-                            self.stored.auth_token.clear();
-                        }
-                        log::error!("Failed to fetch layout: {:?}", e);
-                    }
-                }
-                network_data_guard.layout = DownloadLayout::None;
-            }
-        }
-    }
-
     fn get_states(&mut self) {
         let network_store = self.network_data.clone();
         let mut network_data_guard = network_store.lock();
@@ -324,7 +271,7 @@ impl HomeFlow {
                 }
             }
             DownloadStates::InProgress => {}
-            DownloadStates::Done(ref response) => {
+            DownloadStates::Done(response) => {
                 match response {
                     Ok(states) => {
                         // Update all data with the new state
@@ -369,7 +316,7 @@ impl HomeFlow {
                         if e.to_string().contains("status code: 401") {
                             self.stored.auth_token.clear();
                         }
-                        log::error!("Failed to fetch states: {:?}", e);
+                        log::error!("Failed to fetch states: {e:?}");
                     }
                 }
                 network_data_guard.hass_states =
@@ -439,7 +386,7 @@ impl eframe::App for HomeFlow {
                     ..Default::default()
                 })
                 .show(ctx, |_| {
-                    let canvas_center = egui_pos_to_vec2(ctx.screen_rect().center());
+                    let canvas_center = egui_pos_to_vec2(ctx.content_rect().center());
 
                     Window::new("Login Form".to_string())
                         .fixed_pos(vec2_to_egui_pos(vec2(canvas_center.x, canvas_center.y)))
@@ -482,7 +429,7 @@ impl eframe::App for HomeFlow {
                                         ui.label("Logging in...");
                                         ui.add(egui::Spinner::new());
                                     }
-                                    LoginState::Done(ref response) => {
+                                    LoginState::Done(response) => {
                                         match response {
                                             Ok(response) => {
                                                 if response.contains('|') {
@@ -523,10 +470,6 @@ impl eframe::App for HomeFlow {
             return;
         }
 
-        self.load_layout();
-        if self.layout.version.is_empty() {
-            return;
-        }
         self.get_states();
         self.post_states();
 
@@ -549,57 +492,17 @@ impl eframe::App for HomeFlow {
                 self.mouse_pos = mouse_pos;
                 self.mouse_pos_world = self.screen_to_world(mouse_pos);
 
-                self.is_mobile = ctx.screen_rect().size().x < 550.0;
+                self.is_mobile = ctx.content_rect().size().x < 550.0;
 
-                let edit_mode_response = if self.is_mobile {
-                    EditResponse {
-                        used_dragged: false,
-                        hovered_id: None,
-                        snap_line_x: None,
-                        snap_line_y: None,
-                    }
-                } else {
-                    self.run_edit_mode(&response, ui)
-                };
-                if !edit_mode_response.used_dragged
-                    && (self.interaction_state.light_drag.is_none()
-                        || !self.interaction_state.light_drag.as_ref().unwrap().active)
+                if self.interaction_state.light_drag.is_none()
+                    || !self.interaction_state.light_drag.as_ref().unwrap().active
                 {
                     self.handle_pan_zoom(&response, ui);
                 }
 
                 self.render_layout(&painter);
 
-                if !self.is_mobile && self.edit_mode.enabled {
-                    self.paint_edit_mode(&painter, &edit_mode_response);
-                } else {
-                    self.interact_with_layout(&response, &painter);
-                }
-
-                if !self.is_mobile {
-                    Window::new("Bottom Right")
-                        .fixed_pos(egui::pos2(
-                            response.rect.right() - 10.0,
-                            response.rect.bottom() - 10.0,
-                        ))
-                        .fixed_size(egui::vec2(100.0, 0.0))
-                        .pivot(Align2::RIGHT_BOTTOM)
-                        .title_bar(false)
-                        .resizable(false)
-                        .constrain(false)
-                        .show(ctx, |ui| {
-                            ui.with_layout(
-                                egui::Layout::from_main_dir_and_cross_align(
-                                    egui::Direction::TopDown,
-                                    egui::Align::Center,
-                                )
-                                .with_cross_justify(true),
-                                |ui| {
-                                    self.edit_mode_settings(ui);
-                                },
-                            );
-                        });
-                }
+                self.interact_with_layout(&response, &painter);
 
                 self.toasts.lock().show(ctx);
             });

@@ -13,18 +13,14 @@ use std::hash::Hash;
 use strum_macros::{Display, EnumIter};
 use uuid::Uuid;
 
-pub const LAYOUT_VERSION: &str = "0.5";
-
 nestify::nest! {
-    #[derive(Serialize, Deserialize, Clone)]*
     pub struct Home {
-        pub version: String,
-
+        #>[derive(Clone)]
         pub materials: Vec<pub struct GlobalMaterial {
             pub name: String,
             pub material: Material,
             pub tint: Color,
-            #>[derive(Default)]
+            #>[derive(Clone, Default)]
             pub tiles: Option<pub struct TileOptions {
                 pub spacing: f64,
                 pub grout_width: f64,
@@ -41,14 +37,14 @@ nestify::nest! {
 
             pub operations: Vec<pub struct Operation {
                 pub id: Uuid,
-                #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash)]
+                #>[derive(Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
                 pub action: pub enum Action {
                     Add,
                     Subtract,
                     AddWall,
                     SubtractWall,
                 },
-                #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash)]
+                #>[derive(Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
                 pub shape: pub enum Shape {
                     Rectangle,
                     Circle,
@@ -73,7 +69,7 @@ nestify::nest! {
             pub walls: Walls,
             pub openings: Vec<pub struct Opening {
                 pub id: Uuid,
-                #>[derive(Copy, PartialEq, Eq, Display, EnumIter, Hash)]
+                #>[derive(Clone, Copy, PartialEq, Eq, Display, EnumIter, Hash)]
                 pub opening_type: pub enum OpeningType {
                     Door,
                     Window,
@@ -83,10 +79,10 @@ nestify::nest! {
                 pub width: f64,
                 pub flipped: bool,
 
-                #[serde(skip)]
                 pub open_amount: f64,
             }>,
 
+            #>[derive(Clone)]*
             pub lights: Vec<pub struct Light {
                 pub id: Uuid,
                 pub name: String,
@@ -104,13 +100,9 @@ nestify::nest! {
                 pub intensity: f64,
                 pub radius: f64,
 
-                #[serde(skip)]
                 pub state: u8,
-                #[serde(skip)]
                 pub lerped_state: f64,
-                #[serde(skip)]
                 pub light_data: Option<LightsData>,
-                #[serde(skip)]
                 pub last_manual: f64,
             }>,
 
@@ -121,6 +113,7 @@ nestify::nest! {
 
             pub furniture: Vec<Furniture>,
 
+            #>[derive(Clone)]
             pub sensors: Vec<pub struct Sensor {
                 pub id: Uuid,
                 pub entity_id: String,
@@ -129,21 +122,17 @@ nestify::nest! {
             }>,
             pub sensors_offset: Vec2,
 
-            #[serde(skip)]
             pub rendered_data: Option<RoomRender>,
-            #[serde(skip)]
             pub hass_data: AHashMap<String, String>,
         }>,
 
-        #[serde(skip)]
         pub rendered_data: Option<HomeRender>,
-        #[serde(skip)]
         pub light_data: Option<LightData>,
     }
 }
 
 bitflags::bitflags! {
-    #[derive(Serialize, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
+    #[derive(Clone, Copy,  PartialEq, Eq)]
     pub struct Walls: u8 {
         const LEFT   = 0b0001;
         const TOP    = 0b0010;
@@ -154,15 +143,13 @@ bitflags::bitflags! {
 
 #[derive(Clone)]
 pub struct HomeRender {
-    pub hash: u64,
     pub wall_triangles: Vec<Triangles>,
     pub wall_lines: Vec<Line>,
-    pub wall_shadows: (u64, ShadowsData),
+    pub wall_shadows: ShadowsData,
 }
 
 #[derive(Clone)]
 pub struct RoomRender {
-    pub hash: u64,
     pub polygons: MultiPolygon,
     pub material_triangles: IndexMap<String, Vec<Triangles>>,
     pub wall_polygons: MultiPolygon,

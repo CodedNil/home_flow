@@ -1,4 +1,4 @@
-use crate::common::layout::{DataPoint, Home};
+use crate::common::layout::DataPoint;
 use ahash::AHashMap;
 use glam::DVec2;
 use serde::{Deserialize, Serialize};
@@ -23,12 +23,6 @@ pub struct HAState {
 #[derive(Serialize, Deserialize)]
 pub struct TokenPacket {
     pub token: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SaveLayoutPacket {
-    pub token: String,
-    pub home: Home,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

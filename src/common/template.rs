@@ -6,7 +6,7 @@ use crate::common::{
     },
     layout::{
         Action, DataPoint, GlobalMaterial, Home, LightType, Operation, Outline, Room, Sensor,
-        Shape, Walls, Zone, LAYOUT_VERSION,
+        Shape, Walls, Zone,
     },
     utils::Material,
 };
@@ -14,7 +14,6 @@ use glam::dvec2 as vec2;
 
 pub fn default() -> Home {
     Home {
-        version: LAYOUT_VERSION.to_string(),
         materials: vec![
             GlobalMaterial::new("Carpet", Material::Carpet, Color::from_rgb(240, 230, 210)),
             GlobalMaterial::new("Wood", Material::Wood, Color::from_rgb(190, 120, 80)),
